@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { applyBands, buildRequest, makeJevDecider, parseResponse, type Decider, type Decision } from "./router";
 import type { Project } from "./scanner";
 import { createServer } from "./server";
-import { parseId, type Spawner } from "./spawner";
+import { parseId, spawnArgs, type Spawner } from "./spawner";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
 const projects: Project[] = [
@@ -47,6 +47,21 @@ test("spawn uses transcript verbatim, worktree cwd, and logs", async () => {
   const line = JSON.parse(readFileSync(logPath, "utf8").trim().split("\n")[0]);
   expect(line).toMatchObject({ transcript: "fix the bug", choice: "alpha", confidence: 0.9, band: "spawn", outcome: "spawned" });
   expect(JSON.stringify(line)).not.toContain("Bearer");
+});
+
+test("spawn always isolates in its own worktree", () => {
+  const args = spawnArgs("voice-alpha-1", "fix it");
+  expect(args.slice(args.indexOf("--worktree"), args.indexOf("--worktree") + 2)).toEqual(["--worktree", "voice-alpha-1"]);
+  expect(args).toContain("--bg");
+  expect(args.at(-1)).toBe("fix it"); // transcript stays the last, verbatim arg
+});
+
+test("spawn name is safe as a worktree name", async () => {
+  const odd: Project = { id: "/p/my app", name: "my app/v2", path: "/p/my app", worktrees: [{ path: "/p/my app", branch: "main" }] };
+  const { deps, spawns } = mk([dec("my app/v2", 0.9)]);
+  deps.getProjects = () => [odd];
+  await handleTranscript(deps, "d", "x");
+  expect(spawns[0].name).toMatch(/^[\w.-]{1,64}$/);
 });
 
 test("unknown worktree falls back to project path", async () => {

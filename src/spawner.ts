@@ -8,9 +8,12 @@ export function parseId(stdout: string): string | null {
   return stdout.match(/backgrounded\s*\S*\s*([0-9a-f]{8})\b/i)?.[1] ?? null;
 }
 
+/** Voice sessions always get their own git worktree (`--worktree`), so unattended edits never touch an existing checkout. */
+export const spawnArgs = (name: string, prompt: string) => ["--bg", "--worktree", name, "--permission-mode", "auto", "-n", name, prompt];
+
 export const claudeSpawner: Spawner = async (cwd, prompt, name) => {
   const bin = process.env.CLAUDE_BIN || "claude";
-  const proc = Bun.spawn([bin, "--bg", "--permission-mode", "auto", "-n", name, prompt], {
+  const proc = Bun.spawn([bin, ...spawnArgs(name, prompt)], {
     cwd,
     stdout: "pipe",
     stderr: "pipe",

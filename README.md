@@ -27,9 +27,9 @@ curl -X POST localhost:4321/hooks/SessionEnd -d '{"session_id":"s1"}'
 
 ## Voice router
 
-A transcript is routed to a project by a decision model (Jev via OpenRouter, `typesafe/jev-1.13`); on a confident match the server runs `claude --bg --permission-mode auto -n voice-<project>-<time> "<transcript>"` in that project (or the chosen worktree). The prompt is the transcript verbatim.
+A transcript is routed to a project by a decision model (Jev via OpenRouter, `typesafe/jev-1.13`); on a confident match the server runs `claude --bg --worktree voice-<project>-<time> --permission-mode auto -n voice-<project>-<time> "<transcript>"` from that project (or the chosen worktree). `--worktree` is always passed, so every voice session works in its own new git worktree and branch (`worktree-voice-<project>-<time>`) and never edits an existing checkout. The prompt is the transcript verbatim.
 
-**Real spawns run in auto permission mode, so edits happen unattended.**
+**Real spawns run in auto permission mode, so edits happen unattended, but only inside their own worktree.** Review and merge or delete the branch afterwards (`claude rm <id>` removes the session and its worktree when safe).
 
 | Direction | Frame |
 |---|---|

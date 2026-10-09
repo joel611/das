@@ -71,7 +71,8 @@ export async function handleTranscript(deps: VoiceDeps, deviceKey: string, trans
   }
 
   const cwd = project.worktrees.some((w) => w.path === d.worktree) ? d.worktree! : project.path;
-  const name = `voice-${project.name}-${new Date().toISOString().slice(5, 16).replace(/\D/g, "")}`;
+  // also used as the worktree folder/branch name: letters, digits, dot, underscore, dash only
+  const name = `voice-${project.name}-${new Date().toISOString().slice(5, 16).replace(/\D/g, "")}`.replace(/[^\w.-]/g, "-").slice(0, 64);
   try {
     const r = await deps.spawner(cwd, text, name);
     return done({ status: "spawned", text: `Started in ${project.name}`, project: project.name, sessionId: r.id ?? undefined }, { ...meta, cwd, sessionId: r.id, stdout: r.stdout.slice(0, 500) });
