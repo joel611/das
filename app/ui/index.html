@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Stack-chan Settings</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <p id="banner" hidden></p>
+
+  <section>
+    <h2>Settings</h2>
+    <form id="form">
+      <label>Root folders (one per line)
+        <textarea id="roots" rows="4" spellcheck="false"></textarea>
+      </label>
+      <label>Port
+        <input id="port" type="number" min="1" max="65535">
+      </label>
+      <label>Token (blank keeps the current one)
+        <input id="token" type="password" autocomplete="off">
+        <span class="inline"><input id="clearToken" type="checkbox"> clear</span>
+      </label>
+      <label>OpenRouter key (blank keeps the current one)
+        <input id="key" type="password" autocomplete="off">
+        <span class="inline"><input id="clearKey" type="checkbox"> clear</span>
+      </label>
+      <p id="pinned" class="muted" hidden></p>
+      <button type="submit">Save</button>
+      <span id="saved" class="muted"></span>
+    </form>
+  </section>
+
+  <section>
+    <h2>Claude Code hooks</h2>
+    <p id="hooks" class="muted"></p>
+    <button id="install">Install hooks</button>
+    <button id="uninstall">Uninstall hooks</button>
+  </section>
+
+  <section>
+    <h2>Connected devices</h2>
+    <ul id="devices"></ul>
+  </section>
+
+  <section id="trust" hidden>
+    <h2>Untrusted projects</h2>
+    <pre id="advice"></pre>
+  </section>
+
+  <script src="app.js"></script>
+</body>
+</html>
