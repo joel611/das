@@ -1,0 +1,35 @@
+:root { color-scheme: light dark; --bd: #8884; --mut: #888; --acc: #2a6df4; --bad: #c62828; }
+* { box-sizing: border-box; }
+body { font: 14px/1.4 system-ui, sans-serif; margin: 0; padding: 12px; }
+h1 { font-size: 18px; margin: 0 0 8px; }
+h2 { font-size: 13px; margin: 10px 0 6px; text-transform: uppercase; color: var(--mut); }
+.layout { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+main { flex: 3 1 340px; min-width: 0; }
+aside { flex: 1 1 200px; min-width: 0; border: 1px solid var(--bd); border-radius: 6px; padding: 8px; }
+aside h2:first-child { margin-top: 0; }
+#log { border: 1px solid var(--bd); border-radius: 6px; padding: 8px; min-height: 200px; max-height: 55vh; overflow-y: auto; margin-bottom: 8px; }
+.turn { margin: 0 0 10px; }
+.you { text-align: right; }
+.you span { display: inline-block; background: var(--acc); color: #fff; padding: 4px 8px; border-radius: 8px; white-space: pre-wrap; text-align: left; }
+.say { font-weight: 600; }
+.meta { color: var(--mut); font-size: 12px; word-break: break-all; }
+.tag { display: inline-block; padding: 0 6px; border-radius: 8px; border: 1px solid var(--bd); font-size: 12px; }
+.tag.dry-run { color: #1565c0; } .tag.spawned { color: #2e7d32; } .tag.error { color: var(--bad); } .tag.ask { color: #ef6c00; }
+.dbg { margin-top: 4px; padding: 6px; border: 1px dashed var(--bd); border-radius: 6px; font-size: 12px; }
+.bar { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+.bar .n { flex: 0 0 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar .t { flex: 1; height: 8px; background: var(--bd); border-radius: 4px; overflow: hidden; }
+.bar .t i { display: block; height: 100%; background: var(--acc); }
+textarea { width: 100%; font: inherit; padding: 6px; resize: vertical; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+button { font: inherit; padding: 4px 12px; cursor: pointer; }
+button.danger { background: var(--bad); color: #fff; border: 0; border-radius: 4px; }
+#warn, #confirm { color: #fff; background: var(--bad); padding: 6px 8px; border-radius: 6px; margin-top: 6px; }
+#confirm button { margin-right: 6px; }
+#confirm q { display: block; margin: 4px 0; white-space: pre-wrap; }
+[hidden] { display: none !important; }
+#projects { list-style: none; padding: 0; margin: 6px 0 0; max-height: 40vh; overflow-y: auto; }
+#projects li { padding: 3px 0; border-bottom: 1px solid var(--bd); }
+#filter { width: 100%; padding: 4px; font: inherit; }
+.info { font-size: 12px; margin: 4px 0; }
+.warn-t { color: var(--bad); }

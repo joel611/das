@@ -162,7 +162,7 @@ export function createServer({
         }
         if (url.pathname === "/v1/voice" && req.method === "POST") {
           const body: any = await req.json().catch(() => ({}));
-          return Response.json(await handleTranscript(voice, `http:${body.device ?? "default"}`, String(body.text ?? "")));
+          return Response.json(await handleTranscript(voice, `http:${body.device ?? "default"}`, String(body.text ?? ""), { dryRun: body.dryRun === true, debug: body.debug === true }));
         }
         if (url.pathname === "/v1/projects") return Response.json(getProjects());
         if (url.pathname === "/v1/sessions") return Response.json(tracker.list());

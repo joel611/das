@@ -42,6 +42,26 @@ Bands (by the top choice's confidence): `>= ACT_THRESHOLD` (0.8) spawn; `ASK_THR
 
 Every decision is appended as a JSON line to `DECISIONS_LOG` (default `./data/decisions.jsonl`: ts, transcript, choice, confidence, probabilities, band, outcome) for threshold tuning. Env: `OPENROUTER_API_KEY`, `CLAUDE_BIN`, `ACT_THRESHOLD`, `ASK_THRESHOLD`, `DECISIONS_LOG`.
 
+### Voice console and dry run
+
+The menu bar app has a `Voice console…` item that opens a typed stand-in for speech: type a request, see the router's decision. The page is part of the app (`app/ui/console.html`) and calls the server through the Rust `api` command, which adds the token, so there is no token field and no server route for it. It talks to `POST /v1/voice` with device id `console` (so an "ask" can be answered on the next turn; "New conversation" switches to a fresh id), lists routable projects (`/v1/projects`), and shows whether an OpenRouter key is set and how many projects are untrusted.
+
+**Dry run is the default** (checkbox checked). It runs the decider, bands, allowlist gates and ask bookkeeping, and logs the decision with `outcome: "dry-run"`, but never calls the spawner. Unchecking it shows a red warning, and each send needs a second click on "Yes, send for real" (an inline prompt, because native dialogs are not reliable in the webview), since a real send starts `claude --bg --permission-mode auto` in an isolated worktree.
+
+Dev helper: `SERVER=http://127.0.0.1:4321 bun scripts/dev-ui.ts` serves `app/ui` at `http://127.0.0.1:5199/console.html` in a normal browser, with a stand-in for Tauri's `invoke("api", ...)` (same allow-list and `{status, body}` result), so the real UI files can be tested without the native window. Set `TOKEN` if the server needs one.
+
+`POST /v1/voice` body: `{"text":"...","device":"name","dryRun":false,"debug":false}`. `dryRun` and `debug` are optional booleans. A missing `dryRun` is a REAL run (as before), so existing clients are unchanged. `dryRun: true` or `debug: true` adds a `debug` field to the reply; normal replies have none.
+
+```json
+{ "status": "dry-run", "text": "Would start in recipe-app", "project": "recipe-app",
+  "debug": { "choice": "recipe-app", "confidence": 0.93, "band": "spawn",
+    "probabilities": {"recipe-app": 0.93, "ml-pipeline": 0.04}, "alternatives": [{"project":"recipe-app","p":0.93}],
+    "worktree": null, "cwd": "/path/recipe-app", "wouldSpawn": true, "name": "voice-recipe-app-1009-1432",
+    "thresholds": {"act": 0.8, "ask": 0.4} } }
+```
+
+`status` is one of `spawned`, `dry-run` (a spawn that was skipped), `ask`, `escalate`, `error`. In a dry run, `ask` and `escalate` replies are unchanged apart from `debug`.
+
 ### Workspace trust
 
 `claude --bg` refuses to start in a folder Claude Code does not trust ("Workspace not trusted"); there is no dialog in a background spawn. Trust is stored per folder in `~/.claude.json` (`projects[<path>].hasTrustDialogAccepted`), there is no `settings.json` key for it, and a trusted folder covers every subfolder (verified with `claude --bg`: a child of a trusted folder starts, a child of an untrusted one is refused). Trust is never saved for the home directory.

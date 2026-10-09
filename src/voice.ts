@@ -7,7 +7,27 @@ import type { Spawner } from "./spawner";
 export const MAX_TRANSCRIPT = 1000;
 const PENDING_TTL_MS = 2 * 60_000;
 
-export type VoiceResult = { status: "spawned" | "ask" | "escalate" | "error"; text: string; project?: string; sessionId?: string };
+export type VoiceDebug = {
+  choice: string | null;
+  confidence: number;
+  band: Band;
+  probabilities: Record<string, number>;
+  alternatives: { project: string; p: number }[];
+  worktree: string | null;
+  cwd: string | null;
+  wouldSpawn: boolean;
+  name: string | null;
+  thresholds: Thresholds;
+};
+export type VoiceResult = {
+  status: "spawned" | "dry-run" | "ask" | "escalate" | "error";
+  text: string;
+  project?: string;
+  sessionId?: string;
+  debug?: VoiceDebug;
+};
+/** dryRun: decide and gate as usual but never call the spawner. debug: attach the debug object (always on for dryRun). */
+export type VoiceOpts = { dryRun?: boolean; debug?: boolean };
 
 export type VoiceDeps = {
   decider: Decider;
@@ -30,11 +50,13 @@ const log = (deps: VoiceDeps, entry: Record<string, unknown>) => {
 
 const SORRY = "Sorry, I didn't catch that";
 
-export async function handleTranscript(deps: VoiceDeps, deviceKey: string, transcript: string): Promise<VoiceResult> {
+export async function handleTranscript(deps: VoiceDeps, deviceKey: string, transcript: string, opts: VoiceOpts = {}): Promise<VoiceResult> {
   const text = (transcript ?? "").trim();
+  const wantDebug = !!(opts.dryRun || opts.debug);
+  let debug: VoiceDebug | undefined;
   const done = (r: VoiceResult, extra: Record<string, unknown> = {}) => {
-    log(deps, { transcript: text.slice(0, MAX_TRANSCRIPT), device: deviceKey, outcome: r.status, ...extra });
-    return r;
+    log(deps, { transcript: text.slice(0, MAX_TRANSCRIPT), device: deviceKey, outcome: r.status, ...(opts.dryRun ? { dryRun: true } : {}), ...extra });
+    return wantDebug && debug ? { ...r, debug } : r;
   };
   if (!text || text.length > MAX_TRANSCRIPT) {
     return done({ status: "escalate", text: SORRY }, { band: "escalate", reason: "invalid transcript" });
@@ -61,6 +83,23 @@ export async function handleTranscript(deps: VoiceDeps, deviceKey: string, trans
     ...(d.project !== null && !project ? { reason: "project not in allowlist" } : {}),
   };
 
+  const t = deps.thresholds ?? defaultThresholds;
+  const cwd = project ? (project.worktrees.some((w) => w.path === d.worktree) ? d.worktree! : project.path) : null;
+  // also used as the worktree folder/branch name: letters, digits, dot, underscore, dash only
+  const name = project ? `voice-${project.name}-${new Date().toISOString().slice(5, 16).replace(/\D/g, "")}`.replace(/[^\w.-]/g, "-").slice(0, 64) : null;
+  debug = {
+    choice: d.project,
+    confidence: d.confidence,
+    band,
+    probabilities: Object.fromEntries(d.alternatives.slice(0, 5).map((a) => [a.project, a.p])),
+    alternatives: d.alternatives,
+    worktree: d.worktree ?? null,
+    cwd,
+    wouldSpawn: band === "spawn" && !!project,
+    name: band === "spawn" ? name : null,
+    thresholds: t,
+  };
+
   if (band === "escalate" || !project) return done({ status: "escalate", text: SORRY }, meta);
 
   if (band === "ask") {
@@ -70,11 +109,9 @@ export async function handleTranscript(deps: VoiceDeps, deviceKey: string, trans
     return done({ status: "ask", text: `Which one, ${names.slice(0, -1).join(", ")} or ${names.at(-1)}?` }, meta);
   }
 
-  const cwd = project.worktrees.some((w) => w.path === d.worktree) ? d.worktree! : project.path;
-  // also used as the worktree folder/branch name: letters, digits, dot, underscore, dash only
-  const name = `voice-${project.name}-${new Date().toISOString().slice(5, 16).replace(/\D/g, "")}`.replace(/[^\w.-]/g, "-").slice(0, 64);
+  if (opts.dryRun) return done({ status: "dry-run", text: `Would start in ${project.name}`, project: project.name }, { ...meta, cwd, name });
   try {
-    const r = await deps.spawner(cwd, text, name);
+    const r = await deps.spawner(cwd!, text, name!);
     return done({ status: "spawned", text: `Started in ${project.name}`, project: project.name, sessionId: r.id ?? undefined }, { ...meta, cwd, sessionId: r.id, stdout: r.stdout.slice(0, 500) });
   } catch (e) {
     const untrusted = /not trusted/i.test(String(e));
