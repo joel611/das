@@ -210,6 +210,23 @@ fn open_settings(app: &AppHandle) {
         .ok();
 }
 
+/// The console is served by the sidecar, so it is an external page (no IPC, no capability needed).
+fn open_console(app: &AppHandle) {
+    let (port, _) = port_and_token();
+    if let Some(w) = app.get_webview_window("console") {
+        w.show().ok();
+        w.set_focus().ok();
+        return;
+    }
+    let url = format!("http://127.0.0.1:{port}/console").parse().expect("console url");
+    WebviewWindowBuilder::new(app, "console", WebviewUrl::External(url))
+        .title("Stack-chan Voice Console")
+        .inner_size(760.0, 720.0)
+        .build()
+        .map_err(|e| eprintln!("console window: {e}"))
+        .ok();
+}
+
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![api])
@@ -219,14 +236,16 @@ fn main() {
 
             let status = MenuItem::with_id(app, "status", "starting…", false, None::<&str>)?;
             let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
+            let console = MenuItem::with_id(app, "console", "Voice console…", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&status, &PredefinedMenuItem::separator(app)?, &settings, &quit])?;
+            let menu = Menu::with_items(app, &[&status, &PredefinedMenuItem::separator(app)?, &console, &settings, &quit])?;
             TrayIconBuilder::with_id("main")
                 .icon(icon("offline"))
                 .icon_as_template(false)
                 .tooltip("Stack-chan")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
+                    "console" => open_console(app),
                     "settings" => open_settings(app),
                     "quit" => {
                         stop_sidecar();
