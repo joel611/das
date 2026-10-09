@@ -8,3 +8,11 @@ dist/
 app/src-tauri/target/
 app/src-tauri/binaries/
 app/src-tauri/gen/
+
+# AI agent worktrees
+.claude/worktrees/
+
+# desktop
+packages/desktop/dist/
+packages/desktop/src-tauri/target/
+packages/desktop/src-tauri/gen/

@@ -1,17 +1,29 @@
 {
   "name": "stack-chan-server",
   "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
   "type": "module",
   "scripts": {
-    "dev": "bun --watch src/server.ts",
-    "start": "bun src/server.ts",
-    "test": "bun test",
-    "sidecar:build": "bun scripts/build-sidecar.ts",
-    "app:dev": "bun run sidecar:build && tauri dev",
-    "app:build": "bun run sidecar:build && tauri build"
+    "daemon": "bun packages/cli/src/daemon.ts",
+    "desktop": "bun run --cwd packages/desktop tauri dev",
+    "test": "vp run -r test",
+    "check": "vp check",
+    "ready": "vp check && vp run -r test && vp run -r build"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.12.1",
-    "@types/bun": "latest"
+    "vite": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "overrides": {
+    "vite": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "catalog": {
+    "vite": "npm:@voidzero-dev/vite-plus-core@1.1.0",
+    "vite-plus": "1.1.0"
   }
 }
