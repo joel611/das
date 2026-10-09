@@ -58,10 +58,15 @@ Claude Code sessions ──hooks──▶ ┌───────────�
 ### 4. Router agent (voice)
 - Device sends transcript text (STT is device/client side; server never handles audio).
 - Small agent gets: transcript + project list (names, paths, worktrees, recent activity). Returns structured output: `{project, worktree?, prompt, confidence, alternatives[]}`.
-- **Confidence-gated decision** (JEV-style, see open questions):
-  - `confidence >= threshold` → spawn immediately, no question.
-  - below threshold → reply with a question naming the top candidates; the next transcript resolves it.
-  - Threshold is configurable; start high (e.g. 0.8) and tune from logs.
+- **Confidence-gated decision, modeled on [Jev](https://techjacksolutions.com/ai-tools/typesafe/what-is-jev-typesafe-ai/)** (TypeSafe AI decision model: takes text state + typed questions, returns choices/scores with a 0-1 confidence; it decides, it does not generate text):
+  - Project selection = a Jev-style `Choice` question over the project list. The task prompt is the transcript passed through, so no generation step is needed.
+  - Confidence bands (act / ask / escalate):
+    - `>= act` → spawn immediately, no question.
+    - between `ask` and `act` → reply with a question naming the top candidates; the next transcript resolves it.
+    - `< ask` → don't spawn, tell the user it didn't understand.
+  - Thresholds come from labeled data and the cost of a wrong spawn, not a guess. Log every decision (transcript, choice, confidence, outcome), then tune per band. Start conservative.
+  - Spawning is hard to undo, so confidence is one gate among others (e.g. project-name match, allowlist).
+  - Implementation options: call Jev if API access is available, or emulate with a Haiku-class model returning structured output + logprob/self-reported confidence. Behind one `decide()` interface so it can be swapped.
 - Spawns a background Claude session via **`claude` CLI flags** (no Agent SDK for spawning) with `cwd` set to the chosen worktree. Exact flags are pinned when implementing M4.
 - Router model: **TBC**. Candidates are Haiku-class for cost/latency; benchmark on real transcripts before choosing.
 - Replies to the device with a short spoken-style confirmation ("Started in stack-chan-server").
@@ -108,7 +113,7 @@ Capabilities in `hello` (`screen`, `speaker`, `mic`, `buttons`, `servo`) let the
 ## Open questions
 - Which exact `claude` CLI flags for background spawn and monitoring? Check `claude --help` at M4.
 - Router agent model: TBC, benchmark Haiku-class vs others.
-- "JEV decision model": assumed to mean confidence-threshold gating (act if confident, else ask). If JEV is a specific scoring method, e.g. expected-value over spawn cost vs wrong-project cost, define it here.
+- Jev (TypeSafe AI): confirmed as the decision model. Sources are secondary blogs; verify against TypeSafe's official docs: API access, pricing, latency, and whether it can run on the LAN/locally. Its calibration claim is vendor-stated, so validate on my own transcripts.
 - Does the web simulator support WebSocket + mic/transcript input, or only display?
 - Confidence calibration: LLM self-reported confidence is weak. Consider blending with deterministic signals (exact project-name match, recent activity in that project).
 - Root folder structure: any monorepos where sub-packages should count as separate projects?
