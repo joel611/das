@@ -22,7 +22,7 @@ make -C $MODDABLE/build/makefiles/mac
 
 git clone --depth 1 -b develop https://github.com/stack-chan/stack-chan.git ~/Developer/stack-chan
 cd ~/Developer/stack-chan/firmware && npm ci
-npm run mod:build -- <this-repo>/client/stackchan-mod/manifest.json --mode=release
+npm run mod:build -- <this-repo>/packages/stackchan-mod/manifest.json --mode=release
 # -> firmware/dist/bin/esp32/release/stackchan-mod/stackchan-mod.xsa (2 KB, copied here)
 ```
 

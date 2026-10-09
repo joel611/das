@@ -18,9 +18,9 @@ Needs full Xcode (tested with Xcode 27). Output lands in `$MODDABLE/build/bin/ma
 ## Run
 
 ```sh
-bun src/server.ts                 # real server, :4321
-bun spike/tap.ts                  # optional logging proxy, :4322 -> :4321
-mcconfig -d -m -p mac -o /some/dir -m spike/ws-client/manifest.json   # builds and launches mcsim + xsbug
+bun run daemon                        # real server, :4321
+bun packages/stackchan-mod/sim-spike/tap.ts                  # optional logging proxy, :4322 -> :4321
+mcconfig -d -m -p mac -o /some/dir -m packages/stackchan-mod/sim-spike/ws-client/manifest.json   # builds and launches mcsim + xsbug
 curl -X POST localhost:4321/hooks/PreToolUse -d '{"session_id":"s","cwd":"/path/in/a/project","tool_name":"Edit"}'
 ```
 
