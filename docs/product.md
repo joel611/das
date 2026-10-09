@@ -35,9 +35,13 @@ Claude Code sessions ──hooks──▶ ┌───────────�
 
 ### 1. Project scanner
 - Config: one or more root folders.
-- Walk the tree, treat any dir with `.git` (dir **or** file, so worktrees count) as a project; stop descending at a git root.
-- Watch for added/removed repos (fs watch + periodic rescan).
-- Project = `{id, name, path, branch}`. Map a session `cwd` to a project by longest path prefix.
+- Walk the tree, find every dir with `.git` (dir **or** file); stop descending at a git root.
+- **Group worktrees into one project.** Resolve each `.git` to its git common dir (`git rev-parse --git-common-dir`); all checkouts sharing a common dir are one project. Main checkout = primary, others come from `git worktree list --porcelain`.
+  - Includes sibling worktree folders (e.g. `repo-feature/`) and nested ones (e.g. `repo/.claude/worktrees/x`). Never list a nested worktree as its own project.
+  - Linked worktrees outside the root folder still attach to their project.
+- Watch for added/removed repos and worktrees (fs watch + periodic rescan).
+- Project = `{id, name, path, worktrees: [{path, branch}]}`.
+- Map a session `cwd` to a worktree by longest path prefix, then roll up to its project. Device UI shows project, with branch/worktree as detail.
 
 ### 2. Session tracker
 - Source of truth: **Claude Code hooks** (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop`, `SessionEnd`) installed in `~/.claude/settings.json`, each posting JSON to `http://localhost:<port>/hooks/:event`. Hooks must be fire-and-forget, never block the agent.
@@ -53,10 +57,14 @@ Claude Code sessions ──hooks──▶ ┌───────────�
 
 ### 4. Router agent (voice)
 - Device sends transcript text (STT is device/client side; server never handles audio).
-- Small agent gets: transcript + project list (names, paths, recent activity). Decides `{project, prompt}` or asks for clarification.
-- Spawns a background Claude session in that project (Agent SDK or `claude` CLI; verify the exact background mechanism when implementing).
+- Small agent gets: transcript + project list (names, paths, worktrees, recent activity). Returns structured output: `{project, worktree?, prompt, confidence, alternatives[]}`.
+- **Confidence-gated decision** (JEV-style, see open questions):
+  - `confidence >= threshold` → spawn immediately, no question.
+  - below threshold → reply with a question naming the top candidates; the next transcript resolves it.
+  - Threshold is configurable; start high (e.g. 0.8) and tune from logs.
+- Spawns a background Claude session via **`claude` CLI flags** (no Agent SDK for spawning) with `cwd` set to the chosen worktree. Exact flags are pinned when implementing M4.
+- Router model: **TBC**. Candidates are Haiku-class for cost/latency; benchmark on real transcripts before choosing.
 - Replies to the device with a short spoken-style confirmation ("Started in stack-chan-server").
-- Low confidence / ambiguous project → reply with a question instead of spawning.
 
 ### 5. API
 Single port on LAN, bearer token auth.
@@ -98,9 +106,10 @@ Capabilities in `hello` (`screen`, `speaker`, `mic`, `buttons`, `servo`) let the
 6. **Real hardware** when it arrives.
 
 ## Open questions
-- Exact mechanism for spawning/monitoring background Claude sessions (CLI flags vs Agent SDK)?
-- Router agent model/cost: Haiku-class via Agent SDK or `claude -p`?
+- Which exact `claude` CLI flags for background spawn and monitoring? Check `claude --help` at M4.
+- Router agent model: TBC, benchmark Haiku-class vs others.
+- "JEV decision model": assumed to mean confidence-threshold gating (act if confident, else ask). If JEV is a specific scoring method, e.g. expected-value over spawn cost vs wrong-project cost, define it here.
 - Does the web simulator support WebSocket + mic/transcript input, or only display?
-- Should voice-spawned sessions need a robot-side confirm before running (auto mode = unattended edits)?
+- Confidence calibration: LLM self-reported confidence is weak. Consider blending with deterministic signals (exact project-name match, recent activity in that project).
 - Root folder structure: any monorepos where sub-packages should count as separate projects?
 - Security: LAN-bound API can spawn agents, so token auth and a voice-spawn allowlist are mandatory.
