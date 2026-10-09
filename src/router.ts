@@ -1,3 +1,4 @@
+import { config } from "./config";
 import type { Project } from "./scanner";
 
 export type Decision = {
@@ -87,7 +88,7 @@ export function parseResponse(json: any, projects: Project[]): Decision {
 
 export function makeJevDecider(opts: { apiKey?: string; fetch?: typeof fetch } = {}): Decider {
   return async (transcript, projects, context) => {
-    const apiKey = opts.apiKey ?? process.env.OPENROUTER_API_KEY;
+    const apiKey = opts.apiKey ?? config.openrouterKey;
     if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
     const res = await (opts.fetch ?? fetch)(URL_, {
       method: "POST",

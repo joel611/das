@@ -2,6 +2,7 @@ import { afterAll, expect, test } from "bun:test";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { config } from "./config";
 import { applyBands, buildRequest, makeJevDecider, parseResponse, type Decider, type Decision } from "./router";
 import type { Project } from "./scanner";
 import { createServer } from "./server";
@@ -135,10 +136,10 @@ test("jev decider: success, http error, missing key", async () => {
   expect(seen.headers.Authorization).toBe("Bearer k");
   const bad = makeJevDecider({ apiKey: "k", fetch: (async () => Response.json({ error: { code: 401, message: "no auth" } }, { status: 401 })) as any });
   await expect(bad("t", projects)).rejects.toThrow("401: no auth");
-  const saved = process.env.OPENROUTER_API_KEY;
-  delete process.env.OPENROUTER_API_KEY;
+  const saved = config.openrouterKey;
+  config.openrouterKey = "";
   await expect(makeJevDecider()("t", projects)).rejects.toThrow("OPENROUTER_API_KEY");
-  if (saved) process.env.OPENROUTER_API_KEY = saved;
+  config.openrouterKey = saved;
 });
 
 test("parseId", () => {
