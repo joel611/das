@@ -6,6 +6,7 @@
   ],
   "type": "module",
   "scripts": {
+    "dev": "vp run -r --parallel dev:all",
     "daemon": "bun packages/cli/src/daemon.ts",
     "desktop": "bun run --cwd packages/desktop tauri dev",
     "test": "vp run -r test",
