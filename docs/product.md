@@ -66,7 +66,9 @@ Claude Code sessions ──hooks──▶ ┌───────────�
     - `< ask` → don't spawn, tell the user it didn't understand.
   - Thresholds come from labeled data and the cost of a wrong spawn, not a guess. Log every decision (transcript, choice, confidence, outcome), then tune per band. Start conservative.
   - Spawning is hard to undo, so confidence is one gate among others (e.g. project-name match, allowlist).
-  - Implementation options: call Jev if API access is available, or emulate with a Haiku-class model returning structured output + logprob/self-reported confidence. Behind one `decide()` interface so it can be swapped.
+  - **Connection: [OpenRouter](https://openrouter.ai/docs/guides/community/jev).** Model `typesafe/jev-1.13` (or alias `~typesafe/jev-latest`), billed to my OpenRouter key. Output tokens are free, input billed per token; 32k context. Via the TypeSafe SDK pointed at OpenRouter (`/api/v1/systemone`) or the raw Decisions API (`POST /api/alpha/decisions`); pick at M4 after checking which is current.
+  - Jev returns typed answers only (no free text), so it only does the routing decision. Fallback if needed: a Haiku-class chat model via OpenRouter `chat/completions` with structured output. Keep it behind one `decide()` interface so it can be swapped.
+  - `OPENROUTER_API_KEY` lives in server config/env, never in git.
 - Spawns a background Claude session via **`claude` CLI flags** (no Agent SDK for spawning) with `cwd` set to the chosen worktree. Exact flags are pinned when implementing M4.
 - Router model: **TBC**. Candidates are Haiku-class for cost/latency; benchmark on real transcripts before choosing.
 - Replies to the device with a short spoken-style confirmation ("Started in stack-chan-server").
@@ -113,7 +115,7 @@ Capabilities in `hello` (`screen`, `speaker`, `mic`, `buttons`, `servo`) let the
 ## Open questions
 - Which exact `claude` CLI flags for background spawn and monitoring? Check `claude --help` at M4.
 - Router agent model: TBC, benchmark Haiku-class vs others.
-- Jev (TypeSafe AI): confirmed as the decision model. Sources are secondary blogs; verify against TypeSafe's official docs: API access, pricing, latency, and whether it can run on the LAN/locally. Its calibration claim is vendor-stated, so validate on my own transcripts.
+- Jev (TypeSafe AI) via OpenRouter: confirmed available. Remaining: which endpoint is current (`/api/alpha/decisions` vs `/api/v1/systemone`), exact input pricing, latency for a voice round trip, and the calibration claim (vendor-stated, validate on my own transcripts).
 - Does the web simulator support WebSocket + mic/transcript input, or only display?
 - Confidence calibration: LLM self-reported confidence is weak. Consider blending with deterministic signals (exact project-name match, recent activity in that project).
 - Root folder structure: any monorepos where sub-packages should count as separate projects?
