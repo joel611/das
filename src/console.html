@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stack-chan voice console</title>
+<style>
+  :root { color-scheme: light dark; --bd: #8884; --mut: #888; --acc: #2a6df4; --bad: #c62828; }
+  * { box-sizing: border-box; }
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 0; padding: 12px; max-width: 980px; margin-inline: auto; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  h2 { font-size: 13px; margin: 0 0 6px; text-transform: uppercase; color: var(--mut); }
+  .layout { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+  main { flex: 3 1 340px; min-width: 0; }
+  aside { flex: 1 1 220px; min-width: 0; border: 1px solid var(--bd); border-radius: 6px; padding: 8px; }
+  #log { border: 1px solid var(--bd); border-radius: 6px; padding: 8px; min-height: 200px; max-height: 55vh; overflow-y: auto; margin-bottom: 8px; }
+  .turn { margin: 0 0 10px; }
+  .you { text-align: right; }
+  .you span { display: inline-block; background: var(--acc); color: #fff; padding: 4px 8px; border-radius: 8px; white-space: pre-wrap; text-align: left; }
+  .bot .say { font-weight: 600; }
+  .meta { color: var(--mut); font-size: 12px; word-break: break-all; }
+  .tag { display: inline-block; padding: 0 6px; border-radius: 8px; border: 1px solid var(--bd); font-size: 12px; }
+  .tag.dry-run { color: #1565c0; } .tag.spawned { color: #2e7d32; } .tag.error { color: var(--bad); } .tag.ask { color: #ef6c00; }
+  .dbg { margin-top: 4px; padding: 6px; border: 1px dashed var(--bd); border-radius: 6px; font-size: 12px; }
+  .bar { display: flex; align-items: center; gap: 6px; margin: 2px 0; }
+  .bar .n { flex: 0 0 38%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar .t { flex: 1; height: 8px; background: var(--bd); border-radius: 4px; overflow: hidden; }
+  .bar .t i { display: block; height: 100%; background: var(--acc); }
+  textarea { width: 100%; font: inherit; padding: 6px; resize: vertical; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+  button { font: inherit; padding: 4px 12px; cursor: pointer; }
+  #warn { display: none; color: #fff; background: var(--bad); padding: 6px 8px; border-radius: 6px; margin-top: 6px; }
+  #projects { list-style: none; padding: 0; margin: 6px 0 0; max-height: 40vh; overflow-y: auto; }
+  #projects li { padding: 3px 0; border-bottom: 1px solid var(--bd); }
+  #filter, #token { width: 100%; padding: 4px; font: inherit; }
+  .info { font-size: 12px; margin: 4px 0; }
+  .warn-t { color: var(--bad); }
+</style>
+</head>
+<body>
+<h1>Stack-chan voice console</h1>
+<div class="layout">
+<main>
+  <div id="log" aria-live="polite"></div>
+  <textarea id="text" rows="2" placeholder="Type a request. Enter sends, Shift+Enter adds a line." autofocus></textarea>
+  <div class="row">
+    <button id="send">Send</button>
+    <label><input type="checkbox" id="dry" checked> Dry run</label>
+    <button id="newconv" type="button">New conversation</button>
+    <span class="meta" id="dev"></span>
+  </div>
+  <div id="warn" role="alert">Sends a real request: starts a Claude session in auto mode in an isolated worktree.</div>
+</main>
+<aside>
+  <h2>Server</h2>
+  <div class="info" id="srv">loading...</div>
+  <label class="info">Token (if the server needs one)<input id="token" type="password" autocomplete="off"></label>
+  <h2 style="margin-top:10px">Routable projects</h2>
+  <input id="filter" placeholder="Filter projects">
+  <ul id="projects"></ul>
+</aside>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const store = window.sessionStorage;
+let device = "console";
+$("token").value = store.getItem("token") || "";
+$("token").onchange = () => { store.setItem("token", $("token").value.trim()); refresh(); };
+
+const headers = () => {
+  const t = $("token").value.trim();
+  return t ? { Authorization: "Bearer " + t } : {};
+};
+const get = async (path) => {
+  const r = await fetch(path, { headers: headers() });
+  if (!r.ok) throw new Error(path + " " + r.status);
+  return r.json();
+};
+const el = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+};
+
+let projects = [];
+function drawProjects() {
+  const q = $("filter").value.toLowerCase();
+  const ul = $("projects");
+  ul.replaceChildren();
+  for (const p of projects.filter((p) => (p.name + p.path).toLowerCase().includes(q))) {
+    const li = el("li");
+    li.append(el("div", "", p.name), el("div", "meta", p.path));
+    ul.append(li);
+  }
+  if (!ul.children.length) ul.append(el("li", "meta", projects.length ? "no match" : "none"));
+}
+$("filter").oninput = drawProjects;
+
+async function refresh() {
+  const info = $("srv");
+  info.replaceChildren();
+  try {
+    projects = await get("/v1/projects");
+  } catch (e) {
+    projects = [];
+    info.append(el("div", "warn-t", String(e.message).includes("401") ? "Token required: enter it below." : "Cannot load projects: " + e.message));
+  }
+  drawProjects();
+  try {
+    const s = await get("/admin/settings");
+    info.append(el("div", s.hasOpenrouterKey ? "" : "warn-t", s.hasOpenrouterKey ? "OpenRouter key: set" : "OpenRouter key: NOT set (requests will error)"));
+  } catch {}
+  try {
+    const st = await get("/v1/state");
+    info.append(el("div", st.untrustedProjects ? "warn-t" : "", st.untrustedProjects ? st.untrustedProjects + " project(s) not trusted by Claude: real spawns there will fail" : "All listed projects trusted"));
+  } catch {}
+}
+
+function bars(probs) {
+  const box = el("div");
+  for (const [name, p] of Object.entries(probs)) {
+    const b = el("div", "bar");
+    const t = el("div", "t");
+    const i = el("i");
+    i.style.width = Math.round(p * 100) + "%";
+    t.append(i);
+    b.append(el("span", "n", name), t, el("span", "", p.toFixed(2)));
+    box.append(b);
+  }
+  return box;
+}
+
+function addYou(text) {
+  const t = el("div", "turn you");
+  t.append(el("span", "", text));
+  $("log").append(t);
+  $("log").scrollTop = 1e9;
+}
+
+function addBot(r, ms, dry) {
+  const t = el("div", "turn bot");
+  const head = el("div");
+  head.append(el("span", "tag " + r.status, r.status), document.createTextNode(" "), el("span", "say", r.text || ""));
+  t.append(head);
+  const m = [];
+  if (r.project) m.push("project: " + r.project);
+  if (r.sessionId) m.push("sessionId: " + r.sessionId);
+  m.push(ms + " ms" + (dry ? " (dry run)" : ""));
+  t.append(el("div", "meta", m.join(" | ")));
+  const d = r.debug;
+  if (d) {
+    const box = el("div", "dbg");
+    box.append(el("div", "", `choice: ${d.choice ?? "none"} | confidence: ${d.confidence.toFixed(2)} | band: ${d.band}`));
+    box.append(bars(d.probabilities || {}));
+    box.append(el("div", "meta", `thresholds: act ${d.thresholds.act}, ask ${d.thresholds.ask}`));
+    box.append(el("div", "meta", `cwd: ${d.cwd ?? "-"}`));
+    box.append(el("div", "meta", `worktree: ${d.worktree ?? "(project main)"}${d.name ? " | new worktree name: " + d.name : ""}`));
+    box.append(el("div", "meta", `wouldSpawn: ${d.wouldSpawn}`));
+    t.append(box);
+  }
+  $("log").append(t);
+  $("log").scrollTop = 1e9;
+}
+
+function syncWarn() { $("warn").style.display = $("dry").checked ? "none" : "block"; }
+$("dry").onchange = syncWarn;
+syncWarn();
+
+async function send() {
+  const text = $("text").value.trim();
+  if (!text) return;
+  const dry = $("dry").checked;
+  if (!dry && !confirm("Send a REAL request?\n\nThis starts a Claude session in auto mode in an isolated worktree:\n\n" + text)) return;
+  $("text").value = "";
+  addYou(text);
+  $("send").disabled = true;
+  const t0 = performance.now();
+  try {
+    const res = await fetch("/v1/voice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...headers() },
+      body: JSON.stringify({ text, device, dryRun: dry, debug: dry }),
+    });
+    const body = await res.json().catch(() => null);
+    const ms = Math.round(performance.now() - t0);
+    if (!body) addBot({ status: "error", text: "HTTP " + res.status + (res.status === 401 ? " (token needed)" : "") }, ms, dry);
+    else addBot(body, ms, dry);
+  } catch (e) {
+    addBot({ status: "error", text: String(e.message) }, Math.round(performance.now() - t0), dry);
+  } finally {
+    $("send").disabled = false;
+    $("text").focus();
+  }
+}
+$("send").onclick = send;
+$("text").onkeydown = (e) => {
+  if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); }
+};
+$("newconv").onclick = () => {
+  device = "console-" + Math.random().toString(36).slice(2, 8);
+  $("log").replaceChildren();
+  $("dev").textContent = "device: " + device;
+};
+$("dev").textContent = "device: " + device;
+refresh();
+</script>
+</body>
+</html>

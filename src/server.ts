@@ -9,6 +9,7 @@ import { jevDecider, type Decider } from "./router";
 import { SessionTracker } from "./sessions";
 import { claudeSpawner, type Spawner } from "./spawner";
 import { isTrusted, trustAdvice, trustedPaths } from "./trust";
+import consoleHtml from "./console.html" with { type: "text" };
 import { handleTranscript, type VoiceDeps } from "./voice";
 
 const TOPIC = "sessions";
@@ -154,6 +155,12 @@ export function createServer({
         return new Response("not found", { status: 404 });
       }
 
+      // Voice console page: localhost only; the page itself carries no secrets (it asks for the token).
+      if (url.pathname === "/console" && req.method === "GET") {
+        if (!isLocal(srv.requestIP(req)?.address)) return new Response("forbidden", { status: 403 });
+        return new Response(consoleHtml, { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+      }
+
       if (url.pathname.startsWith("/v1/")) {
         if (!authorized(req, url)) return new Response("unauthorized", { status: 401 });
         if (url.pathname === "/v1/ws") {
@@ -162,7 +169,7 @@ export function createServer({
         }
         if (url.pathname === "/v1/voice" && req.method === "POST") {
           const body: any = await req.json().catch(() => ({}));
-          return Response.json(await handleTranscript(voice, `http:${body.device ?? "default"}`, String(body.text ?? "")));
+          return Response.json(await handleTranscript(voice, `http:${body.device ?? "default"}`, String(body.text ?? ""), { dryRun: body.dryRun === true, debug: body.debug === true }));
         }
         if (url.pathname === "/v1/projects") return Response.json(getProjects());
         if (url.pathname === "/v1/sessions") return Response.json(tracker.list());
