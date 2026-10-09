@@ -38,6 +38,7 @@ bun install
 
 bun run daemon --bg      # start the daemon in the background (also: --stop, --status; no flag = foreground)
 bun run desktop          # menu bar app + dashboard in dev mode (tauri dev)
+bun run dev              # daemon (watch) + tauri desktop in parallel (vp run -r --parallel dev:all)
 
 bun run test             # vp run -r test  (the daemon's bun tests)
 bun run check            # vp check: format, lint, type-check
