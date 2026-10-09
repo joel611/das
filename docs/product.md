@@ -1,31 +1,56 @@
 # Product
 
-A personal Mac server that watches my Claude Code sessions across all my projects and exposes an API so `stack-chan` (and later other LAN devices) can show status and take voice commands.
+A **desktop command center**: a Tauri desktop app on top of a local Bun daemon. Its main use case is managing my Claude Code sessions across all my projects and exposing an API so external devices can show status and send commands. The first agent is Claude Code; the first device is `stack-chan`.
 
-Stack: **Bun** (server/daemon) + **Tauri** (menu bar shell). Personal use, no signing/distribution concerns.
+The command center **owns its classifier and LLM** for reasoning. It does not borrow intelligence from the agents it manages: it decides what a request is, then delegates.
 
-## Client
+Stack: **Bun** (daemon) + **Tauri** (desktop shell, tray, dashboard). Personal use, no signing/distribution concerns.
 
-`stack-chan`: tiny desktop robot. Custom apps are JavaScript `mod`s on Moddable.
-https://github.com/stack-chan/stack-chan/tree/develop/firmware/mods
+## Vision
 
-Hardware is still shipping. Develop against the provided web simulator, so the protocol must work with any WebSocket client (simulator, mock script, future devices).
+```
+request (voice / text / device event)
+        │
+        ▼
+ ┌─────────────── command center ───────────────┐
+ │ classifier + LLM: what is the user's intent? │
+ └───┬───────────────┬───────────────┬──────────┘
+     ▼               ▼               ▼
+ coding agent    home / IoT      MCP tools /
+ (Claude Code    (Home Assistant) other workflows
+  now; others
+  later)
+```
+
+1. **Now**: Claude Code session management (watch, spawn) plus stack-chan as the device.
+2. **Next**: more coding agents for coding tasks behind the same delegate interface.
+3. **Later**: non-coding tasks, e.g. Home Assistant and MCP servers, as agents or workflows the classifier can delegate to.
+
+The classifier first determines the user's intent (which agent or workflow, then which project or target), then delegates. Everything downstream is a pluggable "agent" or "workflow" behind one interface.
+
+## Devices
+
+- **stack-chan** is the only device with first-party support (a MOD client in this repo). Custom apps are JavaScript `mod`s on Moddable: https://github.com/stack-chan/stack-chan/tree/develop/firmware/mods
+- **Any IoT device** that speaks HTTP and WebSocket can connect to the same API. No device-specific code in the daemon: devices declare `capabilities` in `hello` and the server tailors output.
+- Develop against the web simulator, so the protocol must work with any WebSocket client (simulator, mock script, real devices).
 
 ## Goals
 
-1. **Ambient status** (primary): glance at the robot, know what every agent is doing.
-2. **Multi-project**: one root folder, nested projects found by git detection.
-3. **Voice input**: speak a task, server routes it to the right project and spawns a background Claude session.
-4. **Device-agnostic API**: stack-chan first, anything on the LAN later.
+1. **Command center for coding agents** (primary): one place to see and start Claude Code sessions across projects.
+2. **Ambient status**: glance at the robot, know what every agent is doing.
+3. **Multi-project**: one root folder, nested projects found by git detection.
+4. **Intent classification and delegation**: a request is classified, then routed to the right agent/workflow. Today: choose a project and spawn a background Claude session.
+5. **Device-agnostic API**: stack-chan first, any HTTP/WebSocket device after.
+6. **Extensible**: other coding agents, Home Assistant, MCP (planned, not built).
 
-Non-goals (for now): approve/deny from the robot (I run auto mode), multi-user, cloud, distribution.
+Non-goals (for now): approve/deny from the robot (I run auto mode), multi-user, cloud, distribution, first-party support for devices other than stack-chan.
 
 ## Components
 
 ```
-Claude Code sessions ──hooks──▶ ┌────────────── Bun server ──────────────┐
-                                │ project scanner   session tracker      │◀── Tauri menu bar UI
-~/.claude/projects/*.jsonl ───▶ │ state aggregator  router agent         │
+Claude Code sessions ──hooks──▶ ┌───────── Bun daemon (command center) ──┐
+                                │ project scanner   session tracker      │◀── Tauri desktop UI
+~/.claude/projects/*.jsonl ───▶ │ state aggregator  classifier / router  │
                                 │ REST + WebSocket API                   │
                                 └──────┬──────────────────────▲──────────┘
                                   state │                      │ transcript
@@ -55,7 +80,9 @@ Claude Code sessions ──hooks──▶ ┌───────────�
 - Server decides presentation, devices stay dumb: emits a `display` hint (`expression`, `headline`, `count`) alongside raw state.
 - "Done" decays to idle after N minutes.
 
-### 4. Router agent (voice)
+### 4. Classifier / router (command center brain)
+- Owns the classifier and LLM. Today it handles one intent, "start a coding task in a project"; the design is intent-first so new intents (other coding agents, Home Assistant, MCP) plug in as delegates later.
+- Pipeline: transcript → intent classification → delegate (agent/workflow) → target selection → action. The project routing below is the Claude Code delegate.
 - Device sends transcript text (STT is device/client side; server never handles audio).
 - Small agent gets: transcript + project list (names, paths, worktrees, recent activity). Returns structured output: `{project, worktree?, prompt, confidence, alternatives[]}`.
 - **Confidence-gated decision, modeled on [Jev](https://techjacksolutions.com/ai-tools/typesafe/what-is-jev-typesafe-ai/)** (TypeSafe AI decision model: takes text state + typed questions, returns choices/scores with a 0-1 confidence; it decides, it does not generate text):
@@ -92,12 +119,12 @@ Event shape (sketch):
 ```
 Capabilities in `hello` (`screen`, `speaker`, `mic`, `buttons`, `servo`) let the server tailor output per device.
 
-### 6. Tauri shell
-- Menu bar icon with aggregate state color.
-- Spawns Bun server as a sidecar (`bun build --compile`).
+### 6. Tauri desktop shell
+- Menu bar icon with aggregate state color; dashboard window for sessions, projects, devices, console and settings.
+- The daemon runs independently (`bun run daemon --bg`); the desktop app shows its status and talks to it over the API. Sidecar bundling is a later option.
 - Settings: root folders, port, token, connected devices, hook install/uninstall.
 
-## Stack-chan mod (client side)
+## Stack-chan mod (reference device client)
 - Connects to server over WebSocket (mDNS/Bonjour discovery, manual host fallback).
 - Maps `display.expression` to face; head turns toward desk on `done`/`error`.
 - Button: cycle through projects/sessions. Hold: start voice capture.
@@ -109,10 +136,16 @@ Capabilities in `hello` (`screen`, `speaker`, `mic`, `buttons`, `servo`) let the
 2. **WebSocket + mock client**: snapshot/delta protocol, tested with a mock script and the web simulator.
 3. **Stack-chan mod** (simulator first): expressions by state, session cycling.
 4. **Voice router**: transcript → router agent → spawn background session.
-5. **Tauri shell**: menu bar, sidecar, settings, hook installer.
+5. **Desktop app**: menu bar, dashboard, settings, hook installer.
 6. **Real hardware** when it arrives.
+7. **Intent classifier + delegate interface**: classify before routing; Claude Code becomes one delegate.
+8. **More delegates**: other coding agents, then Home Assistant and MCP.
 
 ## Open questions
+- Delegate interface: what does an agent/workflow declare (intents it handles, inputs, how progress is reported back to devices)?
+- Intent taxonomy: how many intents before a dedicated classifier beats one routing prompt?
+- Home Assistant / MCP: act through MCP tools directly, or via Home Assistant's own API? What allowlist guards actions?
+- Generic device onboarding: how does an unknown HTTP/WebSocket device declare capabilities and get a token?
 - Which exact `claude` CLI flags for background spawn and monitoring? Check `claude --help` at M4.
 - Router agent model: TBC, benchmark Haiku-class vs others.
 - Jev (TypeSafe AI) via OpenRouter: confirmed available. Remaining: which endpoint is current (`/api/alpha/decisions` vs `/api/v1/systemone`), exact input pricing, latency for a voice round trip, and the calibration claim (vendor-stated, validate on my own transcripts).
