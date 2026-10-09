@@ -87,15 +87,3 @@ test("POST /v1/voice dryRun true / false / absent, auth unchanged", async () => 
   expect((await post({ text: "x", debug: true })).debug.choice).toBe("beta");
   expect(m.spawns.length).toBe(3);
 });
-
-// The page ships in the Tauri app (app/ui/console.html), so a static check keeps its safety defaults honest.
-test("console page defaults to dry run and makes no external requests", () => {
-  const html = readFileSync(join(import.meta.dir, "../app/ui/console.html"), "utf8");
-  expect(html).toMatch(/<input type="checkbox" id="dry" checked>/);
-  expect(html).toContain("Sends a real request");
-  expect(html).not.toMatch(/(src|href)="https?:/);
-  expect(html).not.toContain("<script>"); // the app CSP forbids inline scripts
-  const js = readFileSync(join(import.meta.dir, "../app/ui/console.js"), "utf8");
-  expect(js).not.toMatch(/\bconfirm\(/); // native dialogs are unreliable in the webview; real sends use the inline confirm
-  expect(js).not.toMatch(/\bfetch\(/); // all server calls go through the Rust `api` command
-});

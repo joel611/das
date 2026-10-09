@@ -1,0 +1,13 @@
+{
+  "name": "@stackchan/cli",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "daemon": "bun src/daemon.ts",
+    "dev": "bun --watch src/daemon.ts",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

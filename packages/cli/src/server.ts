@@ -1,10 +1,9 @@
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
 import { config, configDir, envOverrides, loadConfig, writeSettingsFile, type Config } from "./config";
 import { computeDisplay } from "./display";
 import { hooksStatus, installHooks, uninstallHooks } from "./hooks-install";
-import { scan, type Project } from "./scanner";
+import type { Project } from "./scanner";
 import { jevDecider, type Decider } from "./router";
 import { SessionTracker } from "./sessions";
 import { claudeSpawner, type Spawner } from "./spawner";
@@ -224,32 +223,4 @@ export function createServer({
   });
 
   return server;
-}
-
-if (import.meta.main) {
-  let projects: Project[] = [];
-  const rescan = () => (projects = scan(config.roots));
-  rescan();
-  setInterval(rescan, 60_000);
-  const server = createServer({
-    port: config.port,
-    token: config.token,
-    getProjects: () => projects,
-    configDir: configDir(),
-    claudeDir: process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"),
-    onSettings: (c) => {
-      Object.assign(config, c);
-      rescan();
-    },
-  });
-  console.log(`stack-chan-server on :${server.port}, roots: ${config.roots.join(", ")}, ${projects.length} projects`);
-  // The menu bar app holds our stdin open; if it dies without stopping us, stdin closes and we exit.
-  if (process.env.STACKCHAN_EXIT_ON_STDIN_CLOSE) {
-    (async () => {
-      for await (const _ of Bun.stdin.stream());
-      process.exit(0);
-    })();
-  }
-  const advice = trustAdvice(config.roots, projects);
-  if (advice) console.warn(advice);
 }
