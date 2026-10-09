@@ -41,3 +41,9 @@ A transcript is routed to a project by a decision model (Jev via OpenRouter, `ty
 Bands (by the top choice's confidence): `>= ACT_THRESHOLD` (0.8) spawn; `ASK_THRESHOLD` (0.4) to ACT ask "Which one, A or B?" and remember the question per socket (or per `device`); the next transcript is decided again with the question as context. Below ASK, or choice `none`, escalate ("Sorry, I didn't catch that"). Hard gates: project must be in the scanned list, transcript non-empty and at most 1000 chars. A missing `OPENROUTER_API_KEY` gives `status: "error"`.
 
 Every decision is appended as a JSON line to `DECISIONS_LOG` (default `./data/decisions.jsonl`: ts, transcript, choice, confidence, probabilities, band, outcome) for threshold tuning. Env: `OPENROUTER_API_KEY`, `CLAUDE_BIN`, `ACT_THRESHOLD`, `ASK_THRESHOLD`, `DECISIONS_LOG`.
+
+### Workspace trust
+
+`claude --bg` refuses to start in a folder Claude Code does not trust ("Workspace not trusted"); there is no dialog in a background spawn. Trust is stored per folder in `~/.claude.json` (`projects[<path>].hasTrustDialogAccepted`), there is no `settings.json` key for it, and a trusted folder covers every subfolder (verified with `claude --bg`: a child of a trusted folder starts, a child of an untrusted one is refused). Trust is never saved for the home directory.
+
+At startup the server reads `~/.claude.json` (read-only) and prints which scanned projects are not covered. Fix: run `claude` once in the root folder and accept the dialog. Trusting a root also lets the project hooks, `.mcp.json` and allow rules of every repo under it run, so pick the narrowest folder that holds only repos you trust. A refused spawn replies `status: "error"`, `text: "Claude does not trust <project> yet"`.

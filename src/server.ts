@@ -4,6 +4,7 @@ import { scan, type Project } from "./scanner";
 import { jevDecider, type Decider } from "./router";
 import { SessionTracker } from "./sessions";
 import { claudeSpawner, type Spawner } from "./spawner";
+import { trustAdvice } from "./trust";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
 const TOPIC = "sessions";
@@ -100,4 +101,6 @@ if (import.meta.main) {
   setInterval(rescan, 60_000);
   const server = createServer({ port: config.port, token: config.token, getProjects: () => projects });
   console.log(`stack-chan-server on :${server.port}, roots: ${config.roots.join(", ")}, ${projects.length} projects`);
+  const advice = trustAdvice(config.roots, projects);
+  if (advice) console.warn(advice);
 }

@@ -77,6 +77,7 @@ export async function handleTranscript(deps: VoiceDeps, deviceKey: string, trans
     const r = await deps.spawner(cwd, text, name);
     return done({ status: "spawned", text: `Started in ${project.name}`, project: project.name, sessionId: r.id ?? undefined }, { ...meta, cwd, sessionId: r.id, stdout: r.stdout.slice(0, 500) });
   } catch (e) {
-    return done({ status: "error", text: `Could not start in ${project.name}` }, { ...meta, error: String(e) });
+    const untrusted = /not trusted/i.test(String(e));
+    return done({ status: "error", text: untrusted ? `Claude does not trust ${project.name} yet` : `Could not start in ${project.name}` }, { ...meta, error: String(e) });
   }
 }
