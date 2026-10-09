@@ -13,6 +13,8 @@ export type Session = {
   updatedAt: number;
 };
 
+export type ChangeEvent = { session: Session } | { removed: string };
+
 type HookPayload = {
   session_id?: string;
   cwd?: string;
@@ -23,7 +25,18 @@ type HookPayload = {
 export class SessionTracker {
   private sessions = new Map<string, Session>();
 
+  private listeners: ((e: ChangeEvent) => void)[] = [];
+
   constructor(private getProjects: () => Project[]) {}
+
+  /** Subscribe to session changes (updates and removals). */
+  onChange(fn: (e: ChangeEvent) => void) {
+    this.listeners.push(fn);
+  }
+
+  private emit(e: ChangeEvent) {
+    for (const fn of this.listeners) fn(e);
+  }
 
   list(): Session[] {
     return [...this.sessions.values()].sort((a, b) => b.updatedAt - a.updatedAt);
@@ -33,7 +46,7 @@ export class SessionTracker {
   handleHook(event: string, p: HookPayload): Session | null {
     if (!p.session_id) return null;
     if (event === "SessionEnd") {
-      this.sessions.delete(p.session_id);
+      if (this.sessions.delete(p.session_id)) this.emit({ removed: p.session_id });
       return null;
     }
     const prev = this.sessions.get(p.session_id);
@@ -74,6 +87,7 @@ export class SessionTracker {
         return null;
     }
     this.sessions.set(next.id, next);
+    this.emit({ session: next });
     return next;
   }
 }

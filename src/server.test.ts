@@ -1,0 +1,52 @@
+import { afterAll, expect, test } from "bun:test";
+import { createServer } from "./server";
+
+const server = createServer({ port: 0, token: "secret", getProjects: () => [] });
+afterAll(() => server.stop(true));
+const base = `localhost:${server.port}`;
+
+const nextMessage = (ws: WebSocket) =>
+  new Promise<any>((resolve) => ws.addEventListener("message", (e) => resolve(JSON.parse(String(e.data))), { once: true }));
+const opened = (ws: WebSocket) => new Promise<void>((r, j) => ((ws.onopen = () => r()), (ws.onerror = () => j(new Error("ws error")))));
+
+test("rejects missing or wrong token", async () => {
+  expect((await fetch(`http://${base}/v1/ws`)).status).toBe(401);
+  expect((await fetch(`http://${base}/v1/ws?token=nope`)).status).toBe(401);
+  await expect(opened(new WebSocket(`ws://${base}/v1/ws`))).rejects.toThrow();
+});
+
+test("hello -> snapshot, then hook -> delta, SessionEnd -> removal delta", async () => {
+  const ws = new WebSocket(`ws://${base}/v1/ws?token=secret`);
+  await opened(ws);
+  const snap = nextMessage(ws);
+  ws.send(JSON.stringify({ type: "hello", device: "test", capabilities: [] }));
+  expect(await snap).toEqual({
+    type: "snapshot",
+    projects: [],
+    sessions: [],
+    display: { expression: "neutral", headline: "idle", count: 0 },
+  });
+
+  ws.send("not json");
+  ws.send(JSON.stringify({ type: "button" }));
+  ws.send(JSON.stringify({ type: "whatever" }));
+
+  const post = (event: string, body: object) =>
+    fetch(`http://${base}/hooks/${event}`, { method: "POST", body: JSON.stringify(body) });
+
+  let delta = nextMessage(ws);
+  await post("UserPromptSubmit", { session_id: "s1", cwd: "/x" });
+  const d = await delta;
+  expect(d.type).toBe("delta");
+  expect(d.session.id).toBe("s1");
+  expect(d.display).toEqual({ expression: "focused", headline: "1 running", count: 1 });
+
+  delta = nextMessage(ws);
+  await post("SessionEnd", { session_id: "s1" });
+  expect(await delta).toEqual({
+    type: "delta",
+    removed: "s1",
+    display: { expression: "neutral", headline: "idle", count: 0 },
+  });
+  ws.close();
+});
