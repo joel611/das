@@ -210,16 +210,14 @@ fn open_settings(app: &AppHandle) {
         .ok();
 }
 
-/// The console is served by the sidecar, so it is an external page (no IPC, no capability needed).
+/// Typed voice console: bundled page that calls the server through the `api` command, like Settings.
 fn open_console(app: &AppHandle) {
-    let (port, _) = port_and_token();
     if let Some(w) = app.get_webview_window("console") {
         w.show().ok();
         w.set_focus().ok();
         return;
     }
-    let url = format!("http://127.0.0.1:{port}/console").parse().expect("console url");
-    WebviewWindowBuilder::new(app, "console", WebviewUrl::External(url))
+    WebviewWindowBuilder::new(app, "console", WebviewUrl::App("console.html".into()))
         .title("Stack-chan Voice Console")
         .inner_size(760.0, 720.0)
         .build()

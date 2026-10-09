@@ -1,6 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import { mkdtempSync, readFileSync } from "node:fs";
-import { networkInterfaces, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Decider, Decision } from "./router";
 import type { Project } from "./scanner";
@@ -68,8 +68,7 @@ test("normal requests keep their shape; debug only when asked", async () => {
 
 const m = mk(Array.from({ length: 6 }, () => dec("beta", 0.95)));
 const server = createServer({ port: 0, token: "secret", getProjects: () => projects, decider: m.deps.decider, spawner: m.deps.spawner, decisionsLog: logPath });
-const open = createServer({ port: 0, token: "", getProjects: () => projects, decider: m.deps.decider, spawner: m.deps.spawner, decisionsLog: logPath });
-afterAll(() => (server.stop(true), open.stop(true)));
+afterAll(() => server.stop(true));
 
 test("POST /v1/voice dryRun true / false / absent, auth unchanged", async () => {
   const url = `http://localhost:${server.port}/v1/voice`;
@@ -89,20 +88,14 @@ test("POST /v1/voice dryRun true / false / absent, auth unchanged", async () => 
   expect(m.spawns.length).toBe(3);
 });
 
-test("/console is served to localhost with dry run checked by default", async () => {
-  for (const s of [server, open]) {
-    const r = await fetch(`http://127.0.0.1:${s.port}/console`); // no token needed for the page
-    expect(r.status).toBe(200);
-    expect(r.headers.get("content-type")).toContain("text/html");
-    const html = await r.text();
-    expect(html).toMatch(/<input type="checkbox" id="dry" checked>/);
-    expect(html).toContain("Sends a real request");
-    expect(html).not.toMatch(/https?:\/\/(?!localhost|127)/); // no external requests
-  }
-});
-
-test("/console refuses non-localhost clients", async () => {
-  const lan = Object.values(networkInterfaces()).flat().find((i) => i && i.family === "IPv4" && !i.internal)?.address;
-  if (!lan) return; // no LAN interface to connect from
-  expect((await fetch(`http://${lan}:${server.port}/console`)).status).toBe(403);
+// The page ships in the Tauri app (app/ui/console.html), so a static check keeps its safety defaults honest.
+test("console page defaults to dry run and makes no external requests", () => {
+  const html = readFileSync(join(import.meta.dir, "../app/ui/console.html"), "utf8");
+  expect(html).toMatch(/<input type="checkbox" id="dry" checked>/);
+  expect(html).toContain("Sends a real request");
+  expect(html).not.toMatch(/(src|href)="https?:/);
+  expect(html).not.toContain("<script>"); // the app CSP forbids inline scripts
+  const js = readFileSync(join(import.meta.dir, "../app/ui/console.js"), "utf8");
+  expect(js).not.toMatch(/\bconfirm\(/); // native dialogs are unreliable in the webview; real sends use the inline confirm
+  expect(js).not.toMatch(/\bfetch\(/); // all server calls go through the Rust `api` command
 });
