@@ -7,6 +7,7 @@
   ],
   "scripts": {
     "daemon": "bun packages/cli/src/daemon.ts",
+    "desktop": "bun run --cwd packages/desktop tauri dev",
     "test": "vp run -r test",
     "check": "vp check",
     "ready": "vp check && vp run -r test && vp run -r build"

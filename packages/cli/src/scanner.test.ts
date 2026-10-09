@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { matchProject, scan } from "./scanner";
@@ -39,6 +39,14 @@ test("matches session cwd to the deepest worktree", () => {
   expect(m?.project.name).toBe("app");
   expect(m?.worktree.branch).toBe("nested");
   expect(matchProject(projects, "/elsewhere")).toBeNull();
+});
+
+test("a cwd reached through a symlink still matches its project", () => {
+  const projects = scan([root]);
+  const link = join(root, "via-link");
+  symlinkSync(join(root, "solo"), link);
+  expect(matchProject(projects, link)?.project.name).toBe("solo");
+  expect(matchProject(projects, join(link, "sub"))).toBeNull(); // missing dir under the link: no crash, no match
 });
 
 test("hook events drive session state", () => {

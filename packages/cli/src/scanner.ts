@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, realpathSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 
 export type Worktree = { path: string; branch: string | null };
@@ -50,14 +50,23 @@ export function scan(roots: string[]): Project[] {
   });
 }
 
-/** Longest-prefix match of a session cwd against all worktrees. */
+/** Longest-prefix match of a session cwd against all worktrees. Worktree paths are real paths, so a cwd reached through a symlink is retried resolved. */
 export function matchProject(projects: Project[], cwd: string): { project: Project; worktree: Worktree } | null {
-  let best: { project: Project; worktree: Worktree } | null = null;
-  for (const project of projects) {
-    for (const worktree of project.worktrees) {
-      const inside = cwd === worktree.path || cwd.startsWith(worktree.path + "/");
-      if (inside && (!best || worktree.path.length > best.worktree.path.length)) best = { project, worktree };
+  const match = (dir: string) => {
+    let best: { project: Project; worktree: Worktree } | null = null;
+    for (const project of projects) {
+      for (const worktree of project.worktrees) {
+        const inside = dir === worktree.path || dir.startsWith(worktree.path + "/");
+        if (inside && (!best || worktree.path.length > best.worktree.path.length)) best = { project, worktree };
+      }
     }
+    return best;
+  };
+  const direct = match(cwd);
+  if (direct || !cwd) return direct;
+  try {
+    return match(realpathSync(cwd));
+  } catch {
+    return null; // cwd no longer exists
   }
-  return best;
 }

@@ -1,23 +1,19 @@
-use std::fs::OpenOptions;
+// Menu bar app. It does not own the daemon (`bun run daemon --bg`): it shows the daemon's status in the tray,
+// opens the dashboard window, and relays the dashboard's calls to the daemon through the `api` command.
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
 use std::time::Duration;
 
 use serde_json::{json, Value};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 
 const DEFAULT_PORT: u16 = 4321;
 
-/// The running sidecar and the port it was started for.
-static SIDECAR: Mutex<Option<(Child, u16)>> = Mutex::new(None);
-
-// ---- settings (same file and precedence as src/config.ts: env > file > default) ----
+// ---- settings (same file and precedence as the daemon: env > file > default) ----
 
 fn config_dir() -> PathBuf {
     match std::env::var("STACKCHAN_CONFIG_DIR") {
@@ -43,13 +39,13 @@ fn port_and_token() -> (u16, String) {
     (port, token)
 }
 
-// ---- tiny blocking HTTP/1.1 client for the local server ----
+// ---- tiny blocking HTTP/1.1 client for the local daemon ----
 
 fn http(method: &str, path: &str, body: Option<&str>) -> Result<(u16, String), String> {
     let (port, token) = port_and_token();
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let mut s = TcpStream::connect_timeout(&addr, Duration::from_secs(1)).map_err(|e| e.to_string())?;
-    s.set_read_timeout(Some(Duration::from_secs(5))).ok();
+    s.set_read_timeout(Some(Duration::from_secs(15))).ok(); // voice requests call a model, so allow for it
     s.set_write_timeout(Some(Duration::from_secs(5))).ok();
     let body = body.unwrap_or("");
     let auth = if token.is_empty() { String::new() } else { format!("Authorization: Bearer {token}\r\n") };
@@ -80,7 +76,7 @@ fn dechunk(mut s: &str) -> String {
     out
 }
 
-/// Called by the settings window; the Rust side adds the token, so the page never handles it.
+/// Called by the dashboard; the Rust side adds the token, so the page never handles it.
 #[tauri::command]
 fn api(method: String, path: String, body: Option<String>) -> Result<Value, String> {
     if !(path.starts_with("/admin/") || path.starts_with("/v1/")) {
@@ -88,53 +84,6 @@ fn api(method: String, path: String, body: Option<String>) -> Result<Value, Stri
     }
     let (status, text) = http(&method, &path, body.as_deref())?;
     Ok(json!({ "status": status, "body": serde_json::from_str::<Value>(&text).unwrap_or(Value::String(text)) }))
-}
-
-// ---- sidecar ----
-
-fn sidecar_path() -> PathBuf {
-    std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.join("stack-chan-server"))).unwrap_or_default()
-}
-
-fn spawn_sidecar() -> Option<Child> {
-    let dir = config_dir();
-    std::fs::create_dir_all(&dir).ok();
-    let log = OpenOptions::new().create(true).append(true).open(dir.join("server.log")).ok()?;
-    // A login shell gives the server the user's PATH (a GUI app gets a bare one), which `claude` spawns need.
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
-    Command::new(shell)
-        .args(["-l", "-c", "exec \"$0\""])
-        .arg(sidecar_path())
-        .env("STACKCHAN_EXIT_ON_STDIN_CLOSE", "1")
-        .stdin(Stdio::piped()) // held open by us; the server exits when it closes (app killed or crashed)
-        .stdout(log.try_clone().ok()?)
-        .stderr(log)
-        .spawn()
-        .map_err(|e| eprintln!("sidecar spawn failed: {e}"))
-        .ok()
-}
-
-fn stop_sidecar() {
-    if let Some((mut child, _)) = SIDECAR.lock().unwrap().take() {
-        child.kill().ok();
-        child.wait().ok();
-    }
-}
-
-/// Start the sidecar if missing or dead; restart it when the configured port changed.
-fn ensure_sidecar(port: u16) {
-    let mut guard = SIDECAR.lock().unwrap();
-    let stale = match guard.as_mut() {
-        Some((child, p)) => *p != port || child.try_wait().map(|s| s.is_some()).unwrap_or(true),
-        None => true,
-    };
-    if stale {
-        if let Some((mut child, _)) = guard.take() {
-            child.kill().ok();
-            child.wait().ok();
-        }
-        *guard = spawn_sidecar().map(|c| (c, port));
-    }
 }
 
 // ---- tray ----
@@ -156,7 +105,7 @@ fn icon(state: &str) -> Image<'static> {
 /// (state, status line, tooltip) from a /v1/state body, or the offline triple.
 fn summarize(state: Option<Value>) -> (&'static str, String, String) {
     let Some(v) = state else {
-        return (STATES[5], "server down".into(), "Stack-chan: server down".into());
+        return (STATES[5], "daemon not running".into(), "Stack-chan: daemon not running (bun run daemon --bg)".into());
     };
     let st = match v["display"]["expression"].as_str() {
         Some("focused") => "running",
@@ -176,8 +125,6 @@ fn summarize(state: Option<Value>) -> (&'static str, String, String) {
 fn poll_loop(app: AppHandle, status: MenuItem<tauri::Wry>) {
     let mut last = String::new();
     loop {
-        let (port, _) = port_and_token();
-        ensure_sidecar(port);
         let state = http("GET", "/v1/state", None)
             .ok()
             .filter(|(code, _)| *code == 200)
@@ -196,59 +143,40 @@ fn poll_loop(app: AppHandle, status: MenuItem<tauri::Wry>) {
     }
 }
 
-fn open_settings(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("settings") {
+fn open_dashboard(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
         w.show().ok();
+        w.unminimize().ok();
         w.set_focus().ok();
-        return;
     }
-    WebviewWindowBuilder::new(app, "settings", WebviewUrl::App("index.html".into()))
-        .title("Stack-chan Settings")
-        .inner_size(540.0, 760.0)
-        .build()
-        .map_err(|e| eprintln!("settings window: {e}"))
-        .ok();
-}
-
-/// Typed voice console: bundled page that calls the server through the `api` command, like Settings.
-fn open_console(app: &AppHandle) {
-    if let Some(w) = app.get_webview_window("console") {
-        w.show().ok();
-        w.set_focus().ok();
-        return;
-    }
-    WebviewWindowBuilder::new(app, "console", WebviewUrl::App("console.html".into()))
-        .title("Stack-chan Voice Console")
-        .inner_size(760.0, 720.0)
-        .build()
-        .map_err(|e| eprintln!("console window: {e}"))
-        .ok();
 }
 
 fn main() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![api])
+        // Closing the dashboard hides it; the menu bar app keeps running.
+        .on_window_event(|window, event| {
+            if let WindowEvent::CloseRequested { api, .. } = event {
+                api.prevent_close();
+                window.hide().ok();
+            }
+        })
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             let status = MenuItem::with_id(app, "status", "starting…", false, None::<&str>)?;
-            let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
-            let console = MenuItem::with_id(app, "console", "Voice console…", true, None::<&str>)?;
+            let dashboard = MenuItem::with_id(app, "dashboard", "Open Dashboard", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&status, &PredefinedMenuItem::separator(app)?, &console, &settings, &quit])?;
+            let menu = Menu::with_items(app, &[&status, &PredefinedMenuItem::separator(app)?, &dashboard, &quit])?;
             TrayIconBuilder::with_id("main")
                 .icon(icon("offline"))
                 .icon_as_template(false)
                 .tooltip("Stack-chan")
                 .menu(&menu)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "console" => open_console(app),
-                    "settings" => open_settings(app),
-                    "quit" => {
-                        stop_sidecar();
-                        app.exit(0);
-                    }
+                    "dashboard" => open_dashboard(app),
+                    "quit" => app.exit(0),
                     _ => {}
                 })
                 .build(app)?;
@@ -259,10 +187,12 @@ fn main() {
         })
         .build(tauri::generate_context!())
         .expect("error while building Stack-chan")
-        .run(|_app, event| match event {
-            // Closing the settings window must not quit the menu bar app.
-            RunEvent::ExitRequested { code, api, .. } if code.is_none() => api.prevent_exit(),
-            RunEvent::Exit => stop_sidecar(),
-            _ => {}
+        .run(|_app, event| {
+            // Closing the dashboard must not quit the menu bar app.
+            if let RunEvent::ExitRequested { code, api, .. } = event {
+                if code.is_none() {
+                    api.prevent_exit();
+                }
+            }
         });
 }
