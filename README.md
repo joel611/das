@@ -47,3 +47,46 @@ Every decision is appended as a JSON line to `DECISIONS_LOG` (default `./data/de
 `claude --bg` refuses to start in a folder Claude Code does not trust ("Workspace not trusted"); there is no dialog in a background spawn. Trust is stored per folder in `~/.claude.json` (`projects[<path>].hasTrustDialogAccepted`), there is no `settings.json` key for it, and a trusted folder covers every subfolder (verified with `claude --bg`: a child of a trusted folder starts, a child of an untrusted one is refused). Trust is never saved for the home directory.
 
 At startup the server reads `~/.claude.json` (read-only) and prints which scanned projects are not covered. Fix: run `claude` once in the root folder and accept the dialog. Trusting a root also lets the project hooks, `.mcp.json` and allow rules of every repo under it run, so pick the narrowest folder that holds only repos you trust. A refused spawn replies `status: "error"`, `text: "Claude does not trust <project> yet"`.
+
+## App (menu bar)
+
+A Tauri v2 menu bar app in `app/`. It runs the server as a sidecar (a `bun build --compile` binary), shows the aggregate state in the tray, and has a Settings window. No Dock icon.
+
+```sh
+bun install
+bun run app:dev      # builds the sidecar, then tauri dev
+bun run app:build    # builds the sidecar, then a release Stack-chan.app (app/src-tauri/target/release/bundle/macos/)
+bun run sidecar:build  # only the sidecar: app/src-tauri/binaries/stack-chan-server-<triple>
+```
+
+Tray: a status line (`2 running`, `idle`, `server down`), `Settings…`, `Quit`. The icon colour follows the top state (idle, running, waiting, done, error; a ring when the server is down). The app polls `GET /v1/state` every 2 s, restarts the sidecar if it dies or if the port setting changes, and stops it on Quit (it also exits on its own if the app is killed). Sidecar output goes to `<settings dir>/server.log`. The sidecar starts through your login shell so it finds `claude` on `PATH`.
+
+### Settings
+
+`~/Library/Application Support/stack-chan-server/config.json` (mode 0600), or `$STACKCHAN_CONFIG_DIR/config.json`: `{roots, port, token, openrouterKey}`. Precedence: env (`PROJECT_ROOTS`, `PORT`, `TOKEN`, `OPENROUTER_API_KEY`) over the file over defaults. Token and OpenRouter key are write-only in the API (`hasToken`, `hasOpenrouterKey`). A root change rescans at once; a token change applies at once; a port change replies `restartRequired: true` and the app restarts the sidecar.
+
+Admin API (localhost only, plus the token if set):
+
+| Route | Result |
+|---|---|
+| `GET /admin/settings` | `{roots, port, hasToken, hasOpenrouterKey, envOverrides, trustAdvice}` |
+| `PUT /admin/settings` | body: any of `roots` (existing dirs), `port` (1-65535), `token`, `openrouterKey` (`""` clears); returns the GET shape plus `restartRequired` |
+| `GET /admin/hooks` | `{state, events:{<Event>: installed\|partial\|missing}, portMatches, port}` |
+| `POST /admin/hooks/install`, `DELETE /admin/hooks` | same shape after the change |
+| `GET /v1/devices` | `[{id, device, capabilities, connectedAt}]` (from `hello`) |
+| `GET /v1/state` | `{display, sessions, devices, projects, untrustedProjects}` |
+
+### Hook installer
+
+Adds one command hook per event (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop`, `SessionEnd`) to `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`). Each hook pipes the hook JSON to `http://127.0.0.1:<port>/hooks/<Event>` with `curl -s -m 2 ... >/dev/null 2>&1 || true`: no output, always exit 0, it never blocks or changes the agent.
+
+- Additive: your existing hooks and all other keys stay. Our entry is a new matcher group (no `matcher`, so it matches all).
+- Marker: every command ends with `# stack-chan-server`. Install is idempotent (re-install updates the port, no duplicates). Uninstall removes only marked entries and the groups or events it emptied.
+- Safe write: the path is resolved with `realpath` (a symlinked `~/.claude` or `settings.json` stays a symlink), a `settings.json.bak-<timestamp>` copy is made before each change, and the new file is written to a temp file in the same directory and renamed onto the target. A file that is not valid JSON is refused and left alone. Nothing is written when nothing changes.
+
+### Manual steps
+
+1. `bun run app:build`, then open `app/src-tauri/target/release/bundle/macos/Stack-chan.app` (or run `bun run app:dev`).
+2. Tray icon, `Settings…`: set the root folders, port, and OpenRouter key; Save.
+3. Click `Install hooks` (check the status line says `installed`). Running Claude sessions need a restart to load hooks.
+4. Run `claude` once in each root folder and accept the trust dialog, so voice spawns work. The Settings window lists untrusted projects.
