@@ -243,6 +243,13 @@ if (import.meta.main) {
     },
   });
   console.log(`stack-chan-server on :${server.port}, roots: ${config.roots.join(", ")}, ${projects.length} projects`);
+  // The menu bar app holds our stdin open; if it dies without stopping us, stdin closes and we exit.
+  if (process.env.STACKCHAN_EXIT_ON_STDIN_CLOSE) {
+    (async () => {
+      for await (const _ of Bun.stdin.stream());
+      process.exit(0);
+    })();
+  }
   const advice = trustAdvice(config.roots, projects);
   if (advice) console.warn(advice);
 }
