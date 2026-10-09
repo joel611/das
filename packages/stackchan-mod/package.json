@@ -1,6 +1,6 @@
 {
   "name": "@stackchan/mod",
   "private": true,
-  "type": "module",
-  "description": "stack-chan MOD (device client). Built with the stack-chan firmware tooling, see README.md."
+  "description": "stack-chan MOD (device client). Built with the stack-chan firmware tooling, see README.md.",
+  "type": "module"
 }

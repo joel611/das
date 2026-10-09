@@ -36,5 +36,6 @@ curl -X POST localhost:4321/hooks/PreToolUse -d '{"session_id":"s","cwd":"/path/
 ## Next
 
 Milestone 3 options:
+
 1. Build the real mod against stack-chan's browser WASM simulator (face and emotion visible).
 2. Keep this desktop simulator for a protocol-level client with a simple Piu UI.

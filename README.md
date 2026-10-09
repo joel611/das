@@ -6,12 +6,12 @@ Run: `PROJECT_ROOTS=~/Projects bun src/server.ts` (env: `PORT`, `TOKEN`). Test: 
 
 `WS /v1/ws` (JSON text frames). Auth: `Authorization: Bearer <TOKEN>` or `?token=<TOKEN>` (only when `TOKEN` is set).
 
-| Direction | Frame |
-|---|---|
-| client -> server | `{"type":"hello","device":"name","capabilities":["display"]}` |
+| Direction        | Frame                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| client -> server | `{"type":"hello","device":"name","capabilities":["display"]}`                        |
 | server -> client | `{"type":"snapshot","projects":[...],"sessions":[...],"display":D}` (reply to hello) |
-| server -> client | `{"type":"delta","session":{...},"display":D}` (session changed) |
-| server -> client | `{"type":"delta","removed":"<sessionId>","display":D}` (SessionEnd) |
+| server -> client | `{"type":"delta","session":{...},"display":D}` (session changed)                     |
+| server -> client | `{"type":"delta","removed":"<sessionId>","display":D}` (SessionEnd)                  |
 
 `D = {"expression":"focused|worried|happy|sad|neutral","headline":"3 running","count":3}`.
 Rollup priority: error > waiting > running > done > idle. `button` is reserved (ignored); unknown messages are ignored.
@@ -31,9 +31,9 @@ A transcript is routed to a project by a decision model (Jev via OpenRouter, `ty
 
 **Real spawns run in auto permission mode, so edits happen unattended, but only inside their own worktree.** Review and merge or delete the branch afterwards (`claude rm <id>` removes the session and its worktree when safe).
 
-| Direction | Frame |
-|---|---|
-| client -> server | `{"type":"voice.transcript","text":"fix the login bug in stack-chan"}` |
+| Direction        | Frame                                                                                                                                     |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| client -> server | `{"type":"voice.transcript","text":"fix the login bug in stack-chan"}`                                                                    |
 | server -> client | `{"type":"voice.reply","status":"spawned\|ask\|escalate\|error","text":"Started in stack-chan-server","project":"...","sessionId":"..."}` |
 
 `POST /v1/voice` with `{"text":"...","device":"name"}` returns the same JSON without the `type` field (same auth as other `/v1` routes).
@@ -53,11 +53,23 @@ Dev helper: `SERVER=http://127.0.0.1:4321 bun scripts/dev-ui.ts` serves `app/ui`
 `POST /v1/voice` body: `{"text":"...","device":"name","dryRun":false,"debug":false}`. `dryRun` and `debug` are optional booleans. A missing `dryRun` is a REAL run (as before), so existing clients are unchanged. `dryRun: true` or `debug: true` adds a `debug` field to the reply; normal replies have none.
 
 ```json
-{ "status": "dry-run", "text": "Would start in recipe-app", "project": "recipe-app",
-  "debug": { "choice": "recipe-app", "confidence": 0.93, "band": "spawn",
-    "probabilities": {"recipe-app": 0.93, "ml-pipeline": 0.04}, "alternatives": [{"project":"recipe-app","p":0.93}],
-    "worktree": null, "cwd": "/path/recipe-app", "wouldSpawn": true, "name": "voice-recipe-app-1009-1432",
-    "thresholds": {"act": 0.8, "ask": 0.4} } }
+{
+  "status": "dry-run",
+  "text": "Would start in recipe-app",
+  "project": "recipe-app",
+  "debug": {
+    "choice": "recipe-app",
+    "confidence": 0.93,
+    "band": "spawn",
+    "probabilities": { "recipe-app": 0.93, "ml-pipeline": 0.04 },
+    "alternatives": [{ "project": "recipe-app", "p": 0.93 }],
+    "worktree": null,
+    "cwd": "/path/recipe-app",
+    "wouldSpawn": true,
+    "name": "voice-recipe-app-1009-1432",
+    "thresholds": { "act": 0.8, "ask": 0.4 }
+  }
+}
 ```
 
 `status` is one of `spawned`, `dry-run` (a spawn that was skipped), `ask`, `escalate`, `error`. In a dry run, `ask` and `escalate` replies are unchanged apart from `debug`.
@@ -87,14 +99,14 @@ Tray: a status line (`2 running`, `idle`, `server down`), `Settings…`, `Quit`.
 
 Admin API (localhost only, plus the token if set):
 
-| Route | Result |
-|---|---|
-| `GET /admin/settings` | `{roots, port, hasToken, hasOpenrouterKey, envOverrides, trustAdvice}` |
-| `PUT /admin/settings` | body: any of `roots` (existing dirs), `port` (1-65535), `token`, `openrouterKey` (`""` clears); returns the GET shape plus `restartRequired` |
-| `GET /admin/hooks` | `{state, events:{<Event>: installed\|partial\|missing}, portMatches, port}` |
-| `POST /admin/hooks/install`, `DELETE /admin/hooks` | same shape after the change |
-| `GET /v1/devices` | `[{id, device, capabilities, connectedAt}]` (from `hello`) |
-| `GET /v1/state` | `{display, sessions, devices, projects, untrustedProjects}` |
+| Route                                              | Result                                                                                                                                       |
+| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /admin/settings`                              | `{roots, port, hasToken, hasOpenrouterKey, envOverrides, trustAdvice}`                                                                       |
+| `PUT /admin/settings`                              | body: any of `roots` (existing dirs), `port` (1-65535), `token`, `openrouterKey` (`""` clears); returns the GET shape plus `restartRequired` |
+| `GET /admin/hooks`                                 | `{state, events:{<Event>: installed\|partial\|missing}, portMatches, port}`                                                                  |
+| `POST /admin/hooks/install`, `DELETE /admin/hooks` | same shape after the change                                                                                                                  |
+| `GET /v1/devices`                                  | `[{id, device, capabilities, connectedAt}]` (from `hello`)                                                                                   |
+| `GET /v1/state`                                    | `{display, sessions, devices, projects, untrustedProjects}`                                                                                  |
 
 ### Hook installer
 

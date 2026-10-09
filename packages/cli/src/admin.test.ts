@@ -12,7 +12,9 @@ const VARS = ["PROJECT_ROOTS", "PORT", "TOKEN", "OPENROUTER_API_KEY"];
 const saved = VARS.map((k) => process.env[k]);
 beforeAll(() => VARS.forEach((k) => delete process.env[k]));
 afterAll(() => {
-  VARS.forEach((k, i) => (saved[i] === undefined ? delete process.env[k] : (process.env[k] = saved[i])));
+  VARS.forEach((k, i) =>
+    saved[i] === undefined ? delete process.env[k] : (process.env[k] = saved[i]),
+  );
   rmSync(root, { recursive: true, force: true });
 });
 const mk = (n: string) => {
@@ -23,13 +25,30 @@ const mk = (n: string) => {
 
 test("settings file: 0600, merge, precedence env > file > defaults", () => {
   const dir = mk("cfg1");
-  expect(loadConfig(dir, {})).toEqual({ roots: [expect.stringMatching(/\/Projects$/)], port: 4321, token: "", openrouterKey: "" });
+  expect(loadConfig(dir, {})).toEqual({
+    roots: [expect.stringMatching(/\/Projects$/)],
+    port: 4321,
+    token: "",
+    openrouterKey: "",
+  });
   writeSettingsFile({ roots: ["/a", "/b"], port: 5000, token: "t", openrouterKey: "k" }, dir);
   writeSettingsFile({ port: 5001 }, dir);
   expect(statSync(join(dir, "config.json")).mode & 0o777).toBe(0o600);
-  expect(readSettingsFile(dir)).toEqual({ roots: ["/a", "/b"], port: 5001, token: "t", openrouterKey: "k" });
-  expect(loadConfig(dir, {})).toEqual({ roots: ["/a", "/b"], port: 5001, token: "t", openrouterKey: "k" });
-  expect(loadConfig(dir, { PROJECT_ROOTS: "/c", PORT: "6000", TOKEN: "e", OPENROUTER_API_KEY: "ek" })).toEqual({
+  expect(readSettingsFile(dir)).toEqual({
+    roots: ["/a", "/b"],
+    port: 5001,
+    token: "t",
+    openrouterKey: "k",
+  });
+  expect(loadConfig(dir, {})).toEqual({
+    roots: ["/a", "/b"],
+    port: 5001,
+    token: "t",
+    openrouterKey: "k",
+  });
+  expect(
+    loadConfig(dir, { PROJECT_ROOTS: "/c", PORT: "6000", TOKEN: "e", OPENROUTER_API_KEY: "ek" }),
+  ).toEqual({
     roots: ["/c"],
     port: 6000,
     token: "e",
@@ -72,15 +91,30 @@ test("settings API: validation, secrets write-only, restartRequired, onSettings"
   expect(j).toMatchObject({ port: 4321, hasToken: false, hasOpenrouterKey: false });
   expect(j.trustAdvice).toContain("1 of 2");
 
-  for (const bad of [{ roots: ["/nonexistent-xyz"] }, { roots: "x" }, { port: 0 }, { port: 70000 }, { port: 1.5 }, { token: 5 }]) {
+  for (const bad of [
+    { roots: ["/nonexistent-xyz"] },
+    { roots: "x" },
+    { port: 0 },
+    { port: 70000 },
+    { port: 1.5 },
+    { token: 5 },
+  ]) {
     r = await fetch(`${base}/admin/settings`, json("PUT", bad));
     expect(r.status).toBe(400);
   }
   expect(readSettingsFile(configDir)).toEqual({});
 
-  r = await fetch(`${base}/admin/settings`, json("PUT", { roots: [good], token: "tok-9x7", openrouterKey: "sk-secret" }));
+  r = await fetch(
+    `${base}/admin/settings`,
+    json("PUT", { roots: [good], token: "tok-9x7", openrouterKey: "sk-secret" }),
+  );
   j = await r.json();
-  expect(j).toMatchObject({ roots: [good], hasToken: true, hasOpenrouterKey: true, restartRequired: true });
+  expect(j).toMatchObject({
+    roots: [good],
+    hasToken: true,
+    hasOpenrouterKey: true,
+    restartRequired: true,
+  });
   expect(JSON.stringify(j)).not.toContain("sk-secret");
   expect(JSON.stringify(j)).not.toContain("tok-9x7");
   expect(changed).toHaveLength(1);
@@ -89,12 +123,17 @@ test("settings API: validation, secrets write-only, restartRequired, onSettings"
 
   // token is now live: unauthenticated request is refused, bearer works, secrets still hidden
   expect((await fetch(`${base}/admin/settings`)).status).toBe(401);
-  const get = await fetch(`${base}/admin/settings`, { headers: { authorization: "Bearer tok-9x7" } });
+  const get = await fetch(`${base}/admin/settings`, {
+    headers: { authorization: "Bearer tok-9x7" },
+  });
   expect(JSON.stringify(await get.json())).not.toContain("sk-secret");
 
   // port equal to the running one needs no restart
-  r = await fetch(`${base}/admin/settings`, json("PUT", { port: server.port }, { authorization: "Bearer tok-9x7" }));
-  expect((await r.json() as any).restartRequired).toBe(false);
+  r = await fetch(
+    `${base}/admin/settings`,
+    json("PUT", { port: server.port }, { authorization: "Bearer tok-9x7" }),
+  );
+  expect(((await r.json()) as any).restartRequired).toBe(false);
   server.stop(true);
 });
 
@@ -137,7 +176,12 @@ test("devices from hello, removed on close; /v1/state", async () => {
     untrustedProjects: 1,
   });
   ws.close();
-  for (let i = 0; i < 50 && ((await (await fetch(`${base}/v1/devices`)).json()) as any[]).length; i++) await Bun.sleep(20);
+  for (
+    let i = 0;
+    i < 50 && ((await (await fetch(`${base}/v1/devices`)).json()) as any[]).length;
+    i++
+  )
+    await Bun.sleep(20);
   expect(await (await fetch(`${base}/v1/devices`)).json()).toEqual([]);
   server.stop(true);
 });
@@ -145,6 +189,8 @@ test("devices from hello, removed on close; /v1/state", async () => {
 test("/v1/state requires the token like other /v1 routes", async () => {
   const { server, base } = setup("zz");
   expect((await fetch(`${base}/v1/state`)).status).toBe(401);
-  expect((await fetch(`${base}/v1/state`, { headers: { authorization: "Bearer zz" } })).status).toBe(200);
+  expect(
+    (await fetch(`${base}/v1/state`, { headers: { authorization: "Bearer zz" } })).status,
+  ).toBe(200);
   server.stop(true);
 });

@@ -21,7 +21,11 @@ export function isTrusted(path: string, trusted: string[], home = homedir()): bo
 }
 
 /** Startup advice for projects that `claude --bg` would refuse with "Workspace not trusted", or null if all are fine. */
-export function trustAdvice(roots: string[], projects: Project[], trusted = trustedPaths()): string | null {
+export function trustAdvice(
+  roots: string[],
+  projects: Project[],
+  trusted = trustedPaths(),
+): string | null {
   const bad = projects.filter((p) => !isTrusted(p.path, trusted));
   if (!bad.length) return null;
   const lines = roots.flatMap((root) => {

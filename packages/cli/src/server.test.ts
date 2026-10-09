@@ -6,8 +6,13 @@ afterAll(() => server.stop(true));
 const base = `localhost:${server.port}`;
 
 const nextMessage = (ws: WebSocket) =>
-  new Promise<any>((resolve) => ws.addEventListener("message", (e) => resolve(JSON.parse(String(e.data))), { once: true }));
-const opened = (ws: WebSocket) => new Promise<void>((r, j) => ((ws.onopen = () => r()), (ws.onerror = () => j(new Error("ws error")))));
+  new Promise<any>((resolve) =>
+    ws.addEventListener("message", (e) => resolve(JSON.parse(String(e.data))), { once: true }),
+  );
+const opened = (ws: WebSocket) =>
+  new Promise<void>(
+    (r, j) => ((ws.onopen = () => r()), (ws.onerror = () => j(new Error("ws error")))),
+  );
 
 test("rejects missing or wrong token", async () => {
   expect((await fetch(`http://${base}/v1/ws`)).status).toBe(401);

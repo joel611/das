@@ -2,13 +2,13 @@
 
 `mod.js` connects to `ws://localhost:4321/v1/ws` (change `SERVER_URL` at the top; use the LAN IP on a real device), sends `hello`, and maps `display.expression` to a face emotion and `display.headline` to a balloon. It retries every 3 s after a close.
 
-| server expression | face emotion |
-| --- | --- |
-| neutral | NEUTRAL |
-| focused | ANGRY (narrowed eyes) |
-| worried | DOUBTFUL |
-| happy | HAPPY |
-| sad | SAD |
+| server expression | face emotion          |
+| ----------------- | --------------------- |
+| neutral           | NEUTRAL               |
+| focused           | ANGRY (narrowed eyes) |
+| worried           | DOUBTFUL              |
+| happy             | HAPPY                 |
+| sad               | SAD                   |
 
 Valid emotions in stack-chan: NEUTRAL, ANGRY, SAD, HAPPY, SLEEPY, DOUBTFUL, COLD, HOT.
 

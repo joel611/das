@@ -1,5 +1,15 @@
 import { afterAll, expect, test } from "bun:test";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { EVENTS, hooksStatus, installHooks, MARKER, uninstallHooks } from "./hooks-install";
 
@@ -81,7 +91,10 @@ test("status: missing / partial / installed, port mismatch", () => {
   const dir = fresh(base());
   expect(hooksStatus({ claudeDir: dir, port: 4321 }).state).toBe("missing");
   installHooks({ claudeDir: dir, port: 4321 });
-  expect(hooksStatus({ claudeDir: dir, port: 4321 })).toMatchObject({ state: "installed", portMatches: true });
+  expect(hooksStatus({ claudeDir: dir, port: 4321 })).toMatchObject({
+    state: "installed",
+    portMatches: true,
+  });
   const mismatch = hooksStatus({ claudeDir: dir, port: 9999 });
   expect(mismatch.portMatches).toBe(false);
   expect(mismatch.state).toBe("partial");

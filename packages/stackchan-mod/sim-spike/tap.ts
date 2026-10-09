@@ -6,7 +6,9 @@ Bun.serve<{ up: WebSocket; queue: string[] }>({
   port: 4322,
   fetch(req, srv) {
     const up = new WebSocket(UPSTREAM);
-    return srv.upgrade(req, { data: { up, queue: [] } }) ? undefined : new Response("upgrade failed", { status: 400 });
+    return srv.upgrade(req, { data: { up, queue: [] } })
+      ? undefined
+      : new Response("upgrade failed", { status: 400 });
   },
   websocket: {
     open(ws) {
@@ -19,7 +21,9 @@ Bun.serve<{ up: WebSocket; queue: string[] }>({
     },
     message(ws, raw) {
       console.log("[tap] client -> server:", String(raw));
-      ws.data.up.readyState === WebSocket.OPEN ? ws.data.up.send(String(raw)) : ws.data.queue.push(String(raw));
+      ws.data.up.readyState === WebSocket.OPEN
+        ? ws.data.up.send(String(raw))
+        : ws.data.queue.push(String(raw));
     },
     close() {
       console.log("[tap] client closed");

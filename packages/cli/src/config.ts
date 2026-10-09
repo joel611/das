@@ -7,7 +7,8 @@ export type Config = { roots: string[]; port: number; token: string; openrouterK
 const expand = (p: string) => (p.startsWith("~") ? homedir() + p.slice(1) : p);
 
 export const configDir = (env: Record<string, string | undefined> = process.env) =>
-  env.STACKCHAN_CONFIG_DIR || join(homedir(), "Library", "Application Support", "stack-chan-server");
+  env.STACKCHAN_CONFIG_DIR ||
+  join(homedir(), "Library", "Application Support", "stack-chan-server");
 
 /** Raw persisted settings (what the user saved; env overrides are not included). */
 export function readSettingsFile(dir = configDir()): Partial<Config> {
@@ -24,15 +25,24 @@ export function writeSettingsFile(patch: Partial<Config>, dir = configDir()) {
   mkdirSync(dir, { recursive: true });
   const file = join(dir, "config.json");
   const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify({ ...readSettingsFile(dir), ...patch }, null, 2) + "\n", { mode: 0o600 });
+  writeFileSync(tmp, JSON.stringify({ ...readSettingsFile(dir), ...patch }, null, 2) + "\n", {
+    mode: 0o600,
+  });
   chmodSync(tmp, 0o600);
   renameSync(tmp, file);
 }
 
 /** Effective config: env vars override the settings file, which overrides defaults. */
-export function loadConfig(dir = configDir(), env: Record<string, string | undefined> = process.env): Config {
+export function loadConfig(
+  dir = configDir(),
+  env: Record<string, string | undefined> = process.env,
+): Config {
   const f = readSettingsFile(dir);
-  const roots = env.PROJECT_ROOTS ? env.PROJECT_ROOTS.split(",") : Array.isArray(f.roots) ? f.roots : ["~/Projects"];
+  const roots = env.PROJECT_ROOTS
+    ? env.PROJECT_ROOTS.split(",")
+    : Array.isArray(f.roots)
+      ? f.roots
+      : ["~/Projects"];
   return {
     roots: roots.map((r) => expand(String(r).trim())).filter(Boolean),
     port: Number(env.PORT || f.port || 4321),

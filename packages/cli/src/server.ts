@@ -1,6 +1,6 @@
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
-import { config, configDir, envOverrides, loadConfig, writeSettingsFile, type Config } from "./config";
+import { config, envOverrides, loadConfig, writeSettingsFile, type Config } from "./config";
 import { computeDisplay } from "./display";
 import { hooksStatus, installHooks, uninstallHooks } from "./hooks-install";
 import type { Project } from "./scanner";
@@ -58,7 +58,8 @@ function parseSettings(b: any): { patch: Partial<Config> } | { error: string } {
     patch.roots = roots;
   }
   if (b?.port !== undefined) {
-    if (!Number.isInteger(b.port) || b.port < 1 || b.port > 65535) return { error: "port must be an integer 1-65535" };
+    if (!Number.isInteger(b.port) || b.port < 1 || b.port > 65535)
+      return { error: "port must be an integer 1-65535" };
     patch.port = b.port;
   }
   for (const k of ["token", "openrouterKey"] as const) {
@@ -81,7 +82,13 @@ export function createServer({
   onSettings,
   trusted = cachedTrusted,
 }: Opts) {
-  const voice: VoiceDeps = { decider, spawner, getProjects, pending: new Map(), logPath: decisionsLog };
+  const voice: VoiceDeps = {
+    decider,
+    spawner,
+    getProjects,
+    pending: new Map(),
+    logPath: decisionsLog,
+  };
   const tracker = new SessionTracker(getProjects);
 
   let boundPort = port;
@@ -116,14 +123,16 @@ export function createServer({
       // Hook ingest: localhost only, never blocks the agent.
       const hook = url.pathname.match(/^\/hooks\/(\w+)$/);
       if (hook && req.method === "POST") {
-        if (!isLocal(srv.requestIP(req)?.address)) return new Response("forbidden", { status: 403 });
+        if (!isLocal(srv.requestIP(req)?.address))
+          return new Response("forbidden", { status: 403 });
         tracker.handleHook(hook[1], await req.json().catch(() => ({})));
         return new Response(null, { status: 204 });
       }
 
       // Admin API: localhost only, plus the token when one is set. Secrets are write-only.
       if (url.pathname.startsWith("/admin/")) {
-        if (!isLocal(srv.requestIP(req)?.address)) return new Response("forbidden", { status: 403 });
+        if (!isLocal(srv.requestIP(req)?.address))
+          return new Response("forbidden", { status: 403 });
         if (!authorized(req, url)) return new Response("unauthorized", { status: 401 });
         const route = `${req.method} ${url.pathname}`;
         if (url.pathname === "/admin/settings") {
@@ -143,11 +152,17 @@ export function createServer({
           if (!claudeDir) return new Response("claude dir not configured", { status: 501 });
           const cfgPort = () => (configDir ? loadConfig(configDir).port : boundPort);
           try {
-            if (route === "GET /admin/hooks") return Response.json(hooksStatus({ claudeDir, port: cfgPort() }));
-            if (route === "POST /admin/hooks/install") return Response.json(installHooks({ claudeDir, port: cfgPort() }));
-            if (route === "DELETE /admin/hooks") return Response.json(uninstallHooks({ claudeDir }));
+            if (route === "GET /admin/hooks")
+              return Response.json(hooksStatus({ claudeDir, port: cfgPort() }));
+            if (route === "POST /admin/hooks/install")
+              return Response.json(installHooks({ claudeDir, port: cfgPort() }));
+            if (route === "DELETE /admin/hooks")
+              return Response.json(uninstallHooks({ claudeDir }));
           } catch (e) {
-            return Response.json({ error: String(e instanceof Error ? e.message : e) }, { status: 500 });
+            return Response.json(
+              { error: String(e instanceof Error ? e.message : e) },
+              { status: 500 },
+            );
           }
         }
         return new Response("not found", { status: 404 });
@@ -161,7 +176,14 @@ export function createServer({
         }
         if (url.pathname === "/v1/voice" && req.method === "POST") {
           const body: any = await req.json().catch(() => ({}));
-          return Response.json(await handleTranscript(voice, `http:${body.device ?? "default"}`, String(body.text ?? ""), { dryRun: body.dryRun === true, debug: body.debug === true }));
+          return Response.json(
+            await handleTranscript(
+              voice,
+              `http:${body.device ?? "default"}`,
+              String(body.text ?? ""),
+              { dryRun: body.dryRun === true, debug: body.debug === true },
+            ),
+          );
         }
         if (url.pathname === "/v1/projects") return Response.json(getProjects());
         if (url.pathname === "/v1/sessions") return Response.json(tracker.list());
@@ -210,7 +232,12 @@ export function createServer({
           });
           const sessions = tracker.list();
           ws.send(
-            JSON.stringify({ type: "snapshot", projects: getProjects(), sessions, display: computeDisplay(sessions) }),
+            JSON.stringify({
+              type: "snapshot",
+              projects: getProjects(),
+              sessions,
+              display: computeDisplay(sessions),
+            }),
           );
         }
       },
@@ -219,7 +246,10 @@ export function createServer({
 
   boundPort = server.port ?? port;
   tracker.onChange((e) => {
-    server.publish(TOPIC, JSON.stringify({ type: "delta", ...e, display: computeDisplay(tracker.list()) }));
+    server.publish(
+      TOPIC,
+      JSON.stringify({ type: "delta", ...e, display: computeDisplay(tracker.list()) }),
+    );
   });
 
   return server;

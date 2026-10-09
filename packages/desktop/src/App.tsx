@@ -1,25 +1,25 @@
-import { useState } from "react"
+import { useState } from "react";
 
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { usePoll } from "@/hooks/use-poll"
-import { api } from "@/lib/api"
-import { cn } from "@/lib/utils"
-import { Console } from "@/views/console"
-import { Overview } from "@/views/overview"
-import { Settings } from "@/views/settings"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePoll } from "@/hooks/use-poll";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { Console } from "@/views/console";
+import { Overview } from "@/views/overview";
+import { Settings } from "@/views/settings";
 
 const TABS = [
   { id: "overview", label: "Overview" },
   { id: "console", label: "Console" },
   { id: "settings", label: "Settings" },
-] as const
+] as const;
 
-type Tab = (typeof TABS)[number]["id"]
+type Tab = (typeof TABS)[number]["id"];
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("overview")
-  const state = usePoll(api.state, 2000)
-  const online = !!state.data
+  const [tab, setTab] = useState<Tab>("overview");
+  const state = usePoll(api.state, 2000);
+  const online = !!state.data;
 
   return (
     <div className="mx-auto flex min-h-svh max-w-5xl flex-col gap-4 p-4">
@@ -52,5 +52,5 @@ export default function App() {
         </div>
       </main>
     </div>
-  )
+  );
 }

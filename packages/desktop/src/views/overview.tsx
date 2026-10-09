@@ -1,14 +1,14 @@
-import { StateBadge } from "@/components/state-badge"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { api } from "@/lib/api"
-import { ago } from "@/lib/format"
-import type { SessionState } from "@/lib/types"
-import { usePoll } from "@/hooks/use-poll"
+import { StateBadge } from "@/components/state-badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { api } from "@/lib/api";
+import { ago } from "@/lib/format";
+import type { SessionState } from "@/lib/types";
+import { usePoll } from "@/hooks/use-poll";
 
-const ORDER: SessionState[] = ["error", "waiting", "running", "done", "idle"]
+const ORDER: SessionState[] = ["error", "waiting", "running", "done", "idle"];
 
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
@@ -19,32 +19,34 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
         {hint ? <CardDescription>{hint}</CardDescription> : null}
       </CardHeader>
     </Card>
-  )
+  );
 }
 
 export function Overview() {
-  const state = usePoll(api.state, 2000)
-  const sessions = usePoll(api.sessions, 2000)
-  const projects = usePoll(api.projects, 10_000)
-  const devices = usePoll(api.devices, 3000)
+  const state = usePoll(api.state, 2000);
+  const sessions = usePoll(api.sessions, 2000);
+  const projects = usePoll(api.projects, 10_000);
+  const devices = usePoll(api.devices, 3000);
 
   if (state.error && !state.data) {
     return (
       <Alert variant="destructive">
         <AlertTitle>Daemon not reachable</AlertTitle>
         <AlertDescription>
-          Start it with <code>bun run daemon --bg</code>, then this page updates by itself. ({state.error.message})
+          Start it with <code>bun run daemon --bg</code>, then this page updates by itself. (
+          {state.error.message})
         </AlertDescription>
       </Alert>
-    )
+    );
   }
 
-  const s = state.data
+  const s = state.data;
   const list = [...(sessions.data ?? [])].sort(
     (a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state) || b.updatedAt - a.updatedAt,
-  )
-  const byProject = new Map<string, SessionState[]>()
-  for (const x of list) if (x.project) byProject.set(x.project, [...(byProject.get(x.project) ?? []), x.state])
+  );
+  const byProject = new Map<string, SessionState[]>();
+  for (const x of list)
+    if (x.project) byProject.set(x.project, [...(byProject.get(x.project) ?? []), x.state]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -55,14 +57,18 @@ export function Overview() {
         <Stat
           label="Projects"
           value={s?.projects ?? "…"}
-          hint={s?.untrustedProjects ? `${s.untrustedProjects} not trusted by Claude` : "all trusted"}
+          hint={
+            s?.untrustedProjects ? `${s.untrustedProjects} not trusted by Claude` : "all trusted"
+          }
         />
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Sessions</CardTitle>
-          <CardDescription>Claude Code sessions reported by hooks, most urgent first</CardDescription>
+          <CardDescription>
+            Claude Code sessions reported by hooks, most urgent first
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {list.length === 0 ? (
@@ -81,7 +87,9 @@ export function Overview() {
                         {[x.branch, x.detail].filter(Boolean).join(" · ") || x.cwd}
                       </div>
                     </div>
-                    <span className="shrink-0 text-xs text-muted-foreground">{ago(x.updatedAt)}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {ago(x.updatedAt)}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -103,7 +111,9 @@ export function Overview() {
                   <li key={p.id} className="py-2">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{p.name}</span>
-                      {p.worktrees.length > 1 ? <Badge variant="outline">{p.worktrees.length} worktrees</Badge> : null}
+                      {p.worktrees.length > 1 ? (
+                        <Badge variant="outline">{p.worktrees.length} worktrees</Badge>
+                      ) : null}
                       {(byProject.get(p.name) ?? []).slice(0, 4).map((st, i) => (
                         <StateBadge key={i} state={st} />
                       ))}
@@ -112,7 +122,9 @@ export function Overview() {
                   </li>
                 ))}
                 {projects.data?.length === 0 ? (
-                  <li className="py-2 text-sm text-muted-foreground">No git projects under the roots. Set them in Settings.</li>
+                  <li className="py-2 text-sm text-muted-foreground">
+                    No git projects under the roots. Set them in Settings.
+                  </li>
                 ) : null}
               </ul>
             </ScrollArea>
@@ -133,7 +145,8 @@ export function Overview() {
                   <li key={d.id} className="py-2">
                     <div className="text-sm font-medium">{d.device}</div>
                     <div className="text-xs text-muted-foreground">
-                      {d.capabilities.join(", ") || "no capabilities"} · connected {ago(d.connectedAt)}
+                      {d.capabilities.join(", ") || "no capabilities"} · connected{" "}
+                      {ago(d.connectedAt)}
                     </div>
                   </li>
                 ))}
@@ -143,5 +156,5 @@ export function Overview() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

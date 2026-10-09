@@ -10,7 +10,11 @@ export type Decision = {
 };
 
 export type DecideContext = { previous?: string; candidates?: string[] };
-export type Decider = (transcript: string, projects: Project[], context?: DecideContext) => Promise<Decision>;
+export type Decider = (
+  transcript: string,
+  projects: Project[],
+  context?: DecideContext,
+) => Promise<Decision>;
 
 export type Thresholds = { act: number; ask: number };
 export const thresholds: Thresholds = {
@@ -21,7 +25,10 @@ export const thresholds: Thresholds = {
 export type Band = "spawn" | "ask" | "escalate";
 
 /** Pure: map a decision to an action band. Hard gates (allowlist, transcript) live in voice.ts. */
-export function applyBands(d: Pick<Decision, "project" | "confidence">, t: Thresholds = thresholds): Band {
+export function applyBands(
+  d: Pick<Decision, "project" | "confidence">,
+  t: Thresholds = thresholds,
+): Band {
   if (d.project === null || d.confidence < t.ask) return "escalate";
   return d.confidence >= t.act ? "spawn" : "ask";
 }
@@ -35,27 +42,37 @@ const describe = (p: Project) => {
   return `Project "${p.name}" at ${p.path}${branches.length ? `; branches: ${branches.join(", ")}` : ""}`;
 };
 
-const wtKey = (p: Project, i: number) => `${p.name}@${p.worktrees[i].branch ?? p.worktrees[i].path}`;
+const wtKey = (p: Project, i: number) =>
+  `${p.name}@${p.worktrees[i].branch ?? p.worktrees[i].path}`;
 
 /** Build the OpenRouter decisions request body. */
 export function buildRequest(transcript: string, projects: Project[], context?: DecideContext) {
-  const criteria: Record<string, string> = Object.fromEntries(projects.map((p) => [p.name, describe(p)]));
+  const criteria: Record<string, string> = Object.fromEntries(
+    projects.map((p) => [p.name, describe(p)]),
+  );
   criteria.none = "Not a coding task for any listed project, or too unclear to tell which project";
   const state: Record<string, unknown> = { transcript };
   let instructions = "Pick the project this spoken coding request is for.";
   if (context?.previous) {
     state.previous_transcript = context.previous;
     state.clarification_options = context.candidates;
-    instructions += " The transcript answers a clarifying question about previous_transcript; choose among clarification_options.";
+    instructions +=
+      " The transcript answers a clarifying question about previous_transcript; choose among clarification_options.";
   }
-  const questions: Record<string, unknown> = { project: { type: "choice", instructions, criteria } };
+  const questions: Record<string, unknown> = {
+    project: { type: "choice", instructions, criteria },
+  };
   const multi = projects.filter((p) => p.worktrees.length > 1);
   if (multi.length) {
     const wc: Record<string, string> = {};
-    for (const p of multi) p.worktrees.forEach((w, i) => (wc[wtKey(p, i)] = `Branch ${w.branch ?? "(detached)"} of ${p.name}`));
+    for (const p of multi)
+      p.worktrees.forEach(
+        (w, i) => (wc[wtKey(p, i)] = `Branch ${w.branch ?? "(detached)"} of ${p.name}`),
+      );
     questions.worktree = {
       type: "choice",
-      instructions: "If the request names or implies a specific branch/worktree, pick it; otherwise pick the main one.",
+      instructions:
+        "If the request names or implies a specific branch/worktree, pick it; otherwise pick the main one.",
       criteria: wc,
     };
   }
@@ -67,7 +84,8 @@ type Answer = { choice: string; confidence: number; probabilities?: Record<strin
 /** Parse an OpenRouter decisions response into a Decision. Throws on malformed shape. */
 export function parseResponse(json: any, projects: Project[]): Decision {
   const a: Answer | undefined = json?.answers?.project;
-  if (!a || typeof a.choice !== "string" || typeof a.confidence !== "number") throw new Error("malformed decision response");
+  if (!a || typeof a.choice !== "string" || typeof a.confidence !== "number")
+    throw new Error("malformed decision response");
   const alternatives = Object.entries(a.probabilities ?? { [a.choice]: a.confidence })
     .filter(([name]) => name !== "none")
     .map(([project, p]) => ({ project, p }))
@@ -96,7 +114,10 @@ export function makeJevDecider(opts: { apiKey?: string; fetch?: typeof fetch } =
       body: JSON.stringify(buildRequest(transcript, projects, context)),
     });
     const json: any = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(`decision API ${res.status}: ${json?.error?.message ?? json?.error?.code ?? "error"}`);
+    if (!res.ok)
+      throw new Error(
+        `decision API ${res.status}: ${json?.error?.message ?? json?.error?.code ?? "error"}`,
+      );
     return parseResponse(json, projects);
   };
 }

@@ -50,7 +50,9 @@ function serve() {
       rescan();
     },
   });
-  console.log(`stack-chan daemon on :${server.port}, roots: ${config.roots.join(", ")}, ${projects.length} projects`);
+  console.log(
+    `stack-chan daemon on :${server.port}, roots: ${config.roots.join(", ")}, ${projects.length} projects`,
+  );
   const advice = trustAdvice(config.roots, projects);
   if (advice) console.warn(advice);
 }
@@ -72,10 +74,17 @@ if (flag === "--stop") {
   } else {
     mkdirSync(dir, { recursive: true });
     const log = openSync(logFile, "a");
-    const child = Bun.spawn([process.execPath, import.meta.path], { stdin: "ignore", stdout: log, stderr: log, detached: true });
+    const child = Bun.spawn([process.execPath, import.meta.path], {
+      stdin: "ignore",
+      stdout: log,
+      stderr: log,
+      detached: true,
+    });
     child.unref();
     closeSync(log);
-    console.log(`daemon started in the background (pid ${child.pid}), port ${config.port}, log ${logFile}`);
+    console.log(
+      `daemon started in the background (pid ${child.pid}), port ${config.port}, log ${logFile}`,
+    );
   }
 } else if (flag) {
   console.error(`unknown option ${flag}; use --bg, --stop or --status`);

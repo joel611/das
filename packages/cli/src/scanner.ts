@@ -51,13 +51,17 @@ export function scan(roots: string[]): Project[] {
 }
 
 /** Longest-prefix match of a session cwd against all worktrees. Worktree paths are real paths, so a cwd reached through a symlink is retried resolved. */
-export function matchProject(projects: Project[], cwd: string): { project: Project; worktree: Worktree } | null {
+export function matchProject(
+  projects: Project[],
+  cwd: string,
+): { project: Project; worktree: Worktree } | null {
   const match = (dir: string) => {
     let best: { project: Project; worktree: Worktree } | null = null;
     for (const project of projects) {
       for (const worktree of project.worktrees) {
         const inside = dir === worktree.path || dir.startsWith(worktree.path + "/");
-        if (inside && (!best || worktree.path.length > best.worktree.path.length)) best = { project, worktree };
+        if (inside && (!best || worktree.path.length > best.worktree.path.length))
+          best = { project, worktree };
       }
     }
     return best;

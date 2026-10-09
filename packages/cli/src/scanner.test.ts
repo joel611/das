@@ -17,7 +17,19 @@ beforeAll(() => {
   const repo = join(root, "group", "app");
   mkdirSync(repo, { recursive: true });
   sh(repo, "git", "init", "-q", "-b", "main");
-  sh(repo, "git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "init");
+  sh(
+    repo,
+    "git",
+    "-c",
+    "user.name=t",
+    "-c",
+    "user.email=t@t",
+    "commit",
+    "-q",
+    "--allow-empty",
+    "-m",
+    "init",
+  );
   sh(repo, "git", "worktree", "add", "-q", "-b", "feat", join(root, "group", "app-feat"));
   sh(repo, "git", "worktree", "add", "-q", "-b", "nested", join(repo, ".claude", "worktrees", "n"));
   mkdirSync(join(root, "solo"));

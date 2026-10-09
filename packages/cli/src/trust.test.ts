@@ -6,7 +6,12 @@ import type { Project } from "./scanner";
 import { isTrusted, trustAdvice, trustedPaths } from "./trust";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
-const proj = (path: string): Project => ({ id: path, name: path.split("/").pop()!, path, worktrees: [{ path, branch: "main" }] });
+const proj = (path: string): Project => ({
+  id: path,
+  name: path.split("/").pop()!,
+  path,
+  worktrees: [{ path, branch: "main" }],
+});
 
 test("trust is inherited from any ancestor, never from siblings or prefixes", () => {
   const t = ["/h/Projects/personal"];
@@ -22,7 +27,16 @@ test("home directory trust is never counted", () => {
 
 test("reads only trusted entries from claude json, tolerates a missing file", () => {
   const f = join(mkdtempSync(join(tmpdir(), "trust-")), ".claude.json");
-  writeFileSync(f, JSON.stringify({ projects: { "/a": { hasTrustDialogAccepted: true }, "/b": { hasTrustDialogAccepted: false }, "/c": {} } }));
+  writeFileSync(
+    f,
+    JSON.stringify({
+      projects: {
+        "/a": { hasTrustDialogAccepted: true },
+        "/b": { hasTrustDialogAccepted: false },
+        "/c": {},
+      },
+    }),
+  );
   expect(trustedPaths(f)).toEqual(["/a"]);
   expect(trustedPaths(join(tmpdir(), "no-such-file.json"))).toEqual([]);
 });
@@ -39,7 +53,9 @@ test("advice names untrusted roots and is null when everything is covered", () =
 test("a spawn refused for trust gets a specific reply", async () => {
   const deps: VoiceDeps = {
     decider: async () => ({ project: "a", confidence: 0.95, alternatives: [] }),
-    spawner: async () => { throw new Error("claude exited 1: Workspace not trusted. Run `claude` in /x once"); },
+    spawner: async () => {
+      throw new Error("claude exited 1: Workspace not trusted. Run `claude` in /x once");
+    },
     getProjects: () => [proj("/x/a")],
     pending: new Map(),
   };

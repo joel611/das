@@ -1,9 +1,26 @@
-import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 
 /** Edits Claude Code's user settings (`<claudeDir>/settings.json`, key `hooks`). Callers always pass claudeDir explicitly. */
 
-export const EVENTS = ["SessionStart", "UserPromptSubmit", "PreToolUse", "Notification", "Stop", "SessionEnd"] as const;
+export const EVENTS = [
+  "SessionStart",
+  "UserPromptSubmit",
+  "PreToolUse",
+  "Notification",
+  "Stop",
+  "SessionEnd",
+] as const;
 export const MARKER = "# stack-chan-server";
 
 type Hook = { type?: string; command?: string; [k: string]: unknown };
@@ -14,7 +31,8 @@ type Settings = { hooks?: Record<string, Group[]>; [k: string]: unknown };
 export const hookCommand = (event: string, port: number) =>
   `curl -s -m 2 -X POST -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:${port}/hooks/${event} >/dev/null 2>&1 || true ${MARKER}`;
 
-const isOurs = (h: Hook) => h?.type === "command" && typeof h.command === "string" && h.command.includes(MARKER);
+const isOurs = (h: Hook) =>
+  h?.type === "command" && typeof h.command === "string" && h.command.includes(MARKER);
 const portOf = (h: Hook) => Number(h.command?.match(/127\.0\.0\.1:(\d+)\/hooks\//)?.[1]) || null;
 
 /** Resolve through symlinks (the real ~/.claude may link into a dotfiles repo); a missing file resolves to its real dir. */
@@ -28,8 +46,12 @@ function target(claudeDir: string): string {
 function read(file: string): Settings {
   if (!existsSync(file)) return {};
   const s = JSON.parse(readFileSync(file, "utf8"));
-  if (!s || typeof s !== "object" || Array.isArray(s)) throw new Error(`${file} is not a JSON object`);
-  if (s.hooks !== undefined && (typeof s.hooks !== "object" || s.hooks === null || Array.isArray(s.hooks)))
+  if (!s || typeof s !== "object" || Array.isArray(s))
+    throw new Error(`${file} is not a JSON object`);
+  if (
+    s.hooks !== undefined &&
+    (typeof s.hooks !== "object" || s.hooks === null || Array.isArray(s.hooks))
+  )
     throw new Error(`${file}: "hooks" is not an object`);
   return s;
 }
@@ -113,9 +135,22 @@ export function hooksStatus({ claudeDir, port }: { claudeDir: string; port: numb
       .flatMap((g) => (Array.isArray(g?.hooks) ? g.hooks : []))
       .filter(isOurs);
     ours.forEach((h) => ports.add(portOf(h)));
-    events[ev] = !ours.length ? "missing" : ours.length > 1 || ours.some((h) => portOf(h) !== port) ? "partial" : "installed";
+    events[ev] = !ours.length
+      ? "missing"
+      : ours.length > 1 || ours.some((h) => portOf(h) !== port)
+        ? "partial"
+        : "installed";
   }
   const vals = Object.values(events);
-  const state = vals.every((v) => v === "missing") ? "missing" : vals.every((v) => v === "installed") ? "installed" : "partial";
-  return { state, events, portMatches: ports.size === 1 && ports.has(port), port: ports.size === 1 ? [...ports][0] : null };
+  const state = vals.every((v) => v === "missing")
+    ? "missing"
+    : vals.every((v) => v === "installed")
+      ? "installed"
+      : "partial";
+  return {
+    state,
+    events,
+    portMatches: ports.size === 1 && ports.has(port),
+    port: ports.size === 1 ? [...ports][0] : null,
+  };
 }

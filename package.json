@@ -1,10 +1,10 @@
 {
   "name": "stack-chan-server",
   "private": true,
-  "type": "module",
   "workspaces": [
     "packages/*"
   ],
+  "type": "module",
   "scripts": {
     "daemon": "bun packages/cli/src/daemon.ts",
     "desktop": "bun run --cwd packages/desktop tauri dev",

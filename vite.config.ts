@@ -13,7 +13,8 @@ const ignorePatterns = [
 export default defineConfig({
   fmt: { ignorePatterns },
   lint: {
-    ignorePatterns,
+    // The mod is Moddable runtime JS and sim-spike is a throwaway Bun script: neither type-checks as a normal package.
+    ignorePatterns: [...ignorePatterns, "packages/stackchan-mod/**"],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },
     options: { typeAware: true, typeCheck: true },
