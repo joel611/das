@@ -55,6 +55,8 @@ export type HookStatus = {
   legacy: boolean;
   port: number | null;
   portMatches: boolean;
+  /** install/uninstall succeeded but cleaning old hooks out of settings.json did not. */
+  warning?: string | null;
 };
 
 export type VoiceDebug = {

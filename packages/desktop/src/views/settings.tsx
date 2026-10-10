@@ -20,6 +20,8 @@ import { usePoll } from "@/hooks/use-poll";
 import { api } from "@/lib/api";
 import type { SettingsPatch } from "@/lib/types";
 
+const HOOK_BADGE = { installed: "default", partial: "outline", missing: "secondary" } as const;
+
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** A write-only secret: the daemon never returns it, so the field only says whether one is set. */
@@ -222,15 +224,7 @@ export function Settings() {
         <CardContent className="flex flex-col gap-2">
           <div className="flex flex-wrap gap-1.5">
             {h ? (
-              <Badge
-                variant={
-                  h.state === "installed"
-                    ? "default"
-                    : h.state === "partial"
-                      ? "outline"
-                      : "secondary"
-                }
-              >
+              <Badge variant={HOOK_BADGE[h.state]}>
                 {h.installed ? (h.enabled ? "installed" : "installed, disabled") : "not installed"}
               </Badge>
             ) : null}
@@ -247,6 +241,7 @@ export function Settings() {
               The plugin is disabled in Claude Code. Enable it with /plugin or install again.
             </p>
           ) : null}
+          {h?.warning ? <p className="text-xs text-destructive">{h.warning}</p> : null}
           {h?.legacy ? (
             <p className="text-xs text-muted-foreground">
               Hooks from an older version are still in your Claude settings. Install or uninstall

@@ -1,7 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import {
   existsSync,
-  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -9,6 +8,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   type Claude,
@@ -23,9 +23,7 @@ import {
   uninstallHooks,
 } from "./hooks-install";
 
-const TMP = "/Users/joel.chan/.claude/jobs/f23bdb0a/tmp";
-mkdirSync(TMP, { recursive: true });
-const root = mkdtempSync(join(TMP, "hooks-"));
+const root = mkdtempSync(join(tmpdir(), "hooks-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 const fresh = (settings?: object) => {
@@ -51,7 +49,11 @@ const legacy = () => ({
 
 /** In-memory stand-in for the `claude plugin` CLI, recording every call. */
 function fakeClaude() {
-  const st = { marketplaces: new Map<string, string>(), installed: new Map<string, number>() };
+  const st = {
+    marketplaces: new Map<string, string>(),
+    installed: new Map<string, number>(),
+    disabled: new Set<string>(),
+  };
   const calls: string[][] = [];
   const ok = (j: object) => ({ code: 0, stdout: JSON.stringify(j) + "\n", stderr: "" });
   const fail = (failureCode: string) => ({
@@ -74,13 +76,21 @@ function fakeClaude() {
       st.installed.set(a[2], Number(a[a.indexOf("--config") + 1].split("=")[1]));
       return ok({ outcome: "ok" });
     }
+    if (a[1] === "enable") {
+      st.disabled.delete(a[2]);
+      return ok({ outcome: "ok" });
+    }
     if (a[1] === "uninstall")
       return st.installed.delete(a[2]) ? ok({ outcome: "ok" }) : fail("not_installed");
     if (a[1] === "list")
       return {
         code: 0,
         stdout: JSON.stringify(
-          [...st.installed.keys()].map((id) => ({ id, scope: "user", enabled: true })),
+          [...st.installed.keys()].map((id) => ({
+            id,
+            scope: "user",
+            enabled: !st.disabled.has(id),
+          })),
         ),
         stderr: "",
       };
@@ -122,6 +132,7 @@ test("install adds the repo marketplace and installs the plugin with the port", 
     legacy: false,
     port: 4321,
     portMatches: true,
+    warning: null,
   });
   expect(existsSync(join(dir, "settings.json"))).toBe(false); // nothing written by us
 });
@@ -155,11 +166,12 @@ test("a failing CLI call surfaces its message", async () => {
   expect(String(err)).toContain("marketplace file is invalid");
 });
 
-test("legacy settings hooks: reported as partial, removed by install, other hooks kept, backup made", async () => {
+test("legacy settings hooks: reported (state missing without the plugin), removed by install, other hooks kept, backup made", async () => {
   const dir = fresh(legacy());
   const { claude } = fakeClaude();
   expect(hasLegacyHooks(dir)).toBe(true);
-  expect((await hooksStatus({ claudeDir: dir, port: 4321, claude })).state).toBe("partial");
+  const before = await hooksStatus({ claudeDir: dir, port: 4321, claude });
+  expect([before.state, before.legacy, before.installed]).toEqual(["missing", true, false]);
   await installHooks({ claudeDir: dir, port: 4321, claude });
   const s = load(dir);
   expect(s.model).toBe("opus");
@@ -195,4 +207,63 @@ test("refuses settings.json that is not a JSON object", () => {
   const bad = fresh();
   writeFileSync(join(bad, "settings.json"), "[1]");
   expect(() => removeLegacyHooks(bad)).toThrow();
+});
+
+test("install turns a plugin disabled in /plugin back on", async () => {
+  const dir = fresh();
+  const { claude, st } = fakeClaude();
+  await installHooks({ claudeDir: dir, port: 4321, claude });
+  st.disabled.add(PLUGIN);
+  expect((await hooksStatus({ claudeDir: dir, port: 4321, claude })).enabled).toBe(false);
+  expect((await installHooks({ claudeDir: dir, port: 4321, claude })).enabled).toBe(true);
+});
+
+test("a malformed settings.json does not break status or fail install, it warns", async () => {
+  const dir = fresh();
+  writeFileSync(join(dir, "settings.json"), "{ nope");
+  const { claude, st } = fakeClaude();
+  const s = await installHooks({ claudeDir: dir, port: 4321, claude });
+  expect(st.installed.has(PLUGIN)).toBe(true);
+  expect(s.state).toBe("installed");
+  expect(s.warning).toContain("old hooks");
+  expect((await hooksStatus({ claudeDir: dir, port: 4321, claude })).legacy).toBe(false);
+});
+
+test("uninstall runs the plugin removal before touching settings.json", async () => {
+  const dir = fresh();
+  writeFileSync(join(dir, "settings.json"), "[1]");
+  const { claude, st } = fakeClaude();
+  await installHooks({ claudeDir: dir, port: 4321, claude });
+  const s = await uninstallHooks({ claudeDir: dir, claude });
+  expect(st.installed.size + st.marketplaces.size).toBe(0);
+  expect(s.warning).toBeTruthy();
+});
+
+test("a failing uninstall leaves settings.json alone", async () => {
+  const dir = fresh(legacy());
+  const before = readFileSync(join(dir, "settings.json"), "utf8");
+  const claude: Claude = async () => ({ code: 1, stdout: "", stderr: "boom" });
+  await expect(uninstallHooks({ claudeDir: dir, claude })).rejects.toThrow("boom");
+  expect(readFileSync(join(dir, "settings.json"), "utf8")).toBe(before);
+});
+
+test("status survives malformed CLI output", async () => {
+  const claude: Claude = async (a) =>
+    a[1] === "list"
+      ? {
+          code: 0,
+          stdout: JSON.stringify([{ id: PLUGIN, scope: "user", enabled: true }]),
+          stderr: "",
+        }
+      : { code: 0, stdout: "not json", stderr: "" };
+  const s = await hooksStatus({ claudeDir: fresh(), port: 1, claude });
+  expect([s.installed, s.port]).toEqual([true, null]);
+});
+
+test("legacy cleanup writes through a symlinked ~/.claude directory", () => {
+  const real = fresh(legacy());
+  const link = join(root, `link-${process.pid}`);
+  symlinkSync(real, link);
+  expect(removeLegacyHooks(link)).toBe(true);
+  expect(load(real).hooks.SessionEnd).toBeUndefined();
 });

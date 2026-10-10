@@ -106,7 +106,7 @@ Admin routes are localhost only, plus the token if set.
 
 ## Hook plugin
 
-The hooks ship as a Claude Code plugin, [`plugins/stack-chan-hooks`](../../plugins/stack-chan-hooks), listed by this repo's own marketplace (`.claude-plugin/marketplace.json`, name `stack-chan`). Its `hooks/hooks.json` has one command hook per event (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop`, `SessionEnd`), each running `hooks/forward.sh <Event>`, which pipes the hook JSON to `http://127.0.0.1:$CLAUDE_PLUGIN_OPTION_PORT/hooks/<Event>` with `curl -s -m 2`: no output, always exit 0, it never blocks or changes the agent. The port is the plugin's `port` option (default 4321).
+The hooks ship as a Claude Code plugin, [`plugins/stack-chan-hooks`](../../plugins/stack-chan-hooks), listed by this repo's own marketplace (`.claude-plugin/marketplace.json`, name `stack-chan`). Its `hooks/hooks.json` has one command hook per event (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop`, `SessionEnd`), each running `hooks/forward.sh <Event>`, which pipes the hook JSON to `http://127.0.0.1:$CLAUDE_PLUGIN_OPTION_PORT/hooks/<Event>` with `curl -s -m 2`: no output, always exit 0, it never blocks or changes the agent. The port is the plugin's `port` option (default 4321); the script has no fallback of its own.
 
 ```sh
 bun run hooks:install     # claude plugin marketplace add <repo> + claude plugin install stack-chan-hooks@stack-chan --config port=<daemon port>

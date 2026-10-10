@@ -4,9 +4,9 @@
 //   bun run daemon --stop    stop the background daemon
 //   bun run daemon --status  show whether it is running
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { config, configDir } from "./config";
+import { defaultClaudeDir } from "./hooks-install";
 import { scan, type Project } from "./scanner";
 import { createServer } from "./server";
 import { trustAdvice } from "./trust";
@@ -44,7 +44,7 @@ function serve() {
     token: config.token,
     getProjects: () => projects,
     configDir: dir,
-    claudeDir: process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"),
+    claudeDir: defaultClaudeDir(),
     onSettings: (c) => {
       Object.assign(config, c);
       rescan();
