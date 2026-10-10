@@ -1,0 +1,11 @@
+{
+  "name": "stack-chan",
+  "owner": { "name": "joel611" },
+  "plugins": [
+    {
+      "name": "stack-chan-hooks",
+      "source": "./plugins/stack-chan-hooks",
+      "description": "Forwards Claude Code session events to the local stack-chan daemon"
+    }
+  ]
+}

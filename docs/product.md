@@ -44,7 +44,7 @@ Claude Code sessions ──hooks──▶ ┌───────────�
 - Map a session `cwd` to a worktree by longest path prefix, then roll up to its project. Device UI shows project, with branch/worktree as detail.
 
 ### 2. Session tracker
-- Source of truth: **Claude Code hooks** (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop`, `SessionEnd`) installed in `~/.claude/settings.json`, each posting JSON to `http://localhost:<port>/hooks/:event`. Hooks must be fire-and-forget, never block the agent.
+- Source of truth: **Claude Code hooks** (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop`, `SessionEnd`) shipped as the `stack-chan-hooks` Claude Code plugin (installed with `claude plugin install`), each posting JSON to `http://localhost:<port>/hooks/:event`. Hooks must be fire-and-forget, never block the agent.
 - Backup/enrichment: tail `~/.claude/projects/<encoded-cwd>/*.jsonl` for last assistant message, tool name, timestamps.
 - Session state: `idle | running | waiting | done | error`.
   - Auto mode means `waiting` is rare; mainly `running`, `done`, `error`.

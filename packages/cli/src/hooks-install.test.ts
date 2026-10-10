@@ -1,7 +1,6 @@
 import { afterAll, expect, test } from "bun:test";
 import {
   existsSync,
-  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -11,7 +10,18 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { EVENTS, hooksStatus, installHooks, MARKER, uninstallHooks } from "./hooks-install";
+import {
+  type Claude,
+  EVENTS,
+  hasLegacyHooks,
+  hooksStatus,
+  installHooks,
+  MARKER,
+  PLUGIN,
+  REPO_ROOT,
+  removeLegacyHooks,
+  uninstallHooks,
+} from "./hooks-install";
 
 const TMP = "/Users/joel.chan/.claude/jobs/f23bdb0a/tmp";
 mkdirSync(TMP, { recursive: true });
@@ -25,123 +35,164 @@ const fresh = (settings?: object) => {
 };
 const load = (dir: string) => JSON.parse(readFileSync(join(dir, "settings.json"), "utf8"));
 const userHook = { matcher: "Bash", hooks: [{ type: "command", command: "echo mine" }] };
-const base = () => ({
+const legacyHook = (ev: string) => ({
+  hooks: [
+    { type: "command", command: `curl ... http://127.0.0.1:4321/hooks/${ev} || true ${MARKER}` },
+  ],
+});
+const legacy = () => ({
   model: "opus",
-  permissions: { allow: ["Bash(ls)"] },
-  hooks: { Stop: [userHook], PostToolUse: [userHook] },
+  hooks: {
+    Stop: [userHook, legacyHook("Stop")],
+    SessionEnd: [legacyHook("SessionEnd")],
+    PostToolUse: [userHook],
+  },
 });
 
-test("creates settings.json when missing, with every event", () => {
+/** In-memory stand-in for the `claude plugin` CLI, recording every call. */
+function fakeClaude() {
+  const st = { marketplaces: new Map<string, string>(), installed: new Map<string, number>() };
+  const calls: string[][] = [];
+  const ok = (j: object) => ({ code: 0, stdout: JSON.stringify(j) + "\n", stderr: "" });
+  const fail = (failureCode: string) => ({
+    code: 1,
+    stdout: JSON.stringify({ outcome: "failed", failureCode, message: failureCode }) + "\n",
+    stderr: "",
+  });
+  const claude: Claude = async (args) => {
+    calls.push(args);
+    const a = args.filter((x) => x !== "--json");
+    const cmd = a.slice(0, 3).join(" ");
+    if (cmd.startsWith("plugin marketplace add")) {
+      st.marketplaces.set("stack-chan", a[3]);
+      return ok({ outcome: "ok" });
+    }
+    if (cmd.startsWith("plugin marketplace remove"))
+      return st.marketplaces.delete(a[3]) ? ok({ outcome: "ok" }) : fail("not_configured");
+    if (a[1] === "install") {
+      if (!st.marketplaces.has("stack-chan")) return fail("not_found");
+      st.installed.set(a[2], Number(a[a.indexOf("--config") + 1].split("=")[1]));
+      return ok({ outcome: "ok" });
+    }
+    if (a[1] === "uninstall")
+      return st.installed.delete(a[2]) ? ok({ outcome: "ok" }) : fail("not_installed");
+    if (a[1] === "list")
+      return {
+        code: 0,
+        stdout: JSON.stringify(
+          [...st.installed.keys()].map((id) => ({ id, scope: "user", enabled: true })),
+        ),
+        stderr: "",
+      };
+    if (a[1] === "configure") {
+      if (!st.installed.has(a[2])) return { code: 1, stdout: "No installed plugin", stderr: "" };
+      return ok({
+        inputs: { port: String(st.installed.get(a[2])) },
+        schema: { port: { default: 4321 } },
+      });
+    }
+    return { code: 2, stdout: "", stderr: `unexpected: ${args.join(" ")}` };
+  };
+  return { claude, st, calls };
+}
+
+test("the plugin ships one forwarding hook per event", () => {
+  const plugin = join(REPO_ROOT, "plugins", "stack-chan-hooks");
+  const hooks = JSON.parse(readFileSync(join(plugin, "hooks", "hooks.json"), "utf8")).hooks;
+  expect(Object.keys(hooks).sort()).toEqual([...EVENTS].sort());
+  for (const ev of EVENTS) expect(hooks[ev][0].hooks[0].command).toContain(`forward.sh ${ev}`);
+  const market = JSON.parse(
+    readFileSync(join(REPO_ROOT, ".claude-plugin", "marketplace.json"), "utf8"),
+  );
+  expect(`${market.plugins[0].name}@${market.name}`).toBe(PLUGIN);
+  expect(existsSync(join(REPO_ROOT, market.plugins[0].source, "hooks", "forward.sh"))).toBe(true);
+});
+
+test("install adds the repo marketplace and installs the plugin with the port", async () => {
   const dir = fresh();
-  const st = installHooks({ claudeDir: dir, port: 4321 });
-  expect(st.state).toBe("installed");
-  expect(Object.keys(load(dir).hooks).sort()).toEqual([...EVENTS].sort());
-  const cmd = load(dir).hooks.Stop[0].hooks[0].command as string;
-  expect(cmd).toContain("http://127.0.0.1:4321/hooks/Stop");
-  expect(cmd).toContain(MARKER);
-  expect(cmd).toContain(">/dev/null 2>&1 || true");
-});
-
-test("additive: keeps other keys and existing hooks, appends ours", () => {
-  const dir = fresh(base());
-  installHooks({ claudeDir: dir, port: 4321 });
-  const s = load(dir);
-  expect(s.model).toBe("opus");
-  expect(s.permissions).toEqual(base().permissions);
-  expect(s.hooks.PostToolUse).toEqual([userHook]);
-  expect(s.hooks.Stop[0]).toEqual(userHook);
-  expect(s.hooks.Stop).toHaveLength(2);
-});
-
-test("idempotent; reinstall with a new port updates in place without duplicates", () => {
-  const dir = fresh(base());
-  installHooks({ claudeDir: dir, port: 4321 });
-  const once = readFileSync(join(dir, "settings.json"), "utf8");
-  installHooks({ claudeDir: dir, port: 4321 });
-  expect(readFileSync(join(dir, "settings.json"), "utf8")).toBe(once);
-  const st = installHooks({ claudeDir: dir, port: 5000 });
-  expect(st.portMatches).toBe(true);
-  expect(st.port).toBe(5000);
-  expect(load(dir).hooks.Stop).toHaveLength(2);
-  expect(JSON.stringify(load(dir))).not.toContain("4321");
-});
-
-test("uninstall removes only ours and containers it emptied", () => {
-  const dir = fresh(base());
-  installHooks({ claudeDir: dir, port: 4321 });
-  uninstallHooks({ claudeDir: dir });
-  expect(load(dir)).toEqual(base());
-
-  const empty = fresh({ model: "x" });
-  installHooks({ claudeDir: empty, port: 4321 });
-  uninstallHooks({ claudeDir: empty });
-  expect(load(empty)).toEqual({ model: "x" });
-});
-
-test("uninstall leaves a user's pre-existing empty containers and an absent file alone", () => {
-  const dir = fresh({ hooks: { Stop: [] } });
-  uninstallHooks({ claudeDir: dir });
-  expect(load(dir)).toEqual({ hooks: { Stop: [] } });
-  const none = fresh();
-  expect(uninstallHooks({ claudeDir: none }).state).toBe("missing");
-  expect(existsSync(join(none, "settings.json"))).toBe(false);
-});
-
-test("status: missing / partial / installed, port mismatch", () => {
-  const dir = fresh(base());
-  expect(hooksStatus({ claudeDir: dir, port: 4321 }).state).toBe("missing");
-  installHooks({ claudeDir: dir, port: 4321 });
-  expect(hooksStatus({ claudeDir: dir, port: 4321 })).toMatchObject({
+  const { claude, st, calls } = fakeClaude();
+  const s = await installHooks({ claudeDir: dir, port: 4321, claude, repoRoot: "/repo" });
+  expect(st.marketplaces.get("stack-chan")).toBe("/repo");
+  expect(st.installed.get(PLUGIN)).toBe(4321);
+  expect(calls.every((c) => c.includes("--json"))).toBe(true);
+  expect(s).toEqual({
     state: "installed",
+    installed: true,
+    enabled: true,
+    legacy: false,
+    port: 4321,
     portMatches: true,
   });
-  const mismatch = hooksStatus({ claudeDir: dir, port: 9999 });
-  expect(mismatch.portMatches).toBe(false);
-  expect(mismatch.state).toBe("partial");
+  expect(existsSync(join(dir, "settings.json"))).toBe(false); // nothing written by us
+});
+
+test("reinstall with a new port reconfigures; status flags a stale port", async () => {
+  const dir = fresh();
+  const { claude, st } = fakeClaude();
+  await installHooks({ claudeDir: dir, port: 4321, claude });
+  expect((await hooksStatus({ claudeDir: dir, port: 5000, claude })).portMatches).toBe(false);
+  await installHooks({ claudeDir: dir, port: 5000, claude });
+  expect(st.installed.get(PLUGIN)).toBe(5000);
+  expect((await hooksStatus({ claudeDir: dir, port: 5000, claude })).portMatches).toBe(true);
+});
+
+test("uninstall removes plugin and marketplace, and is idempotent", async () => {
+  const dir = fresh();
+  const { claude, st } = fakeClaude();
+  await installHooks({ claudeDir: dir, port: 4321, claude });
+  expect((await uninstallHooks({ claudeDir: dir, claude })).state).toBe("missing");
+  expect(st.installed.size + st.marketplaces.size).toBe(0);
+  expect((await uninstallHooks({ claudeDir: dir, claude })).state).toBe("missing");
+});
+
+test("a failing CLI call surfaces its message", async () => {
+  const claude: Claude = async () => ({
+    code: 1,
+    stdout: '{"outcome":"failed","message":"marketplace file is invalid"}\n',
+    stderr: "",
+  });
+  const err = await installHooks({ claudeDir: fresh(), port: 1, claude }).catch((e) => e);
+  expect(String(err)).toContain("marketplace file is invalid");
+});
+
+test("legacy settings hooks: reported as partial, removed by install, other hooks kept, backup made", async () => {
+  const dir = fresh(legacy());
+  const { claude } = fakeClaude();
+  expect(hasLegacyHooks(dir)).toBe(true);
+  expect((await hooksStatus({ claudeDir: dir, port: 4321, claude })).state).toBe("partial");
+  await installHooks({ claudeDir: dir, port: 4321, claude });
   const s = load(dir);
-  delete s.hooks.Notification;
-  writeFileSync(join(dir, "settings.json"), JSON.stringify(s));
-  const st = hooksStatus({ claudeDir: dir, port: 4321 });
-  expect(st.state).toBe("partial");
-  expect(st.events.Notification).toBe("missing");
-  expect(st.events.Stop).toBe("installed");
+  expect(s.model).toBe("opus");
+  expect(s.hooks).toEqual({ Stop: [userHook], PostToolUse: [userHook] });
+  expect(readdirSync(dir).some((f) => f.startsWith("settings.json.bak-"))).toBe(true);
+  expect((await hooksStatus({ claudeDir: dir, port: 4321, claude })).state).toBe("installed");
 });
 
-test("backup of the previous file is created before modifying; none when nothing changes", () => {
-  const dir = fresh(base());
-  const before = readFileSync(join(dir, "settings.json"), "utf8");
-  installHooks({ claudeDir: dir, port: 4321 });
-  const baks = readdirSync(dir).filter((f) => f.startsWith("settings.json.bak-"));
-  expect(baks).toHaveLength(1);
-  expect(readFileSync(join(dir, baks[0]), "utf8")).toBe(before);
-  installHooks({ claudeDir: dir, port: 4321 });
-  expect(readdirSync(dir).filter((f) => f.startsWith("settings.json.bak-"))).toHaveLength(1);
+test("legacy cleanup: drops an emptied hooks key, leaves files without our hooks untouched", () => {
+  const only = fresh({ hooks: { Stop: [legacyHook("Stop")] } });
+  expect(removeLegacyHooks(only)).toBe(true);
+  expect(load(only)).toEqual({});
+
+  const mine = fresh({ hooks: { Stop: [userHook], Empty: [] } });
+  const before = readFileSync(join(mine, "settings.json"), "utf8");
+  expect(removeLegacyHooks(mine)).toBe(false);
+  expect(readFileSync(join(mine, "settings.json"), "utf8")).toBe(before);
+  expect(readdirSync(mine)).toEqual(["settings.json"]);
+
+  expect(removeLegacyHooks(fresh())).toBe(false);
 });
 
-test("symlinked settings.json and symlinked dir are written through, never replaced", () => {
-  const real = fresh(base());
-  const link = mkdtempSync(join(root, "l-"));
-  symlinkSync(join(real, "settings.json"), join(link, "settings.json"));
-  installHooks({ claudeDir: link, port: 4321 });
-  expect(lstatSync(join(link, "settings.json")).isSymbolicLink()).toBe(true);
-  expect(load(real).hooks.Stop).toHaveLength(2);
-  expect(readdirSync(link)).toEqual(["settings.json"]);
-
-  const dirLink = join(root, "dirlink");
-  symlinkSync(real, dirLink);
-  uninstallHooks({ claudeDir: dirLink });
-  expect(lstatSync(dirLink).isSymbolicLink()).toBe(true);
-  expect(load(real)).toEqual(base());
+test("legacy cleanup writes through a symlinked settings.json", () => {
+  const real = fresh(legacy());
+  const dir = fresh();
+  symlinkSync(join(real, "settings.json"), join(dir, "settings.json"));
+  removeLegacyHooks(dir);
+  expect(load(real).hooks.SessionEnd).toBeUndefined();
+  expect(hasLegacyHooks(dir)).toBe(false);
 });
 
-test("atomic: no temp files left behind; invalid JSON is refused and untouched", () => {
-  const dir = fresh(base());
-  installHooks({ claudeDir: dir, port: 4321 });
-  expect(readdirSync(dir).some((f) => f.endsWith(".tmp"))).toBe(false);
-
+test("refuses settings.json that is not a JSON object", () => {
   const bad = fresh();
-  writeFileSync(join(bad, "settings.json"), "{ not json");
-  expect(() => installHooks({ claudeDir: bad, port: 4321 })).toThrow();
-  expect(readFileSync(join(bad, "settings.json"), "utf8")).toBe("{ not json");
-  expect(readdirSync(bad)).toEqual(["settings.json"]);
+  writeFileSync(join(bad, "settings.json"), "[1]");
+  expect(() => removeLegacyHooks(bad)).toThrow();
 });

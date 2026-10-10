@@ -17,7 +17,7 @@ macOS menu bar only (no Dock icon). Menu: a status line (`2 running`, `idle`, `d
 
 - **Overview**: status, session, device and project counts; live sessions (most urgent first); projects with their session states; connected devices.
 - **Console**: a typed stand-in for speech. Type a request and see the router's decision. **Dry run is on by default**: the router decides but nothing starts, and the reply shows the choice, confidence, band, probability bars, thresholds and the folder it would use. Unchecking it shows a red warning, and each real send needs a second click on "Yes, send for real" (a real send starts a Claude session in auto mode in an isolated worktree). "New conversation" starts a fresh device id; an "ask" is answered by the next message.
-- **Settings**: root folders, port, token and OpenRouter key (write-only fields), the trust advice for untrusted projects, and hook install/uninstall (a backup of `settings.json` is made before each change).
+- **Settings**: root folders, port, token and OpenRouter key (write-only fields), the trust advice for untrusted projects, and install/uninstall of the `stack-chan-hooks` Claude Code plugin.
 
 ## How it talks to the daemon
 
@@ -30,6 +30,6 @@ cd packages/desktop
 DAEMON_URL=http://127.0.0.1:4321 TOKEN=<token if set> bun run dev   # http://localhost:3000
 ```
 
-Outside Tauri the same calls go through a `/daemon/*` proxy in `vite.config.ts` to the daemon. Use a throwaway `STACKCHAN_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` for the daemon when you click around, so "Install hooks" cannot touch your real Claude settings.
+Outside Tauri the same calls go through a `/daemon/*` proxy in `vite.config.ts` to the daemon. Use a throwaway `STACKCHAN_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` for the daemon when you click around, so "Install hooks" cannot touch your real Claude plugins.
 
 The CSP in `tauri.conf.json` is `default-src 'self'` plus inline styles and the IPC origin; if the native window ever shows blank, check it first.

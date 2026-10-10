@@ -2,7 +2,7 @@ import { statSync } from "node:fs";
 import { homedir } from "node:os";
 import { config, envOverrides, loadConfig, writeSettingsFile, type Config } from "./config";
 import { computeDisplay } from "./display";
-import { hooksStatus, installHooks, uninstallHooks } from "./hooks-install";
+import { claudeCli, hooksStatus, installHooks, uninstallHooks, type Claude } from "./hooks-install";
 import type { Project } from "./scanner";
 import { jevDecider, type Decider } from "./router";
 import { SessionTracker } from "./sessions";
@@ -22,6 +22,8 @@ type Opts = {
   /** Admin API: settings dir and Claude config dir. Without them the matching endpoints answer 501 (never guess a real path). */
   configDir?: string;
   claudeDir?: string;
+  /** Runs the `claude` CLI for the hook plugin (tests inject a fake). */
+  claude?: Claude;
   /** Called with the new effective config after a settings save. */
   onSettings?: (c: Config) => void;
   trusted?: () => string[];
@@ -79,6 +81,7 @@ export function createServer({
   decisionsLog,
   configDir,
   claudeDir,
+  claude,
   onSettings,
   trusted = cachedTrusted,
 }: Opts) {
@@ -151,13 +154,14 @@ export function createServer({
         if (url.pathname.startsWith("/admin/hooks")) {
           if (!claudeDir) return new Response("claude dir not configured", { status: 501 });
           const cfgPort = () => (configDir ? loadConfig(configDir).port : boundPort);
+          const cli = claude ?? claudeCli(claudeDir);
           try {
             if (route === "GET /admin/hooks")
-              return Response.json(hooksStatus({ claudeDir, port: cfgPort() }));
+              return Response.json(await hooksStatus({ claudeDir, port: cfgPort(), claude: cli }));
             if (route === "POST /admin/hooks/install")
-              return Response.json(installHooks({ claudeDir, port: cfgPort() }));
+              return Response.json(await installHooks({ claudeDir, port: cfgPort(), claude: cli }));
             if (route === "DELETE /admin/hooks")
-              return Response.json(uninstallHooks({ claudeDir }));
+              return Response.json(await uninstallHooks({ claudeDir, claude: cli }));
           } catch (e) {
             return Response.json(
               { error: String(e instanceof Error ? e.message : e) },

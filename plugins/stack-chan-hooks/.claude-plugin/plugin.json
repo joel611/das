@@ -1,0 +1,15 @@
+{
+  "name": "stack-chan-hooks",
+  "description": "Forwards Claude Code session events to the local stack-chan daemon",
+  "author": { "name": "joel611" },
+  "userConfig": {
+    "port": {
+      "type": "number",
+      "title": "Daemon port",
+      "description": "Port of the stack-chan daemon on 127.0.0.1",
+      "default": 4321,
+      "min": 1,
+      "max": 65535
+    }
+  }
+}

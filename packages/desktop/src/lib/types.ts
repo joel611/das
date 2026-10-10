@@ -50,9 +50,11 @@ export type SettingsPatch = Partial<{
 
 export type HookStatus = {
   state: "installed" | "partial" | "missing";
-  events: Record<string, "installed" | "partial" | "missing">;
+  installed: boolean;
+  enabled: boolean;
+  legacy: boolean;
+  port: number | null;
   portMatches: boolean;
-  port: number;
 };
 
 export type VoiceDebug = {

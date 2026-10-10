@@ -119,8 +119,8 @@ export function Settings() {
       await hooks.refresh();
       toast.success(
         kind === "install"
-          ? "Hooks installed. Restart running Claude sessions to load them."
-          : "Hooks removed.",
+          ? "Hook plugin installed. Restart running Claude sessions (or /reload-plugins) to load it."
+          : "Hook plugin removed.",
       );
     } catch (e) {
       toast.error(msg(e));
@@ -215,29 +215,42 @@ export function Settings() {
         <CardHeader>
           <CardTitle>Claude Code hooks</CardTitle>
           <CardDescription>
-            Adds one fire-and-forget command per event to your Claude settings (a backup is made
-            before each change).
+            Installs the stack-chan-hooks Claude Code plugin from this repo, which forwards session
+            events to the daemon. Your Claude settings only gain the plugin entry.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-2">
           <div className="flex flex-wrap gap-1.5">
-            {h
-              ? Object.entries(h.events).map(([ev, st]) => (
-                  <Badge
-                    key={ev}
-                    variant={
-                      st === "installed" ? "default" : st === "partial" ? "outline" : "secondary"
-                    }
-                  >
-                    {ev}: {st}
-                  </Badge>
-                ))
-              : null}
+            {h ? (
+              <Badge
+                variant={
+                  h.state === "installed"
+                    ? "default"
+                    : h.state === "partial"
+                      ? "outline"
+                      : "secondary"
+                }
+              >
+                {h.installed ? (h.enabled ? "installed" : "installed, disabled") : "not installed"}
+              </Badge>
+            ) : null}
+            {h?.installed ? <Badge variant="secondary">port {h.port}</Badge> : null}
           </div>
-          {h && h.state !== "missing" && !h.portMatches ? (
+          {h?.installed && !h.portMatches ? (
             <p className="text-xs text-muted-foreground">
-              Installed for port {h.port}, which differs from the saved port. Install again to
+              Configured for port {h.port}, which differs from the saved port. Install again to
               update.
+            </p>
+          ) : null}
+          {h?.installed && !h.enabled ? (
+            <p className="text-xs text-muted-foreground">
+              The plugin is disabled in Claude Code. Enable it with /plugin or install again.
+            </p>
+          ) : null}
+          {h?.legacy ? (
+            <p className="text-xs text-muted-foreground">
+              Hooks from an older version are still in your Claude settings. Install or uninstall
+              removes them (a backup is made first).
             </p>
           ) : null}
         </CardContent>

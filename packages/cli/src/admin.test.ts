@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, readSettingsFile, writeSettingsFile } from "./config";
+import { type Claude, PLUGIN } from "./hooks-install";
 import { createServer } from "./server";
 import type { Project } from "./scanner";
 
@@ -66,16 +67,31 @@ const setup = (token = "") => {
     { id: "/p/b", name: "b", path: "/p/b", worktrees: [] },
   ];
   const changed: any[] = [];
+  // Stand-in for the `claude plugin` CLI: remembers whether the hook plugin is installed.
+  const cli = { installed: false, calls: [] as string[][] };
+  const claude: Claude = async (args) => {
+    cli.calls.push(args);
+    if (args[1] === "install") cli.installed = true;
+    if (args[1] === "uninstall") cli.installed = false;
+    const out =
+      args[1] === "list"
+        ? JSON.stringify(cli.installed ? [{ id: PLUGIN, scope: "user", enabled: true }] : [])
+        : args[1] === "configure"
+          ? JSON.stringify({ inputs: { port: "4321" } })
+          : "{}";
+    return { code: 0, stdout: out, stderr: "" };
+  };
   const server = createServer({
     port: 0,
     token,
     getProjects: () => projects,
     configDir,
     claudeDir,
+    claude,
     trusted: () => ["/p/a"],
     onSettings: (c) => changed.push(c),
   });
-  return { server, configDir, claudeDir, changed, base: `http://127.0.0.1:${server.port}` };
+  return { server, configDir, claudeDir, cli, changed, base: `http://127.0.0.1:${server.port}` };
 };
 const json = (method: string, body?: unknown, headers: Record<string, string> = {}) => ({
   method,
@@ -138,14 +154,14 @@ test("settings API: validation, secrets write-only, restartRequired, onSettings"
 });
 
 test("admin auth, 501 without dirs, hooks endpoints use the given claudeDir", async () => {
-  const { server, claudeDir, base } = setup("s3");
+  const { server, cli, base } = setup("s3");
   expect((await fetch(`${base}/admin/hooks`)).status).toBe(401);
   const auth = { authorization: "Bearer s3" };
   let j: any = await (await fetch(`${base}/admin/hooks`, { headers: auth })).json();
   expect(j.state).toBe("missing");
   j = await (await fetch(`${base}/admin/hooks/install`, json("POST", undefined, auth))).json();
   expect(j.state).toBe("installed");
-  expect(readFileSync(join(claudeDir, "settings.json"), "utf8")).toContain("/hooks/SessionEnd");
+  expect(cli.calls.some((c) => c[1] === "install" && c[2] === PLUGIN)).toBe(true);
   j = await (await fetch(`${base}/admin/hooks`, json("DELETE", undefined, auth))).json();
   expect(j.state).toBe("missing");
   expect((await fetch(`${base}/admin/nope`, { headers: auth })).status).toBe(404);

@@ -9,6 +9,9 @@
     "dev": "vp run -r --parallel dev:all",
     "daemon": "bun packages/cli/src/daemon.ts",
     "desktop": "bun run --cwd packages/desktop tauri dev",
+    "hooks:install": "bun packages/cli/src/hooks-cli.ts install",
+    "hooks:uninstall": "bun packages/cli/src/hooks-cli.ts uninstall",
+    "hooks:status": "bun packages/cli/src/hooks-cli.ts status",
     "test": "vp run -r test",
     "check": "vp check",
     "ready": "vp check && vp run -r test && vp run -r build"

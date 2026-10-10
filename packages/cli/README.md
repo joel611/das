@@ -98,16 +98,25 @@ Admin routes are localhost only, plus the token if set.
 | -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /admin/settings`                              | `{roots, port, hasToken, hasOpenrouterKey, envOverrides, trustAdvice}`                                                                       |
 | `PUT /admin/settings`                              | body: any of `roots` (existing dirs), `port` (1-65535), `token`, `openrouterKey` (`""` clears); returns the GET shape plus `restartRequired` |
-| `GET /admin/hooks`                                 | `{state, events:{<Event>: installed\|partial\|missing}, portMatches, port}`                                                                  |
+| `GET /admin/hooks`                                 | `{state: installed\|partial\|missing, installed, enabled, legacy, port, portMatches}` for the hook plugin                                    |
 | `POST /admin/hooks/install`, `DELETE /admin/hooks` | same shape after the change                                                                                                                  |
 | `GET /v1/projects`, `GET /v1/sessions`             | scanned projects (worktrees grouped), tracked sessions                                                                                       |
 | `GET /v1/devices`                                  | `[{id, device, capabilities, connectedAt}]` (from `hello`)                                                                                   |
 | `GET /v1/state`                                    | `{display, sessions, devices, projects, untrustedProjects}`                                                                                  |
 
-## Hook installer
+## Hook plugin
 
-Adds one command hook per event (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop`, `SessionEnd`) to `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`). Each hook pipes the hook JSON to `http://127.0.0.1:<port>/hooks/<Event>` with `curl -s -m 2 ... >/dev/null 2>&1 || true`: no output, always exit 0, it never blocks or changes the agent.
+The hooks ship as a Claude Code plugin, [`plugins/stack-chan-hooks`](../../plugins/stack-chan-hooks), listed by this repo's own marketplace (`.claude-plugin/marketplace.json`, name `stack-chan`). Its `hooks/hooks.json` has one command hook per event (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `Notification`, `Stop`, `SessionEnd`), each running `hooks/forward.sh <Event>`, which pipes the hook JSON to `http://127.0.0.1:$CLAUDE_PLUGIN_OPTION_PORT/hooks/<Event>` with `curl -s -m 2`: no output, always exit 0, it never blocks or changes the agent. The port is the plugin's `port` option (default 4321).
 
-- Additive: your existing hooks and all other keys stay. Our entry is a new matcher group (no `matcher`, so it matches all).
-- Marker: every command ends with `# stack-chan-server`. Install is idempotent (re-install updates the port, no duplicates). Uninstall removes only marked entries and the groups or events it emptied.
-- Safe write: the path is resolved with `realpath` (a symlinked `~/.claude` or `settings.json` stays a symlink), a `settings.json.bak-<timestamp>` copy is made before each change, and the new file is written to a temp file in the same directory and renamed onto the target. A file that is not valid JSON is refused and left alone. Nothing is written when nothing changes.
+```sh
+bun run hooks:install     # claude plugin marketplace add <repo> + claude plugin install stack-chan-hooks@stack-chan --config port=<daemon port>
+bun run hooks:uninstall   # claude plugin uninstall stack-chan-hooks@stack-chan + claude plugin marketplace remove stack-chan
+bun run hooks:status
+```
+
+The Settings tab and `POST /admin/hooks/install` / `DELETE /admin/hooks` do the same. Everything goes through the `claude` CLI (`$CLAUDE_BIN`, default `claude` on `PATH`; `$CLAUDE_CONFIG_DIR` is honoured), so we never edit Claude's settings ourselves: Claude records the plugin as `enabledPlugins`, `extraKnownMarketplaces` and `pluginConfigs` entries, and removes them on uninstall.
+
+- The marketplace is a local directory, so the plugin loads in place from this checkout: edits to it apply at the next session start or `/reload-plugins`, with no reinstall. Moving the checkout needs a reinstall.
+- Install is idempotent. Installing again applies a changed port and re-enables a plugin disabled in `/plugin`.
+- Running Claude sessions load the plugin after a restart or `/reload-plugins`.
+- Migration: install and uninstall both remove the `# stack-chan-server` command hooks that older versions wrote straight into `settings.json` (resolved through symlinks, `settings.json.bak-<timestamp>` backup first, atomic write, other hooks and keys kept). Status reports them as `legacy`.
