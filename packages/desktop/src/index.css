@@ -2,12 +2,35 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/inter";
+@import "@fontsource/chakra-petch/400.css";
+@import "@fontsource/chakra-petch/600.css";
+@import "@fontsource/chakra-petch/700.css";
+@import "@fontsource-variable/jetbrains-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --font-heading: var(--font-sans);
   --font-sans: "Inter Variable", sans-serif;
+  --font-hud: "Chakra Petch", "JetBrains Mono Variable", monospace;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
+  /* Command center (cyberpunk) palette, used by src/views/command. */
+  --color-neon-cyan: #2ee9ff;
+  --color-neon-magenta: #ff3d8b;
+  --color-neon-pink: #ff6fa8;
+  --color-neon-amber: #ffb020;
+  --color-neon-green: #5cff9d;
+  --color-hud-ink: #e8fbff;
+  --color-hud-text: #d6f6ff;
+  --color-hud-soft: #9fc7d8;
+  --color-hud-dim: #7fa3b5;
+  --color-hud-faint: #5d7f90;
+  --color-hud-void: #04060b;
+  --color-hud-panel: rgb(9 14 24 / 0.88);
+  --color-hud-line: #16273a;
+  --color-hud-rule: #13202f;
+  --color-hud-edge: #23465f;
+  --color-hud-track: #111c2a;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -83,38 +106,40 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* Dark is the command center look: near-black blue ground, neon cyan primary, magenta accent. */
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #04060b;
+  --foreground: #d6f6ff;
+  --card: rgb(9 14 24 / 0.88);
+  --card-foreground: #d6f6ff;
+  --popover: #070b13;
+  --popover-foreground: #d6f6ff;
+  --primary: #2ee9ff;
+  --primary-foreground: #04060b;
+  --secondary: #0f1726;
+  --secondary-foreground: #d6f6ff;
+  --muted: #0f1726;
+  --muted-foreground: #7fa3b5;
+  --accent: #0f1726;
+  --accent-foreground: #e8fbff;
+  --destructive: #ff3d8b;
+  --border: #16273a;
+  --input: #23465f;
+  --ring: #2ee9ff;
+  --chart-1: #2ee9ff;
+  --chart-2: #ff3d8b;
+  --chart-3: #ffb020;
+  --chart-4: #5cff9d;
+  --chart-5: #7fa3b5;
+  --radius: 0.125rem;
+  --sidebar: #070b13;
+  --sidebar-foreground: #d6f6ff;
+  --sidebar-primary: #2ee9ff;
+  --sidebar-primary-foreground: #04060b;
+  --sidebar-accent: #0f1726;
+  --sidebar-accent-foreground: #e8fbff;
+  --sidebar-border: #16273a;
+  --sidebar-ring: #2ee9ff;
 }
 
 @layer base {
@@ -182,5 +207,119 @@ body {
   /* Opt back into selection for any generated UI surface that should behave like regular text. */
   .ui-selectable {
     @apply select-text;
+  }
+}
+
+/* Command center HUD pieces. */
+@layer components {
+  /* Cyan top-left and magenta bottom-right corner brackets. */
+  .hud {
+    position: relative;
+  }
+  .hud::before,
+  .hud::after {
+    content: "";
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    pointer-events: none;
+  }
+  .hud::before {
+    top: -1px;
+    left: -1px;
+    border-top: 2px solid var(--color-neon-cyan);
+    border-left: 2px solid var(--color-neon-cyan);
+  }
+  .hud::after {
+    right: -1px;
+    bottom: -1px;
+    border-right: 2px solid var(--color-neon-magenta);
+    border-bottom: 2px solid var(--color-neon-magenta);
+  }
+
+  /* Scanlines over a 48px grid. */
+  .hud-grid {
+    background-color: var(--color-hud-void);
+    background-image:
+      repeating-linear-gradient(0deg, rgb(46 233 255 / 0.035) 0 1px, transparent 1px 3px),
+      linear-gradient(rgb(46 233 255 / 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(46 233 255 / 0.05) 1px, transparent 1px);
+    background-size:
+      auto,
+      48px 48px,
+      48px 48px;
+  }
+
+  .hud-spin,
+  .hud-spin-rev,
+  .hud-spin-slow,
+  .hud-pulse,
+  .hud-pulse-hot {
+    transform-origin: 50% 50%;
+    transform-box: fill-box;
+  }
+  .hud-spin {
+    animation: hud-spin 22s linear infinite;
+  }
+  .hud-spin-rev {
+    animation: hud-spin 14s linear infinite reverse;
+  }
+  .hud-spin-slow {
+    animation: hud-spin 40s linear infinite;
+  }
+  .hud-pulse {
+    animation: hud-pulse 3.2s ease-in-out infinite;
+  }
+  .hud-pulse-hot {
+    animation: hud-pulse 0.9s ease-in-out infinite;
+  }
+  .hud-wave {
+    animation: hud-wave 1s ease-in-out infinite;
+  }
+  .hud-blink {
+    animation: hud-blink 1.4s steps(2, start) infinite;
+  }
+}
+
+@keyframes hud-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes hud-pulse {
+  0%,
+  100% {
+    transform: scale(0.94);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.04);
+    opacity: 1;
+  }
+}
+@keyframes hud-wave {
+  0%,
+  100% {
+    transform: scaleY(0.25);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+@keyframes hud-blink {
+  to {
+    visibility: hidden;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hud-spin,
+  .hud-spin-rev,
+  .hud-spin-slow,
+  .hud-pulse,
+  .hud-pulse-hot,
+  .hud-wave,
+  .hud-blink {
+    animation: none;
   }
 }

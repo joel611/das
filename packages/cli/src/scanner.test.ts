@@ -73,3 +73,26 @@ test("hook events drive session state", () => {
   t.handleHook("SessionEnd", { session_id: "s1" });
   expect(t.list()).toHaveLength(0);
 });
+
+test("skills are counted from the Skill tool and from /slash prompts", () => {
+  const t = new SessionTracker(() => []);
+  t.handleHook("UserPromptSubmit", { session_id: "s1", cwd: "/x", prompt: "/simplify the diff" });
+  t.handleHook("PreToolUse", {
+    session_id: "s1",
+    cwd: "/x",
+    tool_name: "Skill",
+    tool_input: { skill: "dataviz" },
+  });
+  t.handleHook("PreToolUse", {
+    session_id: "s1",
+    tool_name: "Skill",
+    tool_input: { skill: "simplify" },
+  });
+  t.handleHook("PreToolUse", { session_id: "s1", tool_name: "Bash", tool_input: {} });
+  t.handleHook("UserPromptSubmit", { session_id: "s1", prompt: "no slash here /nope" });
+  const s = t.list()[0];
+  expect(s.skills.map((k) => [k.name, k.count])).toEqual([
+    ["simplify", 2],
+    ["dataviz", 1],
+  ]);
+});

@@ -5,9 +5,10 @@ import { computeDisplay } from "./display";
 import { hooksStatus, installHooks, uninstallHooks } from "./hooks-install";
 import type { Project } from "./scanner";
 import { jevDecider, type Decider } from "./router";
-import { SessionTracker } from "./sessions";
+import { SessionTracker, type HookPayload } from "./sessions";
 import { claudeSpawner, type Spawner } from "./spawner";
 import { isTrusted, trustAdvice, trustedPaths } from "./trust";
+import { UsageTracker } from "./usage";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
 const TOPIC = "sessions";
@@ -90,6 +91,7 @@ export function createServer({
     logPath: decisionsLog,
   };
   const tracker = new SessionTracker(getProjects);
+  const usage = new UsageTracker();
 
   let boundPort = port;
   const devices = new Map<string, Device>();
@@ -125,7 +127,10 @@ export function createServer({
       if (hook && req.method === "POST") {
         if (!isLocal(srv.requestIP(req)?.address))
           return new Response("forbidden", { status: 403 });
-        tracker.handleHook(hook[1], await req.json().catch(() => ({})));
+        const payload: HookPayload = await req.json().catch(() => ({}));
+        tracker.handleHook(hook[1], payload);
+        // Read the transcript after answering, so a large first read never delays the agent.
+        setTimeout(() => usage.ingest(payload.session_id ?? "", payload.transcript_path), 0);
         return new Response(null, { status: 204 });
       }
 
@@ -187,6 +192,7 @@ export function createServer({
         }
         if (url.pathname === "/v1/projects") return Response.json(getProjects());
         if (url.pathname === "/v1/sessions") return Response.json(tracker.list());
+        if (url.pathname === "/v1/usage") return Response.json(usage.summary());
         if (url.pathname === "/v1/devices") return Response.json([...devices.values()]);
         if (url.pathname === "/v1/state") {
           const sessions = tracker.list();
