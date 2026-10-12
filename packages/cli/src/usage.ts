@@ -100,7 +100,7 @@ export class UsageTracker {
   /** message id -> entry; transcripts write one line per content block, so the last line for an id wins */
   private entries = new Map<string, Entry>();
   /** bytes consumed per transcript, plus the unfinished last line (kept as bytes: it may end mid-character) */
-  private offsets = new Map<string, { size: number; rest: Buffer }>();
+  private offsets = new Map<string, { size: number; rest: Buffer; at: number }>();
   /** reads run one at a time, so two hooks for one transcript never read the same bytes twice */
   private queue: Promise<void> = Promise.resolve();
 
@@ -127,10 +127,11 @@ export class UsageTracker {
       fh = await open(real, constants.O_RDONLY | constants.O_NONBLOCK);
       const stat = await fh.stat();
       if (!stat.isFile()) return;
-      const seen = this.offsets.get(real) ?? { size: 0, rest: Buffer.alloc(0) };
-      if (stat.size < seen.size) seen.size = 0; // truncated or replaced: start over
-      let pos = seen.size;
-      let rest = seen.rest;
+      const seen = this.offsets.get(real);
+      // Shorter than last time means truncated or replaced: start over, and drop the stale partial line.
+      const fresh = !seen || stat.size < seen.size;
+      let pos = fresh ? 0 : seen.size;
+      let rest = fresh ? Buffer.alloc(0) : seen.rest;
       while (pos < stat.size) {
         const buf = Buffer.alloc(Math.min(this.opts.chunk ?? CHUNK, stat.size - pos));
         const { bytesRead } = await fh.read(buf, 0, buf.length, pos);
@@ -143,23 +144,33 @@ export class UsageTracker {
         if (nl < 0) continue;
         for (const line of data.subarray(0, nl).toString("utf8").split("\n")) {
           const e = parseLine(line, session);
-          if (e) this.entries.set(e.id, e);
+          if (!e) continue;
+          // A forked or resumed session replays another session's messages under the same ids.
+          // The session that saw an id first keeps it; later lines only update tokens within it.
+          const owner = this.entries.get(e.id)?.session;
+          if (owner === undefined || owner === session) this.entries.set(e.id, e);
         }
       }
-      this.offsets.set(real, { size: pos, rest: Buffer.from(rest) });
+      this.offsets.set(real, { size: pos, rest: Buffer.from(rest), at: this.now() });
     } catch {
       // missing or unreadable transcript: usage just stays unknown
     } finally {
       await fh?.close().catch(() => {});
+      this.prune();
     }
-    this.prune();
   }
 
-  private prune(now = this.opts.now?.() ?? Date.now()) {
+  private now() {
+    return this.opts.now?.() ?? Date.now();
+  }
+
+  /** Forget entries, and transcripts not read for a day, so neither map grows for the daemon's lifetime. */
+  private prune(now = this.now()) {
     for (const [id, e] of this.entries) if (now - e.at > KEEP_MS) this.entries.delete(id);
+    for (const [path, o] of this.offsets) if (now - o.at > KEEP_MS) this.offsets.delete(path);
   }
 
-  summary(now = this.opts.now?.() ?? Date.now()): Usage {
+  summary(now = this.now()): Usage {
     const sorted = [...this.entries.values()].sort((a, b) => a.at - b.at);
     const block = activeBlock(sorted, now);
     if (!block) return { block: null, limits: null };
