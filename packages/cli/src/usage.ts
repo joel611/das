@@ -1,15 +1,24 @@
-import { closeSync, fstatSync, openSync, readSync } from "node:fs";
+import { constants } from "node:fs";
+import { open, realpath } from "node:fs/promises";
+import { sep } from "node:path";
 
 /**
  * Token usage read from the Claude Code transcripts that hook events point at (`transcript_path`).
  * Each transcript is read incrementally from where the last read stopped. Plan limits (percent of the
  * 5-hour or weekly allowance) are not in transcripts, so `limits` stays null until something reports them.
+ *
+ * The path comes from a hook payload, which any local process can post, so it is only read when it
+ * resolves to a regular `.jsonl` file under the Claude projects directory.
  */
 
 const HOUR = 3_600_000;
 export const BLOCK_MS = 5 * HOUR;
 const KEEP_MS = 24 * HOUR;
 const BUCKET_MS = 5 * 60_000;
+/** Bytes read per step; a big transcript is read in several steps so nothing holds the event loop. */
+const CHUNK = 1 << 20;
+/** A single line longer than this is dropped rather than buffered. */
+const MAX_LINE = 32 << 20;
 
 type Entry = {
   id: string;
@@ -90,40 +99,67 @@ export function activeBlock(sorted: Entry[], now: number) {
 export class UsageTracker {
   /** message id -> entry; transcripts write one line per content block, so the last line for an id wins */
   private entries = new Map<string, Entry>();
-  private offsets = new Map<string, { size: number; rest: string }>();
+  /** bytes consumed per transcript, plus the unfinished last line (kept as bytes: it may end mid-character) */
+  private offsets = new Map<string, { size: number; rest: Buffer }>();
+  /** reads run one at a time, so two hooks for one transcript never read the same bytes twice */
+  private queue: Promise<void> = Promise.resolve();
 
-  /** Read whatever the transcript gained since the last call. Never throws. */
-  ingest(session: string, path: string | undefined) {
-    if (!session || !path) return;
-    let fd: number | undefined;
+  /** @param root the Claude projects directory; transcripts outside it are ignored, null ignores all */
+  constructor(
+    private root: string | null,
+    private opts: { chunk?: number; now?: () => number } = {},
+  ) {}
+
+  /** Read whatever the transcript gained since the last call. Never rejects. */
+  ingest(session: string, path: string | undefined): Promise<void> {
+    if (!session || !path) return this.queue;
+    this.queue = this.queue.then(() => this.read(session, path));
+    return this.queue;
+  }
+
+  private async read(session: string, path: string) {
+    let fh;
     try {
-      fd = openSync(path, "r");
-      const size = fstatSync(fd).size;
-      const seen = this.offsets.get(path) ?? { size: 0, rest: "" };
-      if (size < seen.size) seen.size = 0; // truncated or replaced: start over
-      if (size === seen.size) return;
-      const buf = Buffer.alloc(size - seen.size);
-      readSync(fd, buf, 0, buf.length, seen.size);
-      const lines = (seen.rest + buf.toString("utf8")).split("\n");
-      const rest = lines.pop() ?? "";
-      for (const line of lines) {
-        const e = parseLine(line, session);
-        if (e) this.entries.set(e.id, e);
+      if (!this.root || !path.endsWith(".jsonl")) return;
+      const [root, real] = await Promise.all([realpath(this.root), realpath(path)]);
+      if (!real.startsWith(root + sep)) return;
+      // O_NONBLOCK so a FIFO planted at the path fails the isFile check instead of blocking the open.
+      fh = await open(real, constants.O_RDONLY | constants.O_NONBLOCK);
+      const stat = await fh.stat();
+      if (!stat.isFile()) return;
+      const seen = this.offsets.get(real) ?? { size: 0, rest: Buffer.alloc(0) };
+      if (stat.size < seen.size) seen.size = 0; // truncated or replaced: start over
+      let pos = seen.size;
+      let rest = seen.rest;
+      while (pos < stat.size) {
+        const buf = Buffer.alloc(Math.min(this.opts.chunk ?? CHUNK, stat.size - pos));
+        const { bytesRead } = await fh.read(buf, 0, buf.length, pos);
+        if (!bytesRead) break;
+        pos += bytesRead;
+        const data = Buffer.concat([rest, buf.subarray(0, bytesRead)]);
+        const nl = data.lastIndexOf(10);
+        rest = nl < 0 ? data : data.subarray(nl + 1);
+        if (rest.length > MAX_LINE) rest = Buffer.alloc(0);
+        if (nl < 0) continue;
+        for (const line of data.subarray(0, nl).toString("utf8").split("\n")) {
+          const e = parseLine(line, session);
+          if (e) this.entries.set(e.id, e);
+        }
       }
-      this.offsets.set(path, { size, rest });
+      this.offsets.set(real, { size: pos, rest: Buffer.from(rest) });
     } catch {
       // missing or unreadable transcript: usage just stays unknown
     } finally {
-      if (fd !== undefined) closeSync(fd);
+      await fh?.close().catch(() => {});
     }
     this.prune();
   }
 
-  private prune(now = Date.now()) {
+  private prune(now = this.opts.now?.() ?? Date.now()) {
     for (const [id, e] of this.entries) if (now - e.at > KEEP_MS) this.entries.delete(id);
   }
 
-  summary(now = Date.now()): Usage {
+  summary(now = this.opts.now?.() ?? Date.now()): Usage {
     const sorted = [...this.entries.values()].sort((a, b) => a.at - b.at);
     const block = activeBlock(sorted, now);
     if (!block) return { block: null, limits: null };
