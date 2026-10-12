@@ -14,23 +14,33 @@
   --font-sans: "Inter Variable", sans-serif;
   --font-hud: "Chakra Petch", "JetBrains Mono Variable", monospace;
   --font-mono: "JetBrains Mono Variable", ui-monospace, monospace;
-  /* Command center (cyberpunk) palette, used by src/views/command. */
-  --color-neon-cyan: #2ee9ff;
-  --color-neon-magenta: #ff3d8b;
-  --color-neon-pink: #ff6fa8;
-  --color-neon-amber: #ffb020;
-  --color-neon-green: #5cff9d;
-  --color-hud-ink: #e8fbff;
-  --color-hud-text: #d6f6ff;
-  --color-hud-soft: #9fc7d8;
-  --color-hud-dim: #7fa3b5;
-  --color-hud-faint: #5d7f90;
-  --color-hud-void: #04060b;
-  --color-hud-panel: rgb(9 14 24 / 0.88);
-  --color-hud-line: #16273a;
-  --color-hud-rule: #13202f;
-  --color-hud-edge: #23465f;
-  --color-hud-track: #111c2a;
+  /* Command center palette. Values come from lib/neon-theme.ts: keep these keys in step with it. */
+  --color-neon-cyan: var(--theme-neon-cyan);
+  --color-neon-magenta: var(--theme-neon-magenta);
+  --color-neon-pink: var(--theme-neon-pink);
+  --color-neon-amber: var(--theme-neon-amber);
+  --color-neon-green: var(--theme-neon-green);
+  --color-hud-ink: var(--theme-hud-ink);
+  --color-hud-text: var(--theme-hud-text);
+  --color-hud-soft: var(--theme-hud-soft);
+  --color-hud-dim: var(--theme-hud-dim);
+  --color-hud-faint: var(--theme-hud-faint);
+  --color-hud-void: var(--theme-hud-void);
+  --color-hud-panel: var(--theme-hud-panel);
+  --color-hud-line: var(--theme-hud-line);
+  --color-hud-rule: var(--theme-hud-rule);
+  --color-hud-edge: var(--theme-hud-edge);
+  --color-hud-track: var(--theme-hud-track);
+  --color-hud-idle: var(--theme-hud-idle);
+  --color-hud-hot-ink: var(--theme-hud-hot-ink);
+  --color-hud-shade: var(--theme-hud-shade);
+  --color-hud-surface: var(--theme-hud-surface);
+  --color-hud-hover: var(--theme-hud-hover);
+  --color-hud-ring: var(--theme-hud-ring);
+  --color-hud-chip: var(--theme-hud-chip);
+  --color-hud-chip-dim: var(--theme-hud-chip-dim);
+  --color-hud-ok-line: var(--theme-hud-ok-line);
+  --color-hud-bad-line: var(--theme-hud-bad-line);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -106,40 +116,40 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
-/* Dark is the command center look: near-black blue ground, neon cyan primary, magenta accent. */
+/* Dark is the command center look. The palette itself comes from lib/neon-theme.ts. */
 .dark {
-  --background: #04060b;
-  --foreground: #d6f6ff;
-  --card: rgb(9 14 24 / 0.88);
-  --card-foreground: #d6f6ff;
-  --popover: #070b13;
-  --popover-foreground: #d6f6ff;
-  --primary: #2ee9ff;
-  --primary-foreground: #04060b;
-  --secondary: #0f1726;
-  --secondary-foreground: #d6f6ff;
-  --muted: #0f1726;
-  --muted-foreground: #7fa3b5;
-  --accent: #0f1726;
-  --accent-foreground: #e8fbff;
-  --destructive: #ff3d8b;
-  --border: #16273a;
-  --input: #23465f;
-  --ring: #2ee9ff;
-  --chart-1: #2ee9ff;
-  --chart-2: #ff3d8b;
-  --chart-3: #ffb020;
-  --chart-4: #5cff9d;
-  --chart-5: #7fa3b5;
+  --background: var(--theme-hud-void);
+  --foreground: var(--theme-hud-text);
+  --card: var(--theme-hud-panel);
+  --card-foreground: var(--theme-hud-text);
+  --popover: var(--theme-hud-surface);
+  --popover-foreground: var(--theme-hud-text);
+  --primary: var(--theme-neon-cyan);
+  --primary-foreground: var(--theme-hud-void);
+  --secondary: var(--theme-hud-hover);
+  --secondary-foreground: var(--theme-hud-text);
+  --muted: var(--theme-hud-hover);
+  --muted-foreground: var(--theme-hud-dim);
+  --accent: var(--theme-hud-hover);
+  --accent-foreground: var(--theme-hud-ink);
+  --destructive: var(--theme-neon-magenta);
+  --border: var(--theme-hud-line);
+  --input: var(--theme-hud-edge);
+  --ring: var(--theme-neon-cyan);
+  --chart-1: var(--theme-neon-cyan);
+  --chart-2: var(--theme-neon-magenta);
+  --chart-3: var(--theme-neon-amber);
+  --chart-4: var(--theme-neon-green);
+  --chart-5: var(--theme-hud-dim);
   --radius: 0.125rem;
-  --sidebar: #070b13;
-  --sidebar-foreground: #d6f6ff;
-  --sidebar-primary: #2ee9ff;
-  --sidebar-primary-foreground: #04060b;
-  --sidebar-accent: #0f1726;
-  --sidebar-accent-foreground: #e8fbff;
-  --sidebar-border: #16273a;
-  --sidebar-ring: #2ee9ff;
+  --sidebar: var(--theme-hud-surface);
+  --sidebar-foreground: var(--theme-hud-text);
+  --sidebar-primary: var(--theme-neon-cyan);
+  --sidebar-primary-foreground: var(--theme-hud-void);
+  --sidebar-accent: var(--theme-hud-hover);
+  --sidebar-accent-foreground: var(--theme-hud-ink);
+  --sidebar-border: var(--theme-hud-line);
+  --sidebar-ring: var(--theme-neon-cyan);
 }
 
 @layer base {
@@ -241,9 +251,20 @@ body {
   .hud-grid {
     background-color: var(--color-hud-void);
     background-image:
-      repeating-linear-gradient(0deg, rgb(46 233 255 / 0.035) 0 1px, transparent 1px 3px),
-      linear-gradient(rgb(46 233 255 / 0.05) 1px, transparent 1px),
-      linear-gradient(90deg, rgb(46 233 255 / 0.05) 1px, transparent 1px);
+      repeating-linear-gradient(
+        0deg,
+        color-mix(in srgb, var(--theme-neon-cyan) 3.5%, transparent) 0 1px,
+        transparent 1px 3px
+      ),
+      linear-gradient(
+        color-mix(in srgb, var(--theme-neon-cyan) 5%, transparent) 1px,
+        transparent 1px
+      ),
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--theme-neon-cyan) 5%, transparent) 1px,
+        transparent 1px
+      );
     background-size:
       auto,
       48px 48px,

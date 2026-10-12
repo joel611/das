@@ -3,8 +3,15 @@ import type { Session, Usage } from "@/lib/types";
 
 import { sessionLabel } from "./agents";
 import { Bar, Panel, PanelTitle, STATE_COLOR } from "./hud";
+import { hud } from "@/lib/neon-theme";
 
-const MODEL_COLOR = ["#2ee9ff", "#ff3d8b", "#ffb020", "#5cff9d", "#7fa3b5"];
+const MODEL_COLOR = [
+  hud["neon-cyan"],
+  hud["neon-magenta"],
+  hud["neon-amber"],
+  hud["neon-green"],
+  hud["hud-dim"],
+];
 const R = 50;
 const CIRC = 2 * Math.PI * R;
 
@@ -23,16 +30,16 @@ function Sparkline({ series }: { series: number[] }) {
       role="img"
       aria-label={`Tokens per 5 minutes over the last hour, peak ${tokens(max)}`}
     >
-      <line x1="0" y1="59" x2="280" y2="59" stroke="#16273a" />
-      <line x1="0" y1="30" x2="280" y2="30" stroke="#111c2a" strokeDasharray="2 4" />
+      <line x1="0" y1="59" x2="280" y2="59" stroke={hud["hud-line"]} />
+      <line x1="0" y1="30" x2="280" y2="30" stroke={hud["hud-track"]} strokeDasharray="2 4" />
       <polyline
         points={pts.map((p) => p.join(",")).join(" ")}
         fill="none"
-        stroke="#ffb020"
+        stroke={hud["neon-amber"]}
         strokeWidth="2"
         vectorEffect="non-scaling-stroke"
       />
-      {last ? <circle cx={last[0]} cy={last[1]} r="3" fill="#ffb020" /> : null}
+      {last ? <circle cx={last[0]} cy={last[1]} r="3" fill={hud["neon-amber"]} /> : null}
     </svg>
   );
 }
@@ -70,23 +77,37 @@ export function UsagePanel({
                 role="img"
                 aria-label={`${elapsed} percent of the 5-hour block elapsed`}
               >
-                <circle cx="60" cy="60" r={R} fill="none" stroke="#111c2a" strokeWidth="10" />
                 <circle
                   cx="60"
                   cy="60"
                   r={R}
                   fill="none"
-                  stroke="#2ee9ff"
+                  stroke={hud["hud-track"]}
+                  strokeWidth="10"
+                />
+                <circle
+                  cx="60"
+                  cy="60"
+                  r={R}
+                  fill="none"
+                  stroke={hud["neon-cyan"]}
                   strokeWidth="10"
                   strokeDasharray={`${(elapsed / 100) * CIRC} ${CIRC}`}
                   transform="rotate(-90 60 60)"
                 />
-                <circle cx="60" cy="60" r="38" fill="none" stroke="#16314a" strokeDasharray="2 4" />
+                <circle
+                  cx="60"
+                  cy="60"
+                  r="38"
+                  fill="none"
+                  stroke={hud["hud-ring"]}
+                  strokeDasharray="2 4"
+                />
                 <text
                   x="60"
                   y="62"
                   textAnchor="middle"
-                  fill="#e8fbff"
+                  fill={hud["hud-ink"]}
                   fontFamily="Chakra Petch, monospace"
                   fontSize="28"
                   fontWeight="700"
@@ -97,7 +118,7 @@ export function UsagePanel({
                   x="60"
                   y="80"
                   textAnchor="middle"
-                  fill="#7fa3b5"
+                  fill={hud["hud-dim"]}
                   fontFamily="JetBrains Mono Variable, monospace"
                   fontSize="9"
                   letterSpacing="1.5"

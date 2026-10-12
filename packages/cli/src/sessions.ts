@@ -2,7 +2,7 @@ import { matchProject, type Project } from "./scanner";
 
 export type SessionState = "idle" | "running" | "waiting" | "done" | "error";
 
-/** A skill this session ran: via the Skill tool, or typed as `/name` in a prompt. */
+/** A skill this session ran, counted from Skill tool calls. */
 export type SkillUse = { name: string; count: number; lastAt: number };
 
 export type Session = {
@@ -29,11 +29,10 @@ export type HookPayload = {
   transcript_path?: string;
 };
 
-/** The skill a hook event shows being triggered, if any. */
+/** The skill a hook event shows being triggered: only the Skill tool counts, never a typed `/path`. */
 export function skillOf(event: string, p: HookPayload): string | null {
   if (event === "PreToolUse" && p.tool_name === "Skill" && typeof p.tool_input?.skill === "string")
     return p.tool_input.skill.replace(/^\//, "") || null;
-  if (event === "UserPromptSubmit") return p.prompt?.match(/^\/([\w:.-]+)/)?.[1] ?? null;
   return null;
 }
 

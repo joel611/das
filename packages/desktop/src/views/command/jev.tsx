@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { hhmm } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Project, Session, VoiceReply } from "@/lib/types";
+import { hud } from "@/lib/neon-theme";
 
 type Msg = { id: number; at: number } & ({ you: string } | { reply: VoiceReply; dry: boolean });
 
@@ -29,13 +30,13 @@ function Orb({ hot }: { hot: boolean }) {
       aria-label="Jev status orb"
     >
       <g className="hud-spin-slow">
-        <circle cx="150" cy="150" r="146" fill="none" stroke="#16314a" strokeWidth="1" />
+        <circle cx="150" cy="150" r="146" fill="none" stroke={hud["hud-ring"]} strokeWidth="1" />
         <circle
           cx="150"
           cy="150"
           r="146"
           fill="none"
-          stroke="#2ee9ff"
+          stroke={hud["neon-cyan"]}
           strokeWidth="2"
           strokeDasharray="2 10"
           opacity=".55"
@@ -47,7 +48,7 @@ function Orb({ hot }: { hot: boolean }) {
           cy="150"
           r="124"
           fill="none"
-          stroke="#2ee9ff"
+          stroke={hud["neon-cyan"]}
           strokeWidth="3"
           strokeDasharray="120 40 30 40 200 30"
           opacity=".85"
@@ -59,7 +60,7 @@ function Orb({ hot }: { hot: boolean }) {
           cy="150"
           r="104"
           fill="none"
-          stroke="#ff3d8b"
+          stroke={hud["neon-magenta"]}
           strokeWidth="2"
           strokeDasharray="60 24 8 24"
           opacity=".8"
@@ -71,7 +72,7 @@ function Orb({ hot }: { hot: boolean }) {
           cy="150"
           r="86"
           fill="none"
-          stroke="#2ee9ff"
+          stroke={hud["neon-cyan"]}
           strokeWidth="1"
           strokeDasharray="1 5"
           opacity=".9"
@@ -81,8 +82,9 @@ function Orb({ hot }: { hot: boolean }) {
         cx="150"
         cy="150"
         r="70"
-        fill="rgba(46,233,255,.05)"
-        stroke="#2ee9ff"
+        fill={hud["neon-cyan"]}
+        fillOpacity=".05"
+        stroke={hud["neon-cyan"]}
         strokeWidth="1"
         opacity=".6"
       />
@@ -91,17 +93,18 @@ function Orb({ hot }: { hot: boolean }) {
           cx="150"
           cy="150"
           r="46"
-          fill="rgba(46,233,255,.14)"
-          stroke="#2ee9ff"
+          fill={hud["neon-cyan"]}
+          fillOpacity=".14"
+          stroke={hud["neon-cyan"]}
           strokeWidth="2"
         />
-        <circle cx="150" cy="150" r="26" fill="#2ee9ff" opacity=".9" />
-        <circle cx="150" cy="150" r="12" fill="#e8fbff" />
+        <circle cx="150" cy="150" r="26" fill={hud["neon-cyan"]} opacity=".9" />
+        <circle cx="150" cy="150" r="12" fill={hud["hud-ink"]} />
       </g>
-      <line x1="4" y1="150" x2="36" y2="150" stroke="#2ee9ff" />
-      <line x1="264" y1="150" x2="296" y2="150" stroke="#2ee9ff" />
-      <line x1="150" y1="4" x2="150" y2="22" stroke="#ff3d8b" />
-      <line x1="150" y1="278" x2="150" y2="296" stroke="#ff3d8b" />
+      <line x1="4" y1="150" x2="36" y2="150" stroke={hud["neon-cyan"]} />
+      <line x1="264" y1="150" x2="296" y2="150" stroke={hud["neon-cyan"]} />
+      <line x1="150" y1="4" x2="150" y2="22" stroke={hud["neon-magenta"]} />
+      <line x1="150" y1="278" x2="150" y2="296" stroke={hud["neon-magenta"]} />
     </svg>
   );
 }
@@ -116,7 +119,7 @@ function RouteCard({ r }: { r: VoiceReply }) {
       ? d.worktree.split("/").pop()
       : "project main";
   return (
-    <div className="grid grid-cols-2 gap-x-4 gap-y-2 border border-[#1d3347] bg-neon-cyan/5 px-3 py-2.5 font-mono text-[11px]">
+    <div className="grid grid-cols-2 gap-x-4 gap-y-2 border border-hud-chip bg-neon-cyan/5 px-3 py-2.5 font-mono text-[11px]">
       <span className="truncate text-hud-dim">
         PROJECT <span className="text-hud-ink">{project ?? "none"}</span>
       </span>
@@ -190,7 +193,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
   return (
     <section
       aria-label="Jev assistant"
-      className="hud flex min-w-0 flex-col border border-hud-line bg-[rgb(6_10_18/.75)]"
+      className="hud flex min-w-0 flex-col border border-hud-line bg-hud-shade/75"
     >
       <div className="flex items-center justify-between border-b border-hud-rule px-5 py-3.5 font-mono text-[11px] tracking-[.12em] text-hud-dim">
         <span>JEV // VOICE ROUTER</span>
@@ -213,7 +216,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
               className={cn("block w-[3px] origin-center", busy && "hud-wave")}
               style={{
                 height: busy ? 34 : h,
-                background: i % 7 === 3 ? "#ff3d8b" : "#2ee9ff",
+                background: i % 7 === 3 ? hud["neon-magenta"] : hud["neon-cyan"],
                 opacity: busy ? 1 : 0.45,
                 animationDelay: `${(i * 53) % 900}ms`,
               }}
@@ -245,7 +248,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
               <span className="font-mono text-[10px] tracking-[.14em] text-hud-faint">
                 YOU · {hhmm(m.at)}
               </span>
-              <span className="border border-[#5a1d3a] bg-neon-magenta/8 px-3.5 py-2.5 font-hud text-[15px] leading-normal whitespace-pre-wrap text-[#fff0f6] select-text">
+              <span className="border border-hud-bad-line bg-neon-magenta/8 px-3.5 py-2.5 font-hud text-[15px] leading-normal whitespace-pre-wrap text-hud-hot-ink select-text">
                 {m.you}
               </span>
             </div>
@@ -284,7 +287,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
           <div
             role="alertdialog"
             aria-label="Confirm real request"
-            className="flex flex-col gap-2 border border-neon-magenta bg-neon-magenta/10 px-3 py-2.5 font-mono text-xs text-[#fff0f6]"
+            className="flex flex-col gap-2 border border-neon-magenta bg-neon-magenta/10 px-3 py-2.5 font-mono text-xs text-hud-hot-ink"
           >
             <span>
               Send for real? This starts a Claude session in auto mode in an isolated worktree:{" "}
@@ -318,7 +321,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
                   setDraft(c);
                   input.current?.focus();
                 }}
-                className="min-h-8 cursor-pointer border border-[#1d3347] bg-transparent px-3 py-1.5 font-mono text-[11px] text-hud-soft hover:border-neon-cyan hover:text-hud-ink"
+                className="min-h-8 cursor-pointer border border-hud-chip bg-transparent px-3 py-1.5 font-mono text-[11px] text-hud-soft hover:border-neon-cyan hover:text-hud-ink"
               >
                 {c}…
               </button>
@@ -327,7 +330,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
         ) : null}
         <form
           onSubmit={send}
-          className="flex items-center gap-2 border border-hud-edge bg-[#070b13] py-1.5 pr-1.5 pl-4 focus-within:border-neon-cyan focus-within:shadow-[0_0_0_1px_#2ee9ff,0_0_24px_rgb(46_233_255/.25)]"
+          className="flex items-center gap-2 border border-hud-edge bg-hud-surface py-1.5 pr-1.5 pl-4 focus-within:border-neon-cyan focus-within:shadow-[0_0_0_1px_var(--theme-neon-cyan),0_0_24px_color-mix(in_srgb,var(--theme-neon-cyan)_25%,transparent)]"
         >
           <span aria-hidden="true" className="font-mono font-bold text-neon-magenta">
             &gt;

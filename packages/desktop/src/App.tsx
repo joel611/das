@@ -9,6 +9,7 @@ import { Command } from "@/views/command";
 import { Console } from "@/views/console";
 import { Overview } from "@/views/overview";
 import { Settings } from "@/views/settings";
+import { hud } from "@/lib/neon-theme";
 
 const TABS = [
   { id: "command", label: "Command" },
@@ -30,15 +31,15 @@ function StatusChip({
     <span
       className={cn(
         "flex items-center gap-2 border px-2.5 py-1.5",
-        tone === "ok" && "border-[#1d4a3a] text-neon-green",
-        tone === "bad" && "border-[#5a1d3a] text-neon-pink",
-        tone === "info" && "border-[#1d3347] text-hud-soft",
+        tone === "ok" && "border-hud-ok-line text-neon-green",
+        tone === "bad" && "border-hud-bad-line text-neon-pink",
+        tone === "info" && "border-hud-chip text-hud-soft",
       )}
     >
       <span
         className={cn(
           "size-[7px]",
-          tone === "ok" && "bg-neon-green shadow-[0_0_8px_#5cff9d]",
+          tone === "ok" && "bg-neon-green shadow-[0_0_8px_var(--theme-neon-green)]",
           tone === "bad" && "bg-neon-magenta",
           tone === "info" && "bg-neon-cyan",
         )}
@@ -56,16 +57,16 @@ export default function App() {
 
   return (
     <div data-ui-scroll-container className="hud-grid flex flex-col font-hud text-hud-text">
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-hud-line bg-[rgb(6_10_18/.92)] px-6 py-3.5">
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-hud-line bg-hud-shade/92 px-6 py-3.5">
         <div className="flex items-center gap-3">
           <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
             <polygon
               points="15,2 28,9.5 28,20.5 15,28 2,20.5 2,9.5"
               fill="none"
-              stroke="#2ee9ff"
+              stroke={hud["neon-cyan"]}
               strokeWidth="1.5"
             />
-            <circle cx="15" cy="15" r="4.5" fill="#2ee9ff" />
+            <circle cx="15" cy="15" r="4.5" fill={hud["neon-cyan"]} />
           </svg>
           <div className="flex flex-col leading-none">
             <h1 className="m-0 text-xl font-bold tracking-[.28em] text-hud-ink">DAS</h1>
@@ -109,7 +110,7 @@ export default function App() {
             </StatusChip>
           ) : null}
           {s ? (
-            <span className="border border-[#1d3347] px-2.5 py-1.5 text-hud-soft">
+            <span className="border border-hud-chip px-2.5 py-1.5 text-hud-soft">
               {s.projects} projects
             </span>
           ) : null}

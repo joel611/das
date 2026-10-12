@@ -58,14 +58,14 @@ export function AgentsPanel({
               aria-pressed={on}
               onClick={() => onSelect(s.id)}
               className={cn(
-                "flex min-h-14 w-full cursor-pointer flex-col gap-1.5 border-0 border-b border-l-[3px] border-b-hud-rule px-4 py-2.5 text-left font-hud text-inherit hover:bg-[#0f1726] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-neon-amber",
+                "flex min-h-14 w-full cursor-pointer flex-col gap-1.5 border-0 border-b border-l-[3px] border-b-hud-rule px-4 py-2.5 text-left font-hud text-inherit hover:bg-hud-hover focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-neon-amber",
                 on ? cn(c.border, "bg-neon-cyan/7") : "border-l-transparent bg-transparent",
               )}
             >
               <span className="flex w-full items-center gap-2.5">
                 <span
                   className={cn("size-2 shrink-0", c.bg)}
-                  style={s.state === "running" ? { boxShadow: `0 0 10px ${c.hex}` } : undefined}
+                  style={s.state === "running" ? { boxShadow: `0 0 10px ${c.glow}` } : undefined}
                 />
                 <span className="text-sm font-semibold text-hud-ink">{sessionLabel(s)}</span>
                 <span className="min-w-0 flex-1 truncate font-mono text-[11px] text-hud-dim">
@@ -136,7 +136,7 @@ export function SkillsPanel({ session, now }: { session: Session | undefined; no
                 <span className="flex items-baseline gap-2 font-mono text-xs">
                   <span className="font-medium text-hud-ink">/{name}</span>
                   {plugin ? (
-                    <span className="border border-[#23384c] px-1 text-[10px] text-hud-dim">
+                    <span className="border border-hud-chip-dim px-1 text-[10px] text-hud-dim">
                       {plugin}
                     </span>
                   ) : null}
@@ -146,7 +146,7 @@ export function SkillsPanel({ session, now }: { session: Session | undefined; no
                   <span className="flex-1">
                     <Bar
                       pct={(k.count / max) * 100}
-                      className="bg-neon-magenta shadow-[0_0_8px_rgb(255_61_139/.6)]"
+                      className="bg-neon-magenta shadow-[0_0_8px_color-mix(in_srgb,var(--theme-neon-magenta)_60%,transparent)]"
                     />
                   </span>
                   <span className="w-14 text-right font-mono text-[10px] text-hud-faint">

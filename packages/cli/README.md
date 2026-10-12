@@ -105,7 +105,7 @@ Admin routes are localhost only, plus the token if set.
 | `GET /v1/devices`                                  | `[{id, device, capabilities, connectedAt}]` (from `hello`)                                                                                   |
 | `GET /v1/state`                                    | `{display, sessions, devices, projects, untrustedProjects}`                                                                                  |
 
-Skills are counted from `PreToolUse` with `tool_name: "Skill"` (`tool_input.skill`) and from prompts that start with `/name`. Usage reads each session's `transcript_path` incrementally after the hook is answered: assistant messages are deduped by message id, `tokens` is input + output + cache writes (cache reads are reported separately), and a block starts at the hour of its first message and lasts 5 hours (the same rule as ccusage). Plan limits (the percent of your allowance used) are not in hooks or transcripts, so they are not reported.
+Skills are counted from `PreToolUse` with `tool_name: "Skill"` (`tool_input.skill`). Typed `/name` prompts are not counted: only a Skill tool call is a trigger. Usage reads each session's `transcript_path` incrementally after the hook is answered: assistant messages are deduped by message id, `tokens` is input + output + cache writes (cache reads are reported separately), and a block starts at the hour of its first message and lasts 5 hours (the same rule as ccusage). Plan limits (the percent of your allowance used) are not in hooks or transcripts, so they are not reported.
 
 ## Hook installer
 

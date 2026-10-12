@@ -23,7 +23,7 @@ export type Session = {
   updatedAt: number;
 };
 
-/** A skill a session ran (Skill tool or a typed `/name`). Plugin skills are named `plugin:skill`. */
+/** A skill a session ran (Skill tool call). Plugin skills are named `plugin:skill`. */
 export type SkillUse = { name: string; count: number; lastAt: number };
 
 /** Token use in the current 5-hour block, read from session transcripts (packages/cli/src/usage.ts). */

@@ -1,38 +1,44 @@
 import type { ReactNode } from "react";
 
+import { hud } from "@/lib/neon-theme";
 import { cn } from "@/lib/utils";
 import type { SessionState } from "@/lib/types";
 
-/** Neon colour per session state, as Tailwind classes and a raw value for SVG/box-shadow. */
+/** Neon colour per session state, as Tailwind classes, plus a theme colour reference for box-shadow. */
 export const STATE_COLOR: Record<
   SessionState,
-  { text: string; bg: string; border: string; hex: string }
+  { text: string; bg: string; border: string; glow: string }
 > = {
   running: {
     text: "text-neon-cyan",
     bg: "bg-neon-cyan",
     border: "border-neon-cyan",
-    hex: "#2ee9ff",
+    glow: hud["neon-cyan"],
   },
   waiting: {
     text: "text-neon-amber",
     bg: "bg-neon-amber",
     border: "border-neon-amber",
-    hex: "#ffb020",
+    glow: hud["neon-amber"],
   },
   error: {
     text: "text-neon-pink",
     bg: "bg-neon-magenta",
     border: "border-neon-magenta",
-    hex: "#ff3d8b",
+    glow: hud["neon-magenta"],
   },
   done: {
     text: "text-neon-green",
     bg: "bg-neon-green",
     border: "border-neon-green",
-    hex: "#5cff9d",
+    glow: hud["neon-green"],
   },
-  idle: { text: "text-hud-dim", bg: "bg-[#4d6676]", border: "border-[#4d6676]", hex: "#4d6676" },
+  idle: {
+    text: "text-hud-dim",
+    bg: "bg-hud-idle",
+    border: "border-hud-idle",
+    glow: hud["hud-idle"],
+  },
 };
 
 /** Most urgent first. */
