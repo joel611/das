@@ -319,6 +319,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
                 type="button"
                 onClick={() => {
                   setDraft(c);
+                  setPendingReal(null); // the confirm box must not outlive the text it asked about
                   input.current?.focus();
                 }}
                 className="min-h-8 cursor-pointer border border-hud-chip bg-transparent px-3 py-1.5 font-mono text-[11px] text-hud-soft hover:border-neon-cyan hover:text-hud-ink"
