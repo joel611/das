@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   rmSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -162,4 +163,54 @@ test("transcripts not read for a day are forgotten", async () => {
   clock = T0 + 25 * HOUR;
   await t.ingest("s", join(dir, "missing.jsonl")); // any read triggers the sweep
   expect((t as any).offsets.size).toBe(0);
+});
+
+test("burn rate and series cover the active block only", () => {
+  const t = new UsageTracker(null, { now: () => 0 });
+  const put = (id: string, at: number, tokens: number) =>
+    ((t as any).entries as Map<string, unknown>).set(id, {
+      id,
+      session: "s",
+      at,
+      model: "claude-opus-5-5",
+      input: tokens,
+      output: 0,
+      cacheCreate: 0,
+      cacheRead: 0,
+    });
+  // block A is 10:00-15:00; 14:50 is in it. 15:10 opens block B (15:00-20:00).
+  put("a0", Date.parse("2026-10-11T10:20:00Z"), 1);
+  put("a", Date.parse("2026-10-11T14:50:00Z"), 600);
+  put("b", Date.parse("2026-10-11T15:10:00Z"), 120);
+  const now = Date.parse("2026-10-11T15:20:00Z");
+  const s = t.summary(now).block!;
+  expect(s.tokens).toBe(120);
+  expect(s.burnPerMin).toBe(2);
+  expect(s.series.reduce((a, b) => a + b, 0)).toBe(120);
+});
+
+test("backfill reads recent top-level session transcripts once", async () => {
+  const root = join(dir, "backfill");
+  mkdirSync(join(root, "-proj", "sess-1", "subagents"), { recursive: true });
+  const recent = join(root, "-proj", "sess-1.jsonl");
+  const stale = join(root, "-proj", "sess-old.jsonl");
+  writeFileSync(recent, line("r", T0, u(4, 0)));
+  writeFileSync(stale, line("o", T0, u(100, 0)));
+  writeFileSync(
+    join(root, "-proj", "sess-1", "subagents", "agent-x.jsonl"),
+    line("x", T0, u(50, 0)),
+  );
+  writeFileSync(join(root, "-proj", "notes.txt"), line("n", T0, u(50, 0)));
+  const old = (T0 - 6 * HOUR) / 1000;
+  utimesSync(stale, old, old);
+  const recentSec = T0 / 1000;
+  utimesSync(recent, recentSec, recentSec);
+
+  const t = new UsageTracker(root, { now: () => T0 + 60_000 });
+  await t.backfill();
+  await t.ingest("sess-1", recent); // a hook for the same transcript must not double count
+  const b = t.summary(T0 + 60_000).block!;
+  expect(b.tokens).toBe(4);
+  expect(b.bySession).toEqual([{ session: "sess-1", tokens: 4 }]);
+  await new UsageTracker(null).backfill(); // no root: no-op
 });

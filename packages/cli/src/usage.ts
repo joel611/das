@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
-import { open, realpath } from "node:fs/promises";
-import { sep } from "node:path";
+import { open, readdir, realpath, stat as statPath } from "node:fs/promises";
+import { join, sep } from "node:path";
 
 /**
  * Token usage read from the Claude Code transcripts that hook events point at (`transcript_path`).
@@ -110,6 +110,32 @@ export class UsageTracker {
     private opts: { chunk?: number; now?: () => number } = {},
   ) {}
 
+  /**
+   * Read the transcripts of sessions that were already running when the daemon started, so the block
+   * total is complete before their next hook. Only `<root>/<project>/<session>.jsonl` files touched in
+   * the last 5 hours are read: that is what hook events point at (subagent transcripts live deeper
+   * and are not reported by hooks, so they are not counted here either). Never rejects.
+   */
+  async backfill(): Promise<void> {
+    if (!this.root) return;
+    const since = this.now() - BLOCK_MS;
+    try {
+      for (const proj of await readdir(this.root, { withFileTypes: true })) {
+        if (!proj.isDirectory()) continue;
+        const dir = join(this.root, proj.name);
+        for (const f of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
+          if (!f.isFile() || !f.name.endsWith(".jsonl")) continue;
+          const path = join(dir, f.name);
+          const st = await statPath(path).catch(() => null);
+          if (st && st.mtimeMs >= since) void this.ingest(f.name.slice(0, -".jsonl".length), path);
+        }
+      }
+    } catch {
+      // no projects directory yet: nothing to backfill
+    }
+    await this.queue;
+  }
+
   /** Read whatever the transcript gained since the last call. Never rejects. */
   ingest(session: string, path: string | undefined): Promise<void> {
     if (!session || !path) return this.queue;
@@ -179,9 +205,11 @@ export class UsageTracker {
       for (const e of block.entries) m.set(key(e), (m.get(key(e)) ?? 0) + total(e));
       return [...m].sort((a, b) => b[1] - a[1]);
     };
+    // Only the active block: the previous block's tail would otherwise inflate the burn rate
+    // and the sparkline while the totals above already exclude it.
     const series = Array.from({ length: HOUR / BUCKET_MS }, () => 0);
     let lastHour = 0;
-    for (const e of sorted) {
+    for (const e of block.entries) {
       const age = now - e.at;
       if (age < 0 || age >= HOUR) continue;
       lastHour += total(e);
