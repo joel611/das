@@ -1,6 +1,6 @@
 import { constants } from "node:fs";
-import { open, realpath } from "node:fs/promises";
-import { sep } from "node:path";
+import { open, readdir, realpath, stat } from "node:fs/promises";
+import { basename, join, sep } from "node:path";
 
 /**
  * Token usage read from the Claude Code transcripts that hook events point at (`transcript_path`).
@@ -39,9 +39,9 @@ export type Usage = {
     tokens: number;
     cacheRead: number;
     messages: number;
-    /** tokens per minute over the last hour */
+    /** tokens per minute over the last hour of this block */
     burnPerMin: number;
-    /** tokens per 5-minute bucket over the last hour, oldest first */
+    /** tokens per 5-minute bucket over the last hour of this block, oldest first */
     series: number[];
     byModel: { model: string; tokens: number }[];
     bySession: { session: string; tokens: number }[];
@@ -160,6 +160,39 @@ export class UsageTracker {
     }
   }
 
+  /**
+   * Read every transcript changed within two blocks (enough to find where the active block began),
+   * so a daemon restart doesn't under-report until each session fires a hook. Transcripts are named
+   * `<session id>.jsonl`, which gives the session.
+   */
+  async backfill(): Promise<void> {
+    if (!this.root) return;
+    const since = this.now() - 2 * BLOCK_MS;
+    let dirs: string[];
+    try {
+      dirs = await readdir(this.root);
+    } catch {
+      return;
+    }
+    for (const d of dirs) {
+      let files: string[];
+      try {
+        files = await readdir(join(this.root, d));
+      } catch {
+        continue;
+      }
+      for (const f of files) {
+        if (!f.endsWith(".jsonl")) continue;
+        const path = join(this.root, d, f);
+        const mtime = await stat(path).then(
+          (s) => s.mtimeMs,
+          () => 0,
+        );
+        if (mtime >= since) await this.ingest(basename(f, ".jsonl"), path);
+      }
+    }
+  }
+
   private now() {
     return this.opts.now?.() ?? Date.now();
   }
@@ -179,9 +212,10 @@ export class UsageTracker {
       for (const e of block.entries) m.set(key(e), (m.get(key(e)) ?? 0) + total(e));
       return [...m].sort((a, b) => b[1] - a[1]);
     };
+    // Burn rate and series use the block's entries too, so they never count tokens from before the block.
     const series = Array.from({ length: HOUR / BUCKET_MS }, () => 0);
     let lastHour = 0;
-    for (const e of sorted) {
+    for (const e of block.entries) {
       const age = now - e.at;
       if (age < 0 || age >= HOUR) continue;
       lastHour += total(e);

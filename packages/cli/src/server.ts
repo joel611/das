@@ -95,6 +95,8 @@ export function createServer({
   const usage = new UsageTracker(
     join(claudeDir ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "projects"),
   );
+  // Only with an explicit Claude dir (the daemon passes one), so tests never read real transcripts.
+  if (claudeDir) void usage.backfill();
 
   let boundPort = port;
   const devices = new Map<string, Device>();

@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   rmSync,
   symlinkSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -162,4 +163,34 @@ test("transcripts not read for a day are forgotten", async () => {
   clock = T0 + 25 * HOUR;
   await t.ingest("s", join(dir, "missing.jsonl")); // any read triggers the sweep
   expect((t as any).offsets.size).toBe(0);
+});
+
+test("burn rate and series only count the active block", () => {
+  // the previous block runs from 5h before T0's hour up to that hour; its last message is
+  // 10 minutes before the active block starts, so it is inside "the last hour" but not this block
+  const hour = Math.floor(T0 / HOUR) * HOUR;
+  const t = new UsageTracker(dir, { now: () => T0 });
+  (t as any).entries.set("first", parseLine(line("first", hour - 5 * HOUR, u(1, 0)), "s"));
+  (t as any).entries.set("old", parseLine(line("old", hour - 10 * 60_000, u(50, 0)), "s"));
+  (t as any).entries.set("new", parseLine(line("new", T0, u(7, 0)), "s"));
+  const b = t.summary(T0 + 10 * 60_000).block!;
+  expect(b.tokens).toBe(7);
+  expect(b.series.reduce((a, x) => a + x, 0)).toBe(7);
+  expect(b.burnPerMin).toBe(Math.round(7 / 60));
+});
+
+test("backfill reads transcripts changed within two blocks, named by session id", async () => {
+  const sub = join(dir, "-Users-me-backfill");
+  mkdirSync(sub);
+  writeFileSync(join(sub, "recent.jsonl"), line("b1", T0, u(3, 0)));
+  writeFileSync(join(sub, "stale.jsonl"), line("b2", T0, u(9, 0)));
+  writeFileSync(join(sub, "notes.txt"), line("b3", T0, u(9, 0)));
+  const old = new Date(T0 - 11 * HOUR);
+  utimesSync(join(sub, "stale.jsonl"), old, old);
+  utimesSync(join(sub, "recent.jsonl"), new Date(T0), new Date(T0));
+  const t = new UsageTracker(dir, { now: () => T0 });
+  await t.backfill();
+  expect(t.summary(T0 + 60_000).block?.bySession).toContainEqual({ session: "recent", tokens: 3 });
+  expect(t.summary(T0 + 60_000).block?.bySession.map((x) => x.session)).not.toContain("stale");
+  await new UsageTracker(null).backfill(); // no root: nothing to read, no throw
 });
