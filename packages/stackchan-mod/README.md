@@ -26,6 +26,12 @@ npm run mod:build -- <this-repo>/packages/stackchan-mod/manifest.json --mode=rel
 # -> firmware/dist/bin/esp32/release/stackchan-mod/stackchan-mod.xsa (2 KB, copied here)
 ```
 
+To override the server URL without editing `mod.js`, use the package script (set `STACKCHAN_DIR` if stack-chan is not at `~/Developer/stack-chan`):
+
+```sh
+bun run build -- --server-url ws://192.168.1.10:5777/v1/ws
+```
+
 Only the SDK tools are needed; no ESP-IDF or Emscripten for building a MOD. Install the `.xsa` on a device with `npm run mod -- <manifest>`.
 
 ## Browser simulator
