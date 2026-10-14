@@ -4,6 +4,6 @@
   "description": "stack-chan MOD (device client). Built with the stack-chan firmware tooling, see README.md.",
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.mjs"
+    "build": "node scripts/build.mjs --server-url wss://mpro.dwelf-koi.ts.net/v1/ws"
   }
 }
