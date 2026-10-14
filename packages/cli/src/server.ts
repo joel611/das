@@ -1,5 +1,6 @@
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { config, envOverrides, loadConfig, writeSettingsFile, type Config } from "./config";
 import { computeDisplay } from "./display";
 import { hooksStatus, installHooks, uninstallHooks } from "./hooks-install";
@@ -91,7 +92,9 @@ export function createServer({
     logPath: decisionsLog,
   };
   const tracker = new SessionTracker(getProjects);
-  const usage = new UsageTracker();
+  const usage = new UsageTracker(
+    join(claudeDir ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "projects"),
+  );
 
   let boundPort = port;
   const devices = new Map<string, Device>();
@@ -127,7 +130,9 @@ export function createServer({
       if (hook && req.method === "POST") {
         if (!isLocal(srv.requestIP(req)?.address))
           return new Response("forbidden", { status: 403 });
-        const payload: HookPayload = await req.json().catch(() => ({}));
+        // A body of `null` or a non-object is not a hook payload.
+        const body: unknown = await req.json().catch(() => null);
+        const payload: HookPayload = body && typeof body === "object" ? body : {};
         tracker.handleHook(hook[1], payload);
         // Read the transcript after answering, so a large first read never delays the agent.
         setTimeout(() => usage.ingest(payload.session_id ?? "", payload.transcript_path), 0);

@@ -55,3 +55,12 @@ test("hello -> snapshot, then hook -> delta, SessionEnd -> removal delta", async
   });
   ws.close();
 });
+
+test("a hook body that is not an object is ignored, not fatal", async () => {
+  for (const body of ["null", "42", '"x"', "[]", "{"]) {
+    const res = await fetch(`http://${base}/hooks/PreToolUse`, { method: "POST", body });
+    expect(res.status).toBe(204);
+  }
+  await Bun.sleep(10); // the deferred transcript read must not throw either
+  expect((await fetch(`http://${base}/v1/usage?token=secret`)).status).toBe(200);
+});
