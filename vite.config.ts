@@ -19,6 +19,8 @@ export default defineConfig({
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },
     options: { typeAware: true, typeCheck: true },
   },
+  // Pre-commit hook (.vite-hooks/pre-commit) runs `vp staged`; installed via the `prepare` script.
+  staged: { "*.{js,mjs,ts,tsx,json}": "vp check --fix" },
   run: {
     cache: true,
   },

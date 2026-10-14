@@ -18,6 +18,7 @@
     "mod:install": "bun run --cwd packages/stackchan-mod mod:build --install",
     "test": "vp run -r test",
     "check": "vp check",
+    "prepare": "vp config",
     "ready": "vp check && vp run -r test && vp run -r build"
   },
   "devDependencies": {
