@@ -125,3 +125,41 @@ test("a multi-byte character split across read chunks survives", async () => {
   await t.ingest("s", path);
   expect(t.summary(T0 + 60_000).block?.tokens).toBe(8);
 });
+
+test("a truncated transcript restarts clean, without the old partial line", async () => {
+  const path = join(dir, "trunc.jsonl");
+  writeFileSync(path, line("a", T0, u(1, 0)) + '{"type":"assistant","partial');
+  const t = new UsageTracker(dir, { now: () => T0 });
+  await t.ingest("s", path);
+  writeFileSync(path, line("b", T0, u(2, 0))); // shorter than before
+  await t.ingest("s", path);
+  expect(t.summary(T0 + 60_000).block?.tokens).toBe(3);
+});
+
+test("a replayed message id stays with the session that saw it first", async () => {
+  const one = join(dir, "one.jsonl");
+  const fork = join(dir, "fork.jsonl");
+  writeFileSync(one, line("shared", T0, u(10, 0)));
+  writeFileSync(fork, line("shared", T0, u(10, 0)) + line("own", T0 + 1000, u(5, 0)));
+  const t = new UsageTracker(dir, { now: () => T0 });
+  await t.ingest("s1", one);
+  await t.ingest("s2", fork);
+  const b = t.summary(T0 + 60_000).block!;
+  expect(b.tokens).toBe(15);
+  expect(b.bySession).toEqual([
+    { session: "s1", tokens: 10 },
+    { session: "s2", tokens: 5 },
+  ]);
+});
+
+test("transcripts not read for a day are forgotten", async () => {
+  const path = join(dir, "old.jsonl");
+  writeFileSync(path, line("m", T0, u(1, 0)));
+  let clock = T0;
+  const t = new UsageTracker(dir, { now: () => clock });
+  await t.ingest("s", path);
+  expect((t as any).offsets.size).toBe(1);
+  clock = T0 + 25 * HOUR;
+  await t.ingest("s", join(dir, "missing.jsonl")); // any read triggers the sweep
+  expect((t as any).offsets.size).toBe(0);
+});
