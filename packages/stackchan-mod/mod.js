@@ -9,9 +9,11 @@ const RETRY_MS = 3000;
 const CONNECT_TIMEOUT_MS = 5000;
 // Consecutive failed attempts before the Link state becomes "failed".
 const FAIL_AFTER = 3;
-// Head sweep while connecting: +-PAN_RAD, one full left-right-left cycle.
+// Head sweep while connecting: sinusoid +-PAN_RAD, one full left-right-left
+// cycle per SWEEP_PERIOD_MS, sent as small steps so the servo moves smoothly.
 const PAN_RAD = 0.35;
-const PAN_HALF_CYCLE_MS = 5000;
+const SWEEP_PERIOD_MS = 10000;
+const SWEEP_STEP_MS = 200;
 const CONNECTING_LIGHT = { mode: "blink", rgb: [0, 0, 255], periodMs: 500 };
 const FAILED_LIGHT = { mode: "solid", rgb: [255, 0, 0] };
 
@@ -44,7 +46,6 @@ function onContextCreated(robot, _option) {
   let link; // connecting | failed | connected
   let failures = 0;
   let sweep;
-  let panSign = 1;
 
   // Render a server-sent light spec on every LED. Absent spec = off.
   function setLight(light) {
@@ -61,7 +62,7 @@ function onContextCreated(robot, _option) {
   }
 
   function pan(y, seconds) {
-    robot.motion.setPose({ rotation: { y, p: 0, r: 0 } }, seconds);
+    robot.motion.setPose({ rotation: { y, p: 0, r: 0 } }, seconds).catch((e) => trace(`pan failed: ${e}\n`));
   }
 
   function stopSweep() {
@@ -69,16 +70,24 @@ function onContextCreated(robot, _option) {
     Timer.clear(sweep);
     sweep = undefined;
     pan(0, 0.5);
+    // Let the move finish, then release torque like the stock motion controller.
+    Timer.set(() => robot.motion.setTorque(false).catch(() => {}), 600);
   }
 
   function startSweep() {
     if (sweep !== undefined) return;
-    const step = () => {
-      pan(PAN_RAD * panSign, PAN_HALF_CYCLE_MS / 1000);
-      panSign = -panSign;
-    };
-    step();
-    sweep = Timer.repeat(step, PAN_HALF_CYCLE_MS);
+    const t0 = Date.now();
+    robot.motion
+      .setTorque(true)
+      .then(() => {
+        if (link !== "connecting") return robot.motion.setTorque(false);
+        if (sweep !== undefined) return;
+        sweep = Timer.repeat(() => {
+          const phase = ((Date.now() - t0) / SWEEP_PERIOD_MS) * 2 * Math.PI;
+          pan(PAN_RAD * Math.sin(phase), (SWEEP_STEP_MS * 1.5) / 1000);
+        }, SWEEP_STEP_MS);
+      })
+      .catch((e) => trace(`torque failed: ${e}\n`));
   }
 
   // Link state overrides the Display until connected. Stale Display is dropped.
@@ -127,6 +136,7 @@ function onContextCreated(robot, _option) {
 
   function connect() {
     retry = undefined;
+    trace(`ws connect attempt, failures=${failures}\n`);
     let ws;
     try {
       ws = new WebSocket(SERVER_URL);
@@ -140,14 +150,14 @@ function onContextCreated(robot, _option) {
     const timeout = Timer.set(() => {
       trace("ws connect timeout\n");
       fail();
-      try {
-        ws.close();
-      } catch (e) {}
     }, CONNECT_TIMEOUT_MS);
     function fail() {
       if (opened || settled) return;
       settled = true;
       Timer.clear(timeout);
+      try {
+        ws.close();
+      } catch (e) {}
       attemptFailed();
     }
     ws.addEventListener("open", () => {
