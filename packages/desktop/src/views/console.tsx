@@ -10,8 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { usePoll } from "@/hooks/use-poll";
-import { api } from "@/lib/api";
+import { useDaemonState, useProjects, useSettings, useVoice } from "@/lib/queries";
 import type { VoiceReply } from "@/lib/types";
 
 type Turn = { you: string } | { reply: VoiceReply; ms: number; dry: boolean };
@@ -63,12 +62,13 @@ export function Console() {
   const [text, setText] = useState("");
   const [dry, setDry] = useState(true);
   const [device, setDevice] = useState("console");
-  const [busy, setBusy] = useState(false);
   const [pendingReal, setPendingReal] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
-  const projects = usePoll(api.projects, 10_000);
-  const settings = usePoll(api.settings, 10_000);
-  const state = usePoll(api.state, 5000);
+  const projects = useProjects();
+  const settings = useSettings();
+  const state = useDaemonState(5000);
+  const voice = useVoice();
+  const busy = voice.isPending;
   const logEnd = useRef<HTMLDivElement>(null);
   const confirmBox = useRef<HTMLDivElement>(null);
 
@@ -80,10 +80,9 @@ export function Console() {
 
   async function run(msg: string, isDry: boolean) {
     setTurns((t) => [...t, { you: msg }]);
-    setBusy(true);
     const t0 = performance.now();
     try {
-      const reply = await api.voice(msg, device, isDry);
+      const reply = await voice.mutateAsync({ text: msg, device, dryRun: isDry });
       setTurns((t) => [...t, { reply, ms: Math.round(performance.now() - t0), dry: isDry }]);
     } catch (e) {
       const reply: VoiceReply = {
@@ -91,8 +90,6 @@ export function Console() {
         text: e instanceof Error ? e.message : String(e),
       };
       setTurns((t) => [...t, { reply, ms: Math.round(performance.now() - t0), dry: isDry }]);
-    } finally {
-      setBusy(false);
     }
   }
 

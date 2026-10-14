@@ -3,10 +3,9 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { api } from "@/lib/api";
 import { ago } from "@/lib/format";
+import { useDaemonState, useDevices, useProjects, useSessions } from "@/lib/queries";
 import type { SessionState } from "@/lib/types";
-import { usePoll } from "@/hooks/use-poll";
 
 const ORDER: SessionState[] = ["error", "waiting", "running", "done", "idle"];
 
@@ -23,10 +22,10 @@ function Stat({ label, value, hint }: { label: string; value: string | number; h
 }
 
 export function Overview() {
-  const state = usePoll(api.state, 2000);
-  const sessions = usePoll(api.sessions, 2000);
-  const projects = usePoll(api.projects, 10_000);
-  const devices = usePoll(api.devices, 3000);
+  const state = useDaemonState();
+  const sessions = useSessions();
+  const projects = useProjects();
+  const devices = useDevices();
 
   if (state.error && !state.data) {
     return (

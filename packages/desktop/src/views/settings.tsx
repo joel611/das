@@ -16,8 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { usePoll } from "@/hooks/use-poll";
-import { api } from "@/lib/api";
+import { useHookAction, useHooks, useSaveSettings, useSettings } from "@/lib/queries";
 import type { SettingsPatch } from "@/lib/types";
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -60,8 +59,10 @@ function Secret(props: {
 }
 
 export function Settings() {
-  const settings = usePoll(api.settings, 60_000);
-  const hooks = usePoll(api.hooks, 5000);
+  const settings = useSettings(60_000);
+  const hooks = useHooks();
+  const saveSettings = useSaveSettings();
+  const hookAction = useHookAction();
 
   const [roots, setRoots] = useState("");
   const [port, setPort] = useState("");
@@ -70,7 +71,7 @@ export function Settings() {
   const [key, setKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
   const [loaded, setLoaded] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const saving = saveSettings.isPending;
 
   const s = settings.data;
   useEffect(() => {
@@ -93,14 +94,12 @@ export function Settings() {
     else if (token) patch.token = token;
     if (clearKey) patch.openrouterKey = "";
     else if (key) patch.openrouterKey = key;
-    setSaving(true);
     try {
-      const r = await api.saveSettings(patch);
+      const r = await saveSettings.mutateAsync(patch);
       setToken("");
       setKey("");
       setClearToken(false);
       setClearKey(false);
-      await settings.refresh();
       toast.success(
         r.restartRequired
           ? "Saved. Restart the daemon for the new port: bun run daemon --stop && bun run daemon --bg"
@@ -108,15 +107,12 @@ export function Settings() {
       );
     } catch (e) {
       toast.error(msg(e));
-    } finally {
-      setSaving(false);
     }
   }
 
-  async function hookAction(kind: "install" | "uninstall") {
+  async function runHookAction(kind: "install" | "uninstall") {
     try {
-      await (kind === "install" ? api.installHooks() : api.uninstallHooks());
-      await hooks.refresh();
+      await hookAction.mutateAsync(kind);
       toast.success(
         kind === "install"
           ? "Hooks installed. Restart running Claude sessions to load them."
@@ -242,12 +238,12 @@ export function Settings() {
           ) : null}
         </CardContent>
         <CardFooter className="gap-2">
-          <Button onClick={() => hookAction("install")}>
+          <Button onClick={() => runHookAction("install")}>
             {h?.state === "installed" ? "Reinstall hooks" : "Install hooks"}
           </Button>
           <Button
             variant="outline"
-            onClick={() => hookAction("uninstall")}
+            onClick={() => runHookAction("uninstall")}
             disabled={h?.state === "missing"}
           >
             Uninstall hooks

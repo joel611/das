@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -24,34 +25,28 @@ export function Debug() {
   const [paused, setPaused] = useState(false);
   const [source, setSource] = useState<Source>("all");
   const [text, setText] = useState("");
-  const [error, setError] = useState<string>();
   // Cursor survives pause/clear: clear hides history, it never re-fetches it.
   const cursor = useRef(0);
   const end = useRef<HTMLDivElement>(null);
 
+  // Each poll fetches only entries after the cursor; the effect below appends them.
+  const logs = useQuery({
+    queryKey: ["logs"],
+    queryFn: async () => {
+      const fresh = await api.logs(cursor.current);
+      if (fresh.length) cursor.current = fresh[fresh.length - 1].seq;
+      return fresh;
+    },
+    refetchInterval: 1000,
+    enabled: !paused,
+    gcTime: 0,
+  });
+  const error = logs.error?.message;
+
   useEffect(() => {
-    if (paused) return;
-    let live = true;
-    const tick = async () => {
-      try {
-        const fresh = await api.logs(cursor.current);
-        if (!live) return;
-        setError(undefined);
-        if (fresh.length) {
-          cursor.current = fresh[fresh.length - 1].seq;
-          setEntries((old) => [...old, ...fresh].slice(-KEEP));
-        }
-      } catch (e) {
-        if (live) setError(e instanceof Error ? e.message : String(e));
-      }
-    };
-    void tick();
-    const id = setInterval(() => void tick(), 1000);
-    return () => {
-      live = false;
-      clearInterval(id);
-    };
-  }, [paused]);
+    const fresh = logs.data;
+    if (fresh?.length) setEntries((old) => [...old, ...fresh].slice(-KEEP));
+  }, [logs.data]);
 
   const needle = text.trim().toLowerCase();
   const shown = entries.filter(
