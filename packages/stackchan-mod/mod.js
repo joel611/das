@@ -9,13 +9,11 @@ const RETRY_MS = 3000;
 const CONNECT_TIMEOUT_MS = 5000;
 // Consecutive failed attempts before the Link state becomes "failed".
 const FAIL_AFTER = 3;
-// Head tilt. Pan stays centred. Connecting nods between 0 and TILT_UP_RAD,
-// one full cycle per SWEEP_PERIOD_MS, sent as small steps so the servo moves
-// smoothly. Failed rests at 0; connected (idle) holds TILT_UP_RAD.
-// Pose pitch is positive when looking down, so "up" is negated when sent.
-const TILT_UP_RAD = (20 * Math.PI) / 180;
-const SWEEP_PERIOD_MS = 10000;
-const SWEEP_STEP_MS = 200;
+// Head tilt (pan stays centred). Pose pitch is positive when looking down, so
+// "up" is negated when sent. The servo driver clamps to its safe range
+// (M5StackChan: 5-85 degrees up), so FAILED_DOWN_RAD just means "as low as it goes".
+const IDLE_TILT_UP_RAD = (10 * Math.PI) / 180;
+const FAILED_DOWN_RAD = 0.5;
 const CONNECTING_LIGHT = { mode: "blink", rgb: [0, 0, 255], periodMs: 500 };
 const FAILED_LIGHT = { mode: "solid", rgb: [255, 0, 0] };
 
@@ -47,7 +45,6 @@ function onContextCreated(robot, _option) {
   let retry;
   let link; // connecting | failed | connected
   let failures = 0;
-  let sweep;
 
   // Render a server-sent light spec on every LED. Absent spec = off.
   function setLight(light) {
@@ -63,42 +60,17 @@ function onContextCreated(robot, _option) {
     }
   }
 
-  function tilt(up, seconds) {
-    robot.motion.setPose({ rotation: { y: 0, p: -up, r: 0 } }, seconds).catch((e) => trace(`tilt failed: ${e}\n`));
-  }
-
-  function stopSweep() {
-    if (sweep === undefined) return;
-    Timer.clear(sweep);
-    sweep = undefined;
-  }
-
-  // Move to a fixed tilt and stay there. Torque stays on unless resting at 0,
-  // where it is released after the move like the stock motion controller.
+  // Move to a fixed tilt (negative = down). Torque stays on to hold an upward
+  // pose; when resting at the bottom it is released after the move so the
+  // servo does not push against its stop.
   function settleTilt(up) {
-    stopSweep();
     robot.motion
       .setTorque(true)
+      .then(() => robot.motion.setPose({ rotation: { y: 0, p: -up, r: 0 } }, 0.8))
       .then(() => {
-        tilt(up, 0.5);
-        if (up === 0) Timer.set(() => robot.motion.setTorque(false).catch(() => {}), 600);
+        if (up < 0) Timer.set(() => robot.motion.setTorque(false).catch(() => {}), 1000);
       })
-      .catch((e) => trace(`torque failed: ${e}\n`));
-  }
-
-  function startSweep() {
-    if (sweep !== undefined) return;
-    const t0 = Date.now();
-    robot.motion
-      .setTorque(true)
-      .then(() => {
-        if (link !== "connecting" || sweep !== undefined) return;
-        sweep = Timer.repeat(() => {
-          const phase = ((Date.now() - t0) / SWEEP_PERIOD_MS) * 2 * Math.PI;
-          tilt((TILT_UP_RAD * (1 - Math.cos(phase))) / 2, (SWEEP_STEP_MS * 1.5) / 1000);
-        }, SWEEP_STEP_MS);
-      })
-      .catch((e) => trace(`torque failed: ${e}\n`));
+      .catch((e) => trace(`tilt failed: ${e}\n`));
   }
 
   // Link state overrides the Display until connected. Stale Display is dropped.
@@ -106,7 +78,7 @@ function onContextCreated(robot, _option) {
     if (next === link) return;
     link = next;
     if (link === "connected") {
-      settleTilt(TILT_UP_RAD);
+      settleTilt(IDLE_TILT_UP_RAD);
       robot.face.setEyeOpen("left", 1);
       robot.face.setEyeOpen("right", 1);
       return;
@@ -116,9 +88,8 @@ function onContextCreated(robot, _option) {
     if (link === "connecting") {
       setLight(CONNECTING_LIGHT);
       robot.face.setEmotion(emotionFromName("NEUTRAL"));
-      startSweep();
     } else {
-      settleTilt(0);
+      settleTilt(-FAILED_DOWN_RAD);
       setLight(FAILED_LIGHT);
       // Closest built-in to X X eyes and ^ mouth: closed eyes, happy.
       robot.face.setEmotion(emotionFromName("HAPPY"));
