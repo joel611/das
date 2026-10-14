@@ -5,6 +5,8 @@ import Timer from "timer";
 // Edit this to point at the stack-chan-server (use the LAN IP on a real device).
 const SERVER_URL = "ws://localhost:5777/v1/ws";
 const RETRY_MS = 3000;
+// An attempt with no open/error/close by then counts as failed.
+const CONNECT_TIMEOUT_MS = 5000;
 // Consecutive failed attempts before the Link state becomes "failed".
 const FAIL_AFTER = 3;
 // Head sweep while connecting: +-PAN_RAD, one full left-right-left cycle.
@@ -134,8 +136,30 @@ function onContextCreated(robot, _option) {
       return;
     }
     let opened = false;
+    let settled = false; // this attempt already counted as failed
+    const timeout = Timer.set(() => {
+      trace("ws connect timeout\n");
+      fail();
+      try {
+        ws.close();
+      } catch (e) {}
+    }, CONNECT_TIMEOUT_MS);
+    function fail() {
+      if (opened || settled) return;
+      settled = true;
+      Timer.clear(timeout);
+      attemptFailed();
+    }
     ws.addEventListener("open", () => {
       trace("ws open\n");
+      Timer.clear(timeout);
+      if (settled) {
+        // Attempt already counted failed (timeout); drop the late socket, next retry reconnects.
+        try {
+          ws.close();
+        } catch (e) {}
+        return;
+      }
       opened = true;
       failures = 0;
       setLink("connected");
@@ -155,14 +179,18 @@ function onContextCreated(robot, _option) {
         trace(`ws bad message: ${e}\n`);
       }
     });
-    ws.addEventListener("error", () => trace("ws error\n"));
+    ws.addEventListener("error", () => {
+      trace("ws error\n");
+      fail();
+    });
     ws.addEventListener("close", () => {
       trace("ws closed\n");
       if (opened) {
+        opened = false;
         failures = 0;
         setLink("connecting");
         if (retry === undefined) retry = Timer.set(connect, RETRY_MS);
-      } else attemptFailed();
+      } else fail();
     });
   }
 
