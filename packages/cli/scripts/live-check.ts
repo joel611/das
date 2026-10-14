@@ -1,6 +1,6 @@
 // Live check (costs a few cents). Usage: bun scripts/live-check.ts jev | spawn <dir>
 import { makeJevDecider, buildRequest, applyBands } from "../src/router";
-import { claudeSpawner } from "../src/spawner";
+import { claudeSpawner } from "../src/agents/claude-code/spawner";
 import type { Project } from "../src/scanner";
 
 const wt = (path: string, branch: string) => ({ path, branch });

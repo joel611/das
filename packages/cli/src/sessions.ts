@@ -1,3 +1,4 @@
+import type { AgentSignal } from "./agents/types";
 import { matchProject, type Project } from "./scanner";
 
 export type SessionState = "idle" | "running" | "waiting" | "done" | "error";
@@ -7,6 +8,8 @@ export type SkillUse = { name: string; count: number; lastAt: number };
 
 export type Session = {
   id: string;
+  /** Provider id of the agent running this session, e.g. "claude-code". */
+  agent: string;
   project: string | null;
   worktree: string | null;
   branch: string | null;
@@ -18,23 +21,6 @@ export type Session = {
 };
 
 export type ChangeEvent = { session: Session } | { removed: string };
-
-export type HookPayload = {
-  session_id?: string;
-  cwd?: string;
-  tool_name?: string;
-  tool_input?: { skill?: unknown };
-  prompt?: string;
-  message?: string;
-  transcript_path?: string;
-};
-
-/** The skill a hook event shows being triggered: only the Skill tool counts, never a typed `/path`. */
-export function skillOf(event: string, p: HookPayload): string | null {
-  if (event === "PreToolUse" && p.tool_name === "Skill" && typeof p.tool_input?.skill === "string")
-    return p.tool_input.skill.replace(/^\//, "") || null;
-  return null;
-}
 
 function countSkill(skills: SkillUse[], name: string, at: number): SkillUse[] {
   const prev = skills.find((k) => k.name === name);
@@ -62,18 +48,18 @@ export class SessionTracker {
     return [...this.sessions.values()].sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  /** Apply a Claude Code hook event. Returns the updated session, or null if ignored/removed. */
-  handleHook(event: string, p: HookPayload): Session | null {
-    if (!p.session_id) return null;
-    if (event === "SessionEnd") {
-      if (this.sessions.delete(p.session_id)) this.emit({ removed: p.session_id });
+  /** Apply an agent's signal. Returns the updated session, or null if removed. */
+  handle(agent: string, { session: id, cwd: dir, event: e }: AgentSignal): Session | null {
+    if (e.type === "end") {
+      if (this.sessions.delete(id)) this.emit({ removed: id });
       return null;
     }
-    const prev = this.sessions.get(p.session_id);
-    const cwd = p.cwd ?? prev?.cwd ?? "";
+    const prev = this.sessions.get(id);
+    const cwd = dir ?? prev?.cwd ?? "";
     const match = matchProject(this.getProjects(), cwd);
     const next: Session = {
-      id: p.session_id,
+      id,
+      agent,
       project: match?.project.name ?? prev?.project ?? null,
       worktree: match?.worktree.path ?? prev?.worktree ?? null,
       branch: match?.worktree.branch ?? prev?.branch ?? null,
@@ -83,34 +69,31 @@ export class SessionTracker {
       skills: prev?.skills ?? [],
       updatedAt: Date.now(),
     };
-    switch (event) {
-      case "SessionStart":
+    switch (e.type) {
+      case "start":
         next.state = "idle";
         next.detail = null;
         break;
-      case "UserPromptSubmit":
+      case "prompt":
         next.state = "running";
         next.detail = null;
         break;
-      case "PreToolUse":
+      case "tool":
         next.state = "running";
-        next.detail = p.tool_name ?? null;
+        next.detail = e.tool || null;
+        if (e.skill) {
+          next.skills = countSkill(next.skills, e.skill, next.updatedAt);
+          next.detail = `/${e.skill}`;
+        }
         break;
-      case "Notification":
+      case "waiting":
         next.state = "waiting";
-        next.detail = p.message ?? null;
+        next.detail = e.message ?? null;
         break;
-      case "Stop":
+      case "stop":
         next.state = "done";
         next.detail = null;
         break;
-      default:
-        return null;
-    }
-    const skill = skillOf(event, p);
-    if (skill) {
-      next.skills = countSkill(next.skills, skill, next.updatedAt);
-      if (event === "PreToolUse") next.detail = `/${skill}`;
     }
     this.sessions.set(next.id, next);
     this.emit({ session: next });

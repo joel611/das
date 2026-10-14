@@ -1,14 +1,12 @@
 import { statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
-import { config, envOverrides, loadConfig, writeSettingsFile, type Config } from "./config";
+import { claudeCode } from "./agents/claude-code";
+import { describe, type AgentProvider, type Integration, type Spawner } from "./agents/types";
+import { envOverrides, loadConfig, writeSettingsFile, type Config } from "./config";
 import { computeDisplay } from "./display";
-import { hooksStatus, installHooks, uninstallHooks } from "./hooks-install";
 import type { Project } from "./scanner";
 import { jevDecider, type Decider } from "./router";
-import { SessionTracker, type HookPayload } from "./sessions";
-import { claudeSpawner, type Spawner } from "./spawner";
-import { isTrusted, trustAdvice, trustedPaths } from "./trust";
+import { SessionTracker } from "./sessions";
 import { UsageTracker } from "./usage";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
@@ -21,6 +19,8 @@ type Opts = {
   decider?: Decider;
   spawner?: Spawner;
   decisionsLog?: string;
+  /** Agents that report to this daemon; the first is the default (legacy `/hooks/<event>`, voice spawns, trust). Defaults to Claude Code with `claudeDir`. */
+  agents?: AgentProvider[];
   /** Admin API: settings dir and Claude config dir. Without them the matching endpoints answer 501 (never guess a real path). */
   configDir?: string;
   claudeDir?: string;
@@ -29,14 +29,23 @@ type Opts = {
   trusted?: () => string[];
 };
 
-// ~/.claude.json can be large and /v1/state is polled every couple of seconds.
-let trustCache = { at: 0, paths: [] as string[] };
-function cachedTrusted() {
-  if (Date.now() - trustCache.at > 5000) trustCache = { at: Date.now(), paths: trustedPaths() };
-  return trustCache.paths;
+// Trust can live in a large file (~/.claude.json) and /v1/state is polled every couple of seconds.
+function cachedTrusted(agent: AgentProvider) {
+  let cache = { at: 0, paths: [] as string[] };
+  return () => {
+    if (Date.now() - cache.at > 5000)
+      cache = { at: Date.now(), paths: agent.trust?.trusted() ?? [] };
+    return cache.paths;
+  };
 }
 
 type Device = { id: string; device: string; capabilities: string[]; connectedAt: number };
+
+const noSpawn =
+  (agent: AgentProvider): Spawner =>
+  async () => {
+    throw new Error(`${agent.name} cannot start sessions`);
+  };
 
 const isLocal = (ip?: string) => ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
 const expandHome = (p: string) => (p.startsWith("~") ? homedir() + p.slice(1) : p);
@@ -77,32 +86,38 @@ export function createServer({
   token,
   getProjects,
   decider = jevDecider,
-  spawner = claudeSpawner,
+  spawner,
   decisionsLog,
   configDir,
   claudeDir,
+  agents = [claudeCode({ claudeDir })],
   onSettings,
-  trusted = cachedTrusted,
+  trusted,
 }: Opts) {
+  const byId = new Map(agents.map((a) => [a.id, a]));
+  const primary = agents[0];
+  if (!primary) throw new Error("createServer needs at least one agent");
+  trusted ??= cachedTrusted(primary);
   const voice: VoiceDeps = {
     decider,
-    spawner,
+    spawner: spawner ?? primary.spawn ?? noSpawn(primary),
+    agentName: primary.name,
     getProjects,
     pending: new Map(),
     logPath: decisionsLog,
   };
   const tracker = new SessionTracker(getProjects);
-  const usage = new UsageTracker(
-    join(claudeDir ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "projects"),
-  );
-  // Only when the Claude dir is configured (the daemon does): tests and bare servers stay off the real one.
-  if (claudeDir) void usage.backfill();
+  const usage = new UsageTracker();
+  for (const a of agents) if (a.transcripts) usage.register(a.id, a.transcripts);
+  // Each format decides whether it backfills (Claude Code only with an explicit claudeDir, so tests stay off the real one).
+  void usage.backfill();
 
   let boundPort = port;
   const devices = new Map<string, Device>();
   const untrusted = () => {
-    const t = trusted();
-    return getProjects().filter((p) => !isTrusted(p.path, t));
+    if (!primary.trust) return [];
+    const t = trusted!();
+    return getProjects().filter((p) => !primary.trust!.isTrusted(p.path, t));
   };
 
   const authorized = (req: Request, url: URL) =>
@@ -118,8 +133,20 @@ export function createServer({
       hasToken: !!c.token,
       hasOpenrouterKey: !!c.openrouterKey,
       envOverrides: envOverrides(),
-      trustAdvice: trustAdvice(c.roots, getProjects(), trusted()),
+      trustAdvice: primary.trust?.advice(c.roots, getProjects(), trusted!()) ?? null,
     };
+  };
+
+  const integration = (it: Integration, method: string, install: boolean) => {
+    const port = configDir ? loadConfig(configDir).port : boundPort;
+    try {
+      if (method === "GET" && !install) return Response.json(it.status({ port }));
+      if (method === "POST" && install) return Response.json(it.install({ port }));
+      if (method === "DELETE" && !install) return Response.json(it.uninstall());
+    } catch (e) {
+      return Response.json({ error: String(e instanceof Error ? e.message : e) }, { status: 500 });
+    }
+    return null;
   };
 
   const server = Bun.serve({
@@ -127,17 +154,21 @@ export function createServer({
     async fetch(req, srv) {
       const url = new URL(req.url);
 
-      // Hook ingest: localhost only, never blocks the agent.
-      const hook = url.pathname.match(/^\/hooks\/(\w+)$/);
+      // Agent event ingest: `/hooks/<agent>/<event>`, or `/hooks/<event>` for the default agent
+      // (where Claude Code hooks already post). Localhost only, never blocks the agent.
+      const hook = url.pathname.match(/^\/hooks\/(?:([\w-]+)\/)?(\w+)$/);
       if (hook && req.method === "POST") {
         if (!isLocal(srv.requestIP(req)?.address))
           return new Response("forbidden", { status: 403 });
-        // A body of `null` or a non-object is not a hook payload.
+        const agent = hook[1] ? byId.get(hook[1]) : primary;
+        if (!agent) return new Response("unknown agent", { status: 404 });
         const body: unknown = await req.json().catch(() => null);
-        const payload: HookPayload = body && typeof body === "object" ? body : {};
-        tracker.handleHook(hook[1], payload);
-        // Read the transcript after answering, so a large first read never delays the agent.
-        setTimeout(() => usage.ingest(payload.session_id ?? "", payload.transcript_path), 0);
+        const signal = agent.parseEvent(hook[2], body);
+        if (signal) {
+          tracker.handle(agent.id, signal);
+          // Read the transcript after answering, so a large first read never delays the agent.
+          setTimeout(() => usage.ingest(agent.id, signal.session, signal.transcript), 0);
+        }
         return new Response(null, { status: 204 });
       }
 
@@ -146,7 +177,6 @@ export function createServer({
         if (!isLocal(srv.requestIP(req)?.address))
           return new Response("forbidden", { status: 403 });
         if (!authorized(req, url)) return new Response("unauthorized", { status: 401 });
-        const route = `${req.method} ${url.pathname}`;
         if (url.pathname === "/admin/settings") {
           if (!configDir) return new Response("settings dir not configured", { status: 501 });
           if (req.method === "GET") return Response.json(settingsView());
@@ -160,22 +190,17 @@ export function createServer({
             return Response.json({ ...settingsView(), restartRequired: next.port !== boundPort });
           }
         }
-        if (url.pathname.startsWith("/admin/hooks")) {
-          if (!claudeDir) return new Response("claude dir not configured", { status: 501 });
-          const cfgPort = () => (configDir ? loadConfig(configDir).port : boundPort);
-          try {
-            if (route === "GET /admin/hooks")
-              return Response.json(hooksStatus({ claudeDir, port: cfgPort() }));
-            if (route === "POST /admin/hooks/install")
-              return Response.json(installHooks({ claudeDir, port: cfgPort() }));
-            if (route === "DELETE /admin/hooks")
-              return Response.json(uninstallHooks({ claudeDir }));
-          } catch (e) {
-            return Response.json(
-              { error: String(e instanceof Error ? e.message : e) },
-              { status: 500 },
-            );
-          }
+        // `/admin/agents/<id>/integration[/install]`, and `/admin/hooks[/install]` for the default agent.
+        const integ =
+          url.pathname.match(/^\/admin\/agents\/([\w-]+)\/integration(\/install)?$/) ??
+          url.pathname.match(/^\/admin\/(hooks)(\/install)?$/);
+        if (integ) {
+          const agent = url.pathname.startsWith("/admin/hooks") ? primary : byId.get(integ[1]);
+          if (!agent) return new Response("unknown agent", { status: 404 });
+          if (!agent.integration)
+            return new Response(`${agent.name} integration not configured`, { status: 501 });
+          const res = integration(agent.integration, req.method, !!integ[2]);
+          if (res) return res;
         }
         return new Response("not found", { status: 404 });
       }
@@ -198,6 +223,7 @@ export function createServer({
           );
         }
         if (url.pathname === "/v1/projects") return Response.json(getProjects());
+        if (url.pathname === "/v1/agents") return Response.json(agents.map(describe));
         if (url.pathname === "/v1/sessions") return Response.json(tracker.list());
         if (url.pathname === "/v1/usage") return Response.json(usage.summary());
         if (url.pathname === "/v1/devices") return Response.json([...devices.values()]);

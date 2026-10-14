@@ -5,7 +5,7 @@ import { join } from "node:path";
 import type { Decider, Decision } from "./router";
 import type { Project } from "./scanner";
 import { createServer } from "./server";
-import type { Spawner } from "./spawner";
+import type { Spawner } from "./agents/types";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
 const projects: Project[] = [

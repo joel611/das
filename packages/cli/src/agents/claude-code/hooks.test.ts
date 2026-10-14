@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import { EVENTS, hooksStatus, installHooks, MARKER, uninstallHooks } from "./hooks-install";
+import { EVENTS, hooksStatus, installHooks, MARKER, uninstallHooks } from "./hooks";
 
 const TMP = "/Users/joel.chan/.claude/jobs/f23bdb0a/tmp";
 mkdirSync(TMP, { recursive: true });

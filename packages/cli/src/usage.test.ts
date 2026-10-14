@@ -11,10 +11,19 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { activeBlock, family, parseLine, UsageTracker } from "./usage";
+import { claudeTranscripts, parseLine } from "./agents/claude-code/transcripts";
+import { activeBlock, family, UsageTracker } from "./usage";
 
 const dir = mkdtempSync(join(tmpdir(), "usage-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+const CC = "claude-code";
+/** A tracker reading Claude Code transcripts under `root`; null registers no agent. */
+const tracker = (root: string | null, opts?: ConstructorParameters<typeof UsageTracker>[0]) => {
+  const t = new UsageTracker(opts);
+  if (root) t.register(CC, claudeTranscripts(root));
+  return t;
+};
 
 const HOUR = 3_600_000;
 const T0 = Date.parse("2026-10-11T10:20:00Z");
@@ -61,11 +70,11 @@ test("blocks start on the hour and end after 5h or a 5h gap", () => {
 test("ingest reads transcripts incrementally, dedupes message ids, sums the block", async () => {
   const path = join(dir, "a.jsonl");
   writeFileSync(path, line("m1", T0, u(10, 5, 100, 1000)) + line("m1", T0, u(10, 20, 100, 1000)));
-  const t = new UsageTracker(dir, { now: () => T0 });
-  await t.ingest("s1", path);
+  const t = tracker(dir, { now: () => T0 });
+  await t.ingest(CC, "s1", path);
   appendFileSync(path, line("m2", T0 + 60_000, u(1, 1), "claude-haiku-5-5") + '{"partial');
-  await t.ingest("s1", path);
-  await t.ingest("s2", join(dir, "missing.jsonl"));
+  await t.ingest(CC, "s1", path);
+  await t.ingest(CC, "s2", join(dir, "missing.jsonl"));
   const s = t.summary(T0 + 10 * 60_000).block!;
   expect(s.tokens).toBe(130 + 2);
   expect(s.cacheRead).toBe(1000);
@@ -93,14 +102,14 @@ test("ingest only reads regular .jsonl files under the projects directory", asyn
   const good = join(root, "good.jsonl");
   writeFileSync(good, line("ok", T0, u(2, 3)));
 
-  const t = new UsageTracker(root, { now: () => T0 });
-  await t.ingest("s", evil);
-  await t.ingest("s", join(root, "notes.txt"));
-  await t.ingest("s", join(root, "link.jsonl"));
-  await t.ingest("s", fifo); // must return, not block on the open
-  await t.ingest("s", `${root}/../${outside.split("/").pop()}/evil.jsonl`);
+  const t = tracker(root, { now: () => T0 });
+  await t.ingest(CC, "s", evil);
+  await t.ingest(CC, "s", join(root, "notes.txt"));
+  await t.ingest(CC, "s", join(root, "link.jsonl"));
+  await t.ingest(CC, "s", fifo); // must return, not block on the open
+  await t.ingest(CC, "s", `${root}/../${outside.split("/").pop()}/evil.jsonl`);
   expect(t.summary(T0 + 60_000).block).toBeNull();
-  await t.ingest("s", good);
+  await t.ingest(CC, "s", good);
   expect(t.summary(T0 + 60_000).block?.tokens).toBe(5);
   rmSync(outside, { recursive: true, force: true });
 });
@@ -108,8 +117,8 @@ test("ingest only reads regular .jsonl files under the projects directory", asyn
 test("ingest with no root reads nothing", async () => {
   const path = join(dir, "noroot.jsonl");
   writeFileSync(path, line("m", T0, u(1, 1)));
-  const t = new UsageTracker(null, { now: () => T0 });
-  await t.ingest("s", path);
+  const t = tracker(null, { now: () => T0 });
+  await t.ingest(CC, "s", path);
   expect(t.summary(T0 + 60_000).block).toBeNull();
 });
 
@@ -122,18 +131,18 @@ test("a multi-byte character split across read chunks survives", async () => {
     message: { id: "m", model: "claude-opus-5-5", usage: u(7, 0), note: text },
   });
   writeFileSync(path, l + "\n" + line("n", T0, u(1, 0)));
-  const t = new UsageTracker(dir, { chunk: 7, now: () => T0 }); // 7 is not a multiple of 3, so chunks cut characters
-  await t.ingest("s", path);
+  const t = tracker(dir, { chunk: 7, now: () => T0 }); // 7 is not a multiple of 3, so chunks cut characters
+  await t.ingest(CC, "s", path);
   expect(t.summary(T0 + 60_000).block?.tokens).toBe(8);
 });
 
 test("a truncated transcript restarts clean, without the old partial line", async () => {
   const path = join(dir, "trunc.jsonl");
   writeFileSync(path, line("a", T0, u(1, 0)) + '{"type":"assistant","partial');
-  const t = new UsageTracker(dir, { now: () => T0 });
-  await t.ingest("s", path);
+  const t = tracker(dir, { now: () => T0 });
+  await t.ingest(CC, "s", path);
   writeFileSync(path, line("b", T0, u(2, 0))); // shorter than before
-  await t.ingest("s", path);
+  await t.ingest(CC, "s", path);
   expect(t.summary(T0 + 60_000).block?.tokens).toBe(3);
 });
 
@@ -142,9 +151,9 @@ test("a replayed message id stays with the session that saw it first", async () 
   const fork = join(dir, "fork.jsonl");
   writeFileSync(one, line("shared", T0, u(10, 0)));
   writeFileSync(fork, line("shared", T0, u(10, 0)) + line("own", T0 + 1000, u(5, 0)));
-  const t = new UsageTracker(dir, { now: () => T0 });
-  await t.ingest("s1", one);
-  await t.ingest("s2", fork);
+  const t = tracker(dir, { now: () => T0 });
+  await t.ingest(CC, "s1", one);
+  await t.ingest(CC, "s2", fork);
   const b = t.summary(T0 + 60_000).block!;
   expect(b.tokens).toBe(15);
   expect(b.bySession).toEqual([
@@ -157,16 +166,16 @@ test("transcripts not read for a day are forgotten", async () => {
   const path = join(dir, "old.jsonl");
   writeFileSync(path, line("m", T0, u(1, 0)));
   let clock = T0;
-  const t = new UsageTracker(dir, { now: () => clock });
-  await t.ingest("s", path);
+  const t = tracker(dir, { now: () => clock });
+  await t.ingest(CC, "s", path);
   expect((t as any).offsets.size).toBe(1);
   clock = T0 + 25 * HOUR;
-  await t.ingest("s", join(dir, "missing.jsonl")); // any read triggers the sweep
+  await t.ingest(CC, "s", join(dir, "missing.jsonl")); // any read triggers the sweep
   expect((t as any).offsets.size).toBe(0);
 });
 
 test("burn rate and series cover the active block only", () => {
-  const t = new UsageTracker(null, { now: () => 0 });
+  const t = tracker(null, { now: () => 0 });
   const put = (id: string, at: number, tokens: number) =>
     ((t as any).entries as Map<string, unknown>).set(id, {
       id,
@@ -206,11 +215,11 @@ test("backfill reads recent top-level session transcripts once", async () => {
   const recentSec = T0 / 1000;
   utimesSync(recent, recentSec, recentSec);
 
-  const t = new UsageTracker(root, { now: () => T0 + 60_000 });
+  const t = tracker(root, { now: () => T0 + 60_000 });
   await t.backfill();
-  await t.ingest("sess-1", recent); // a hook for the same transcript must not double count
+  await t.ingest(CC, "sess-1", recent); // a hook for the same transcript must not double count
   const b = t.summary(T0 + 60_000).block!;
   expect(b.tokens).toBe(4);
   expect(b.bySession).toEqual([{ session: "sess-1", tokens: 4 }]);
-  await new UsageTracker(null).backfill(); // no root: no-op
+  await tracker(null).backfill(); // no root: no-op
 });
