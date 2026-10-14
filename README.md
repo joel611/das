@@ -1,29 +1,41 @@
-# stack-chan-server
+# stack-chan-server (command center)
 
-A personal Mac setup that watches my Claude Code sessions across all my projects, shows their state on a [stack-chan](https://github.com/stack-chan/stack-chan) robot and a desktop dashboard, and starts new sessions from a spoken or typed request.
+A desktop command center that runs as a local daemon. It manages my Claude Code sessions across projects and exposes an API to external devices. The first supported agent is Claude Code, and the first supported device is [stack-chan](https://github.com/stack-chan/stack-chan).
+
+The command center owns its own classifier and LLM for reasoning. A request (spoken or typed) is first classified by intent, then delegated to the right agent or workflow.
+
+## Direction
+
+- **Desktop + daemon**: the product is a macOS desktop app (Tauri) on top of a long-running daemon (Bun). The daemon is the command center; the desktop app is its dashboard and control surface.
+- **Main use case**: manage Claude Code sessions (watch state, start new sessions from a request) and expose that through an API for external devices.
+- **Own classifier and LLM**: intent classification and routing run inside the command center (today via OpenRouter), not inside any one agent.
+- **Later**: more coding agents for coding tasks, and non-coding tasks such as Home Assistant and MCP servers. The classifier decides whether a request is a coding task, a home task, and so on, and delegates to a specific agent or workflow.
+- **Devices**: stack-chan is the only device with first-party support for now. Any IoT device that can speak HTTP and WebSocket can connect to the API.
+
+Status: Claude Code and stack-chan work today. Other agents, workflows and the Home Assistant / MCP integrations are planned. See [`docs/product.md`](docs/product.md).
 
 ## Components
 
-**CLI daemon** (`packages/cli`): `bun run daemon --bg`
+**Daemon / command center** (`packages/cli`): `bun run daemon --bg`
 
-- Spawns the local server, scans projects, tracks Claude sessions through hooks, and runs the voice router.
+- Scans projects, tracks Claude sessions through hooks, and runs the classifier/router.
 - Serves the HTTP and WebSocket API for the desktop app and devices.
 
 **Desktop** (`packages/desktop`): `bun run desktop`
 
 - Tray icon in the macOS menu bar: daemon status, open dashboard, quit.
 - Dashboard window: overview of sessions, projects and devices.
-- Settings, hook installer, and a console to send a typed command to the daemon.
+- Settings, hook installer, and a console to send a typed command to the command center.
 
-**Device** (`packages/stackchan-mod`): the stack-chan robot
+**Device client** (`packages/stackchan-mod`): the stack-chan robot
 
-- A MOD that connects to the daemon and shows state on the robot's face.
+- A MOD that connects to the daemon and shows state on the robot's face. It is the reference client for the device API.
 
 ## Folder structure
 
 ```
 packages/
-  cli/               daemon (Bun): scanner, sessions, voice router, API
+  cli/               daemon (Bun): scanner, sessions, classifier/router, API
   desktop/           Tauri app: src-tauri (Rust tray), src (Vite+ React, Tailwind, shadcn/ui)
   stackchan-mod/     stack-chan MOD, plus sim-spike/ (Moddable simulator experiment)
 docs/                product notes
@@ -51,6 +63,10 @@ In an interactive shell `vp` may be aliased to something else; the scripts above
 1. `bun install`, then `bun run daemon --bg`.
 2. `bun run desktop`. Tray icon, "Open Dashboard", Settings: set the root folders and the OpenRouter key, then Save.
 3. Click "Install hooks". Running Claude sessions need a restart to load them.
-4. Run `claude` once in each root folder and accept the trust dialog, so voice spawns work (the Settings tab lists untrusted projects).
+4. Run `claude` once in each root folder and accept the trust dialog, so spawned sessions work (the Settings tab lists untrusted projects).
 
-Details: [`packages/cli/README.md`](packages/cli/README.md) (API, protocol, voice router, hooks), [`packages/desktop/README.md`](packages/desktop/README.md), [`packages/stackchan-mod/README.md`](packages/stackchan-mod/README.md).
+## Connecting a device
+
+Any device that can make HTTP requests and open a WebSocket can use the API: connect to `WS /v1/ws`, send `hello`, receive `snapshot` and `delta` frames, and send transcripts or commands over `POST /v1/voice` (or the socket). Speech-to-text stays on the device side. Protocol details are in [`packages/cli/README.md`](packages/cli/README.md).
+
+Details: [`packages/cli/README.md`](packages/cli/README.md) (API, protocol, router, hooks), [`packages/desktop/README.md`](packages/desktop/README.md), [`packages/stackchan-mod/README.md`](packages/stackchan-mod/README.md).
