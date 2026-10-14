@@ -4,7 +4,7 @@ import { computeDisplay } from "./display";
 const s = (...states: any[]) => states.map((state) => ({ state }));
 
 test("no sessions is idle/neutral", () => {
-  expect(computeDisplay([])).toEqual({ expression: "neutral", headline: "idle", count: 0 });
+  expect(computeDisplay([])).toEqual({ expression: "neutral", headline: "idle", count: 0, light: { mode: "blink", rgb: [255, 255, 255], periodMs: 1000 } });
 });
 
 test("only idle sessions is idle", () => {
@@ -16,6 +16,7 @@ test("running counts running sessions", () => {
     expression: "focused",
     headline: "3 running",
     count: 3,
+    light: { mode: "rainbow" },
   });
 });
 
@@ -27,5 +28,11 @@ test("priority error > waiting > running > done > idle", () => {
     expression: "sad",
     headline: "1 error",
     count: 1,
+    light: { mode: "solid", rgb: [255, 0, 0] },
   });
+});
+
+test("light per state", () => {
+  expect(computeDisplay(s("waiting", "running")).light).toEqual({ mode: "solid", rgb: [255, 140, 0] });
+  expect(computeDisplay(s("done")).light).toEqual({ mode: "solid", rgb: [0, 255, 0] });
 });

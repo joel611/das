@@ -27,7 +27,9 @@ The daemon does not need the desktop app. The desktop app does not own the daemo
 | server -> client | `{"type":"delta","session":{...},"display":D}` (session changed)                     |
 | server -> client | `{"type":"delta","removed":"<sessionId>","display":D}` (SessionEnd)                  |
 
-`D = {"expression":"focused|worried|happy|sad|neutral","headline":"3 running","count":3}`.
+`D = {"expression":"focused|worried|happy|sad|neutral","headline":"3 running","count":3,"light":{"mode":"rainbow"}}`
+
+`light` is `{"mode":"rainbow"}`, `{"mode":"solid","rgb":[r,g,b]}` or `{"mode":"blink","rgb":[r,g,b],"periodMs":1000}`. Running → rainbow, waiting → solid orange, done → solid green, error → solid red, idle → white blink..
 Rollup priority: error > waiting > running > done > idle. `button` is reserved (ignored); unknown messages are ignored.
 
 Try it:

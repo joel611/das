@@ -17,10 +17,26 @@ const EMOTIONS = {
 
 function onContextCreated(robot) {
   let lastHeadline;
+  let lastLight;
   let retry;
+
+  // Render a server-sent light spec on every LED. Absent spec = off.
+  function setLight(light) {
+    const key = JSON.stringify(light ?? null);
+    if (key === lastLight) return;
+    lastLight = key;
+    const lighting = robot.lighting;
+    for (const name of Object.keys(lighting.led)) {
+      lighting.lightOff(name);
+      if (light?.mode === "rainbow") lighting.lightRainbow(name);
+      else if (light?.mode === "solid") lighting.lightOn(name, ...light.rgb);
+      else if (light?.mode === "blink") lighting.lightBlink(name, ...light.rgb, light.periodMs);
+    }
+  }
 
   function apply(display) {
     if (display == null) return;
+    setLight(display.light);
     const emotion = emotionFromName(EMOTIONS[display.expression] ?? "NEUTRAL");
     if (emotion !== undefined) robot.face.setEmotion(emotion);
     if (display.headline !== lastHeadline) {
