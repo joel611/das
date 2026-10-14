@@ -1,9 +1,10 @@
 // Build the MOD with an overridden server URL.
 // Usage: bun run build -- --server-url ws://192.168.1.10:5777/v1/ws [--install [--port /dev/cu.usbmodemXXXX]]
 // --install flashes the built MOD to the connected device (needs esptool on PATH and a matching host).
-// Env: STACKCHAN_DIR (default ~/Developer/stack-chan), MODDABLE (required by the SDK tools).
+// Env: STACKCHAN_DIR (default ~/Developer/stack-chan), MODDABLE (default ~/.local/share/moddable-9.0.0).
+// --install picks the only /dev/cu.usbmodem* port when --port is omitted.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,10 +39,29 @@ writeFileSync(join(tmp, "mod.js"), src.replace(re, () => `const SERVER_URL = ${J
 copyFileSync(join(pkg, "manifest.json"), join(tmp, "manifest.json"));
 
 const firmware = join(process.env.STACKCHAN_DIR ?? join(homedir(), "Developer/stack-chan"), "firmware");
+
+// The SDK must match the host version on the device (9.0.0 here), so default to it.
+const moddable = process.env.MODDABLE ?? join(homedir(), ".local/share/moddable-9.0.0");
+const env = {
+  ...process.env,
+  MODDABLE: moddable,
+  PATH: `${join(moddable, "build/bin/mac/release")}:${process.env.PATH}`,
+};
+
+// Single connected device: pick its serial port unless --port was given.
+if (install && !rest.some((a) => a === "--port" || a.startsWith("--port="))) {
+  const ports = readdirSync("/dev").filter((n) => n.startsWith("cu.usbmodem"));
+  if (ports.length !== 1) {
+    console.error(`pass --port: found ${ports.length} cu.usbmodem* ports`);
+    process.exit(1);
+  }
+  rest.push("--port", `/dev/${ports[0]}`);
+}
+
 const run = spawnSync(
   "npm",
   ["run", install ? "mod" : "mod:build", "--", join(tmp, "manifest.json"), "--mode=release", ...rest],
-  { cwd: firmware, stdio: "inherit" },
+  { cwd: firmware, stdio: "inherit", env },
 );
 if (run.error) {
   console.error(`cannot run mod:build in ${firmware}: ${run.error.message}`);

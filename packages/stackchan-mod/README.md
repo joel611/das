@@ -30,7 +30,10 @@ To override the server URL without editing `mod.js`, use the package script (set
 
 ```sh
 bun run build -- --server-url ws://192.168.1.10:5777/v1/ws   # -> dist/stackchan-mod.xsa (gitignored)
+bun run build -- --server-url ws://192.168.1.10:5777/v1/ws --install   # also flash the connected device
 ```
+
+`MODDABLE` defaults to `~/.local/share/moddable-9.0.0` (it must match the host version on the device) and `--install` auto-picks the only `/dev/cu.usbmodem*` port unless `--port` is given.
 
 Only the SDK tools are needed; no ESP-IDF or Emscripten for building a MOD. Install the `.xsa` on a device with `npm run mod -- <manifest>`.
 
