@@ -10,6 +10,14 @@
 | happy             | HAPPY                 |
 | sad               | SAD                   |
 
+`display.light` drives every LED in `robot.lighting.led`, rendered as sent so colours change server-side without a mod rebuild. Absent `light` turns the LEDs off.
+
+| `light.mode` | effect                      |
+| ------------ | --------------------------- |
+| `rainbow`    | `lightRainbow`              |
+| `solid`      | `lightOn(rgb)`              |
+| `blink`      | `lightBlink(rgb, periodMs)` |
+
 Valid emotions in stack-chan: NEUTRAL, ANGRY, SAD, HAPPY, SLEEPY, DOUBTFUL, COLD, HOT.
 
 ## Build (tested, macOS)

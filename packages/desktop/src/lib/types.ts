@@ -1,7 +1,7 @@
 // Shapes returned by the daemon (packages/cli/src/server.ts, voice.ts).
 export type SessionState = "idle" | "running" | "waiting" | "done" | "error";
 
-export type Display = { expression: string; headline: string; count: number };
+export type Display = { expression: string; headline: string; count: number; light?: unknown };
 
 export type DaemonState = {
   display: Display;

@@ -24,7 +24,7 @@ The app uses a dark cyberpunk theme (Chakra Petch and JetBrains Mono, bundled; n
 
 ## How it talks to the daemon
 
-The page calls `api` (`src/lib/api.ts`). Inside the Tauri window that is the Rust `api` command, which relays to the daemon on `127.0.0.1:<port>` and adds the token, so the page never handles it. Only `/v1/*` and `/admin/*` paths are allowed. The port and token come from the same settings file the daemon uses (`$STACKCHAN_CONFIG_DIR` or `~/Library/Application Support/stack-chan-server/config.json`, with env `PORT`/`TOKEN` overriding).
+The page calls `api` (`src/lib/api.ts`). Inside the Tauri window that is the Rust `api` command, which relays to the daemon on `127.0.0.1:<port>` and adds the token, so the page never handles it. Only `/v1/*` and `/admin/*` paths are allowed. The port and token come from the same settings file the daemon uses (`$DAS_CONFIG_DIR` or `~/.config/das/config.yml`, with env `PORT`/`TOKEN` overriding). The app only reads this file; it never writes it. All setting changes go through the daemon API, and a save from the dashboard rewrites the YAML and drops comments.
 
 ## Developing the UI in a browser
 
@@ -33,6 +33,6 @@ cd packages/desktop
 DAEMON_URL=http://127.0.0.1:5777 TOKEN=<token if set> bun run dev   # http://localhost:3000
 ```
 
-Outside Tauri the same calls go through a `/daemon/*` proxy in `vite.config.ts` to the daemon. Use a throwaway `STACKCHAN_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` for the daemon when you click around, so "Install hooks" cannot touch your real Claude settings.
+Outside Tauri the same calls go through a `/daemon/*` proxy in `vite.config.ts` to the daemon. Use a throwaway `DAS_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` for the daemon when you click around, so "Install hooks" cannot touch your real Claude settings.
 
 The CSP in `tauri.conf.json` is `default-src 'self'` plus inline styles and the IPC origin; if the native window ever shows blank, check it first.

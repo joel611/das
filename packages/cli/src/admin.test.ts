@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { loadConfig, readSettingsFile, writeSettingsFile } from "./config";
+import { configDir, loadConfig, reloadConfig, readSettingsFile, writeSettingsFile } from "./config";
 import { createServer } from "./api/server";
 import type { Project } from "./scanner";
 
@@ -33,7 +33,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
   });
   writeSettingsFile({ roots: ["/a", "/b"], port: 5000, token: "t", openrouterKey: "k" }, dir);
   writeSettingsFile({ port: 5001 }, dir);
-  expect(statSync(join(dir, "config.json")).mode & 0o777).toBe(0o600);
+  expect(statSync(join(dir, "config.yml")).mode & 0o777).toBe(0o600);
   expect(readSettingsFile(dir)).toEqual({
     roots: ["/a", "/b"],
     port: 5001,
@@ -54,8 +54,68 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     token: "e",
     openrouterKey: "ek",
   });
-  writeFileSync(join(dir, "config.json"), "garbage");
+});
+
+test("config.yml: hand-written YAML with comments is read", () => {
+  const dir = mk("cfg-yaml");
+  writeFileSync(
+    join(dir, "config.yml"),
+    "# my settings\nroots:\n  - /x\n  - /y # work\nport: 5999\ntoken: abc\n",
+  );
+  expect(loadConfig(dir, {})).toEqual({
+    roots: ["/x", "/y"],
+    port: 5999,
+    token: "abc",
+    openrouterKey: "",
+  });
+  expect(loadConfig(dir, { PORT: "1234" }).port).toBe(1234);
+});
+
+test("config.yml: missing file gives defaults, legacy config.json is ignored", () => {
+  const dir = mk("cfg-legacy");
+  writeFileSync(join(dir, "config.json"), JSON.stringify({ port: 4000 }));
   expect(loadConfig(dir, {}).port).toBe(5777);
+});
+
+test("config.yml: malformed file is an error naming the file", () => {
+  const dir = mk("cfg-bad");
+  writeFileSync(join(dir, "config.yml"), "port: [unclosed\n  : :");
+  expect(() => loadConfig(dir, {})).toThrow(/config\.yml/);
+  writeFileSync(join(dir, "config.yml"), "- just\n- a list\n");
+  expect(() => loadConfig(dir, {})).toThrow(/config\.yml/);
+});
+
+test("reload: applies file edits, keeps the bound port, flags a port change", () => {
+  const dir = mk("cfg-reload");
+  writeSettingsFile({ port: 5000, token: "old", roots: ["/a"] }, dir);
+  const current = loadConfig(dir, {});
+  writeSettingsFile({ port: 5001, token: "new", roots: ["/b"] }, dir);
+  const r = reloadConfig(current, dir, {});
+  expect(r.ok).toBe(true);
+  if (!r.ok) return;
+  expect(r.restartRequired).toBe(true);
+  expect(r.config).toMatchObject({ port: 5000, token: "new", roots: ["/b"] });
+  writeSettingsFile({ port: 5000 }, dir);
+  const same = reloadConfig(r.config, dir, {});
+  expect(same.ok && same.restartRequired).toBe(false);
+});
+
+test("reload: malformed file keeps the previous config and reports the error", () => {
+  const dir = mk("cfg-reload-bad");
+  writeSettingsFile({ token: "keep" }, dir);
+  const current = loadConfig(dir, {});
+  writeFileSync(join(dir, "config.yml"), "token: [oops");
+  const r = reloadConfig(current, dir, {});
+  expect(r.ok).toBe(false);
+  if (r.ok) return;
+  expect(r.error).toMatch(/config\.yml/);
+  expect(current.token).toBe("keep");
+});
+
+test("DAS_CONFIG_DIR selects the config dir; default is ~/.config/das", () => {
+  expect(configDir({ DAS_CONFIG_DIR: "/tmp/x" })).toBe("/tmp/x");
+  expect(configDir({})).toMatch(/\/\.config\/das$/);
+  expect(configDir({ STACKCHAN_CONFIG_DIR: "/old" })).not.toBe("/old");
 });
 
 const setup = (token = "") => {
@@ -119,7 +179,7 @@ test("settings API: validation, secrets write-only, restartRequired, onSettings"
   expect(JSON.stringify(j)).not.toContain("tok-9x7");
   expect(changed).toHaveLength(1);
   expect(changed[0].roots).toEqual([good]);
-  expect(statSync(join(configDir, "config.json")).mode & 0o777).toBe(0o600);
+  expect(statSync(join(configDir, "config.yml")).mode & 0o777).toBe(0o600);
 
   // token is now live: unauthenticated request is refused, bearer works, secrets still hidden
   expect((await fetch(`${base}/admin/settings`)).status).toBe(401);
