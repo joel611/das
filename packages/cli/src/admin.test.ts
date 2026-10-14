@@ -27,7 +27,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
   const dir = mk("cfg1");
   expect(loadConfig(dir, {})).toEqual({
     roots: [expect.stringMatching(/\/Projects$/)],
-    port: 4321,
+    port: 5777,
     token: "",
     openrouterKey: "",
   });
@@ -55,7 +55,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     openrouterKey: "ek",
   });
   writeFileSync(join(dir, "config.json"), "garbage");
-  expect(loadConfig(dir, {}).port).toBe(4321);
+  expect(loadConfig(dir, {}).port).toBe(5777);
 });
 
 const setup = (token = "") => {
@@ -88,7 +88,7 @@ test("settings API: validation, secrets write-only, restartRequired, onSettings"
   const good = mk("rootok");
   let r = await fetch(`${base}/admin/settings`);
   let j: any = await r.json();
-  expect(j).toMatchObject({ port: 4321, hasToken: false, hasOpenrouterKey: false });
+  expect(j).toMatchObject({ port: 5777, hasToken: false, hasOpenrouterKey: false });
   expect(j.trustAdvice).toContain("1 of 2");
 
   for (const bad of [

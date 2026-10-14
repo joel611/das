@@ -1,5 +1,5 @@
 // Usage: bun scripts/mock-client.ts [url]   (default ws://localhost:$PORT/v1/ws, add ?token=... if needed)
-const url = process.argv[2] ?? `ws://localhost:${process.env.PORT || 4321}/v1/ws`;
+const url = process.argv[2] ?? `ws://localhost:${process.env.PORT || 5777}/v1/ws`;
 const ws = new WebSocket(url);
 
 ws.onopen = () => {

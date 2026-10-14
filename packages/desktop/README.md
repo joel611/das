@@ -30,7 +30,7 @@ The page calls `api` (`src/lib/api.ts`). Inside the Tauri window that is the Rus
 
 ```sh
 cd packages/desktop
-DAEMON_URL=http://127.0.0.1:4321 TOKEN=<token if set> bun run dev   # http://localhost:3000
+DAEMON_URL=http://127.0.0.1:5777 TOKEN=<token if set> bun run dev   # http://localhost:3000
 ```
 
 Outside Tauri the same calls go through a `/daemon/*` proxy in `vite.config.ts` to the daemon. Use a throwaway `STACKCHAN_CONFIG_DIR` and `CLAUDE_CONFIG_DIR` for the daemon when you click around, so "Install hooks" cannot touch your real Claude settings.

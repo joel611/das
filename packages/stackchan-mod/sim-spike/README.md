@@ -18,13 +18,13 @@ Needs full Xcode (tested with Xcode 27). Output lands in `$MODDABLE/build/bin/ma
 ## Run
 
 ```sh
-bun run daemon                        # real server, :4321
-bun packages/stackchan-mod/sim-spike/tap.ts                  # optional logging proxy, :4322 -> :4321
+bun run daemon                        # real server, :5777
+bun packages/stackchan-mod/sim-spike/tap.ts                  # optional logging proxy, :5778 -> :5777
 mcconfig -d -m -p mac -o /some/dir -m packages/stackchan-mod/sim-spike/ws-client/manifest.json   # builds and launches mcsim + xsbug
-curl -X POST localhost:4321/hooks/PreToolUse -d '{"session_id":"s","cwd":"/path/in/a/project","tool_name":"Edit"}'
+curl -X POST localhost:5777/hooks/PreToolUse -d '{"session_id":"s","cwd":"/path/in/a/project","tool_name":"Edit"}'
 ```
 
-`ws-client/main.js` points at `:4322` (the tap). Change `port` to `4321` to talk to the server directly.
+`ws-client/main.js` points at `:5778` (the tap). Change `port` to `5777` to talk to the server directly.
 
 ## Findings
 
