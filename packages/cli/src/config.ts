@@ -67,6 +67,28 @@ export function loadConfig(
   };
 }
 
+/**
+ * Re-read the settings for a running daemon. The listening port never changes live:
+ * a changed port is reported as `restartRequired` and the bound one is kept.
+ * A malformed file leaves the caller's config untouched.
+ */
+export function reloadConfig(
+  current: Config,
+  dir = configDir(),
+  env: Record<string, string | undefined> = process.env,
+): { ok: true; config: Config; restartRequired: boolean } | { ok: false; error: string } {
+  try {
+    const next = loadConfig(dir, env);
+    return {
+      ok: true,
+      config: { ...next, port: current.port },
+      restartRequired: next.port !== current.port,
+    };
+  } catch (e: any) {
+    return { ok: false, error: String(e?.message ?? e) };
+  }
+}
+
 /** Which settings an env var currently pins (file edits to these have no effect). */
 export const envOverrides = (env: Record<string, string | undefined> = process.env) =>
   (
