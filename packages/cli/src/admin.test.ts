@@ -2,7 +2,7 @@ import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { loadConfig, readSettingsFile, writeSettingsFile } from "./config";
-import { createServer } from "./server";
+import { createServer } from "./api/server";
 import type { Project } from "./scanner";
 
 const TMP = "/Users/joel.chan/.claude/jobs/f23bdb0a/tmp";
