@@ -2,6 +2,9 @@ import { matchProject, type Project } from "./scanner";
 
 export type SessionState = "idle" | "running" | "waiting" | "done" | "error";
 
+/** A skill this session ran, counted from Skill tool calls. */
+export type SkillUse = { name: string; count: number; lastAt: number };
+
 export type Session = {
   id: string;
   project: string | null;
@@ -10,17 +13,34 @@ export type Session = {
   cwd: string;
   state: SessionState;
   detail: string | null;
+  skills: SkillUse[];
   updatedAt: number;
 };
 
 export type ChangeEvent = { session: Session } | { removed: string };
 
-type HookPayload = {
+export type HookPayload = {
   session_id?: string;
   cwd?: string;
   tool_name?: string;
+  tool_input?: { skill?: unknown };
+  prompt?: string;
   message?: string;
+  transcript_path?: string;
 };
+
+/** The skill a hook event shows being triggered: only the Skill tool counts, never a typed `/path`. */
+export function skillOf(event: string, p: HookPayload): string | null {
+  if (event === "PreToolUse" && p.tool_name === "Skill" && typeof p.tool_input?.skill === "string")
+    return p.tool_input.skill.replace(/^\//, "") || null;
+  return null;
+}
+
+function countSkill(skills: SkillUse[], name: string, at: number): SkillUse[] {
+  const prev = skills.find((k) => k.name === name);
+  const next = { name, count: (prev?.count ?? 0) + 1, lastAt: at };
+  return [next, ...skills.filter((k) => k !== prev)];
+}
 
 export class SessionTracker {
   private sessions = new Map<string, Session>();
@@ -60,6 +80,7 @@ export class SessionTracker {
       cwd,
       state: prev?.state ?? "idle",
       detail: prev?.detail ?? null,
+      skills: prev?.skills ?? [],
       updatedAt: Date.now(),
     };
     switch (event) {
@@ -85,6 +106,11 @@ export class SessionTracker {
         break;
       default:
         return null;
+    }
+    const skill = skillOf(event, p);
+    if (skill) {
+      next.skills = countSkill(next.skills, skill, next.updatedAt);
+      if (event === "PreToolUse") next.detail = `/${skill}`;
     }
     this.sessions.set(next.id, next);
     this.emit({ session: next });

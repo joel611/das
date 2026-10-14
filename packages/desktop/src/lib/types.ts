@@ -19,7 +19,28 @@ export type Session = {
   cwd: string;
   state: SessionState;
   detail: string | null;
+  skills: SkillUse[];
   updatedAt: number;
+};
+
+/** A skill a session ran (Skill tool call). Plugin skills are named `plugin:skill`. */
+export type SkillUse = { name: string; count: number; lastAt: number };
+
+/** Token use in the current 5-hour block, read from session transcripts (packages/cli/src/usage.ts). */
+export type Usage = {
+  block: {
+    start: number;
+    end: number;
+    tokens: number;
+    cacheRead: number;
+    messages: number;
+    burnPerMin: number;
+    series: number[];
+    byModel: { model: string; tokens: number }[];
+    bySession: { session: string; tokens: number }[];
+  } | null;
+  /** Plan limits are not reported to the daemon yet. */
+  limits: null;
 };
 
 export type Project = {

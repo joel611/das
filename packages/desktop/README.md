@@ -15,6 +15,9 @@ macOS menu bar only (no Dock icon). Menu: a status line (`2 running`, `idle`, `d
 
 ## Dashboard
 
+The app uses a dark cyberpunk theme (Chakra Petch and JetBrains Mono, bundled; neon cyan and magenta on a dark grid). Press `d` to switch to light mode.
+
+- **Command** (default): the command center. Left: running agents (most urgent first; click one) and the skills that agent has triggered. Centre: Jev, the voice router, with an orb, the conversation and a command box at the bottom. It uses the same `POST /v1/voice` as the Console, dry run on by default, and a real send needs a second click. Right: token usage for the current 5-hour block (time to reset, tokens, cache reads, burn rate over the last hour), then tokens by agent and by model. Plan limits are shown as not reported.
 - **Overview**: status, session, device and project counts; live sessions (most urgent first); projects with their session states; connected devices.
 - **Console**: a typed stand-in for speech. Type a request and see the router's decision. **Dry run is on by default**: the router decides but nothing starts, and the reply shows the choice, confidence, band, probability bars, thresholds and the folder it would use. Unchecking it shows a red warning, and each real send needs a second click on "Yes, send for real" (a real send starts a Claude session in auto mode in an isolated worktree). "New conversation" starts a fresh device id; an "ask" is answered by the next message.
 - **Settings**: root folders, port, token and OpenRouter key (write-only fields), the trust advice for untrusted projects, and hook install/uninstall (a backup of `settings.json` is made before each change).

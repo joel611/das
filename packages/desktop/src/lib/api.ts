@@ -8,6 +8,7 @@ import type {
   Session,
   Settings,
   SettingsPatch,
+  Usage,
   VoiceReply,
 } from "./types";
 
@@ -54,6 +55,7 @@ export const api = {
   state: () => call<DaemonState>("GET", "/v1/state"),
   sessions: () => call<Session[]>("GET", "/v1/sessions"),
   projects: () => call<Project[]>("GET", "/v1/projects"),
+  usage: () => call<Usage>("GET", "/v1/usage"),
   devices: () => call<Device[]>("GET", "/v1/devices"),
   settings: () => call<Settings>("GET", "/admin/settings"),
   saveSettings: (patch: SettingsPatch) => call<Settings>("PUT", "/admin/settings", patch),
