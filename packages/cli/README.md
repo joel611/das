@@ -2,19 +2,34 @@
 
 ```sh
 bun run daemon            # foreground (from the repo root)
-bun run daemon --bg       # detached; log and pid in the settings dir
-bun run daemon --status   # running (pid, port) or "not running" (exit 1)
+bun run daemon --bg       # detached; output and pid in the settings dir
+bun run daemon --reload   # re-read config.yml in the running daemon (SIGHUP)
+bun run daemon --status   # running (pid, port), config and log paths; or "not running" (exit 1)
 bun run daemon --stop
 bun run test              # bun tests for this package
 ```
 
-Settings dir: `~/.config/das/` (or `$DAS_CONFIG_DIR`) holds `config.yml`, `daemon.pid` and `daemon.log`.
+Settings dir: `~/.config/das/` (or `$DAS_CONFIG_DIR`) holds `config.yml`, `daemon.pid`, `daemon.log` and `logs/`.
 
 The daemon does not need the desktop app. The desktop app does not own the daemon: it shows its status and talks to it over the API below.
 
 ## Settings
 
 `config.yml` (YAML, mode 0600): keys `roots`, `port`, `token`, `openrouterKey`. Precedence: env (`PROJECT_ROOTS`, `PORT`, `TOKEN`, `OPENROUTER_API_KEY`) over the file over defaults. Token and OpenRouter key are write-only in the API (`hasToken`, `hasOpenrouterKey`). A root change rescans at once; a token change applies at once; a port change replies `restartRequired: true` and needs `daemon --stop` then `--bg`.
+
+A missing `config.yml` means defaults. A `config.yml` that exists but is malformed stops startup with an error that names the file. The old `config.json` is ignored. Saving settings from the dashboard rewrites `config.yml` and drops any comments in it.
+
+`daemon --reload` re-reads `config.yml` without a restart. Roots rescan and the token applies at once. A port change logs "restart required" and the daemon keeps the old port. A malformed file keeps the previous config and logs the error.
+
+## Logs
+
+| File                        | Content                                                                                    |
+| --------------------------- | ------------------------------------------------------------------------------------------ |
+| `<config dir>/logs/api.log` | One JSON line per HTTP request (including `/hooks/*`): `method`, `path`, `status`, `ms`    |
+| `<config dir>/logs/ws.log`  | WebSocket upgrade accept/reject, open, close, hello (device name), frame `type` in and out |
+| `<config dir>/daemon.log`   | Raw stdout/stderr of the `--bg` process (crashes before the loggers start)                 |
+
+`api.log` and `ws.log` are JSON lines (pino, ISO `time`, no pid/hostname). They never hold payloads, the `Authorization` header or the `token` query parameter. Files rotate daily or at 10 MB, 7 are kept (pino-roll, under `logs/api/` and `logs/ws/`); `logs/api.log` and `logs/ws.log` always point at the current file, so `tail -f` survives rotation. A failing log write never affects a request.
 
 ## WebSocket protocol
 
