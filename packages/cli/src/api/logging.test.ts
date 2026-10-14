@@ -115,3 +115,16 @@ test("createLogs writes JSON lines to ws.log / api.log, redacting secrets", asyn
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("/v1/logs: replays ws+api entries, honours ?after, hides secrets, skips its own polling", async () => {
+  const h = { Authorization: "Bearer secret" };
+  const all = await (await fetch(`http://${base}/v1/logs`, { headers: h })).json();
+  expect(all.length).toBeGreaterThan(0);
+  expect(new Set(all.map((e: any) => e.source))).toEqual(new Set(["ws", "api"]));
+  expect(JSON.stringify(all)).not.toContain("secret");
+  expect(all.some((e: any) => e.path === "/v1/logs")).toBe(false);
+  const last = all[all.length - 1].seq;
+  const none = await (await fetch(`http://${base}/v1/logs?after=${last}`, { headers: h })).json();
+  expect(none).toEqual([]);
+  expect((await fetch(`http://${base}/v1/logs`)).status).toBe(401);
+});

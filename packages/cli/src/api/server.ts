@@ -7,7 +7,7 @@ import { envOverrides, loadConfig, writeSettingsFile, type Config } from "../con
 import { computeDisplay } from "../display";
 import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
 import type { Project } from "../scanner";
-import { emit, type Logs } from "../logs";
+import { emit, LogHub, type Logs } from "../logs";
 import { jevDecider, type Decider } from "../router";
 import { SessionTracker, type HookPayload } from "../sessions";
 import { claudeSpawner, type Spawner } from "../spawner";
@@ -92,9 +92,11 @@ export function createServer({
   configDir,
   claudeDir,
   onSettings,
-  logs = {},
+  logs: sinks = {},
   trusted = cachedTrusted,
 }: Opts) {
+  const hub = new LogHub();
+  const logs: Logs = { api: hub.tee("api", sinks.api), ws: hub.tee("ws", sinks.ws) };
   const voice: VoiceDeps = {
     decider,
     spawner,
@@ -144,9 +146,12 @@ export function createServer({
   app.use(async (c, next) => {
     const t0 = performance.now();
     await next();
+    const path = new URL(c.req.url).pathname;
+    // The Debug tab polls /v1/logs; logging that would feed itself.
+    if (path === "/v1/logs") return;
     emit(logs.api, {
       method: c.req.method,
-      path: new URL(c.req.url).pathname,
+      path,
       status: c.res.status,
       ms: Math.round(performance.now() - t0),
     });
@@ -224,6 +229,7 @@ export function createServer({
       }),
     );
   });
+  v1.get("/logs", (c) => c.json(hub.since(Number(c.req.query("after")) || 0)));
   v1.get("/sessions", (c) => c.json(tracker.list()));
   v1.get("/usage", (c) => c.json(usage.summary()));
   v1.get("/state", (c) => {

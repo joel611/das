@@ -96,3 +96,10 @@ export type VoiceReply = {
   sessionId?: string;
   debug?: VoiceDebug;
 };
+
+export type LogEntry = {
+  seq: number;
+  time: string;
+  source: "ws" | "api";
+  [k: string]: unknown;
+};

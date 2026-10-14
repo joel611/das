@@ -37,6 +37,13 @@ _Avoid_: access log
 **Daemon log**:
 `daemon.log`: raw stdout/stderr of the background daemon, separate from the WS log and API log.
 
+**Log stream**:
+Live feed of WS log and API log entries from the daemon to the desktop app, merged into one timeline. Opening it first replays recent entries held since the daemon started. The Daemon log is not part of it.
+_Avoid_: tail, log tail
+
+**Debug tab**:
+The desktop app view that shows the Log stream, with pause, clear, and filters by source and text.
+
 **Display**:
 What the robot shows for the whole fleet of sessions: an expression, a headline, a count and a light. Derived from the highest-priority session state.
 

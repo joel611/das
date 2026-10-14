@@ -7,6 +7,7 @@ import { clock } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Command } from "@/views/command";
 import { Console } from "@/views/console";
+import { Debug } from "@/views/debug";
 import { Overview } from "@/views/overview";
 import { Settings } from "@/views/settings";
 import { hud } from "@/lib/neon-theme";
@@ -15,6 +16,7 @@ const TABS = [
   { id: "command", label: "Command" },
   { id: "overview", label: "Overview" },
   { id: "console", label: "Console" },
+  { id: "debug", label: "Debug" },
   { id: "settings", label: "Settings" },
 ] as const;
 
@@ -127,6 +129,10 @@ export default function App() {
         </div>
         <div hidden={tab !== "console"} className="mx-auto max-w-5xl font-sans">
           <Console />
+        </div>
+        <div hidden={tab !== "debug"} className="mx-auto max-w-5xl font-sans">
+          {/* Only poll while visible; the other views stay mounted but this one is chatty. */}
+          {tab === "debug" ? <Debug /> : null}
         </div>
         <div hidden={tab !== "settings"} className="mx-auto max-w-5xl font-sans">
           <Settings />
