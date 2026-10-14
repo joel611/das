@@ -48,5 +48,7 @@ if (run.error) {
 if (run.status !== 0) process.exit(run.status ?? 1);
 
 const xsa = join(firmware, "dist/bin/esp32/release/stackchan-mod/stackchan-mod.xsa");
-copyFileSync(xsa, join(pkg, "stackchan-mod.xsa"));
-console.log(`built with SERVER_URL=${url} -> ${join(pkg, "stackchan-mod.xsa")}`);
+const out = join(pkg, "dist", "stackchan-mod.xsa");
+mkdirSync(dirname(out), { recursive: true });
+copyFileSync(xsa, out);
+console.log(`built with SERVER_URL=${url} -> ${out}`);
