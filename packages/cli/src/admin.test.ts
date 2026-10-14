@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { configDir, loadConfig, readSettingsFile, writeSettingsFile } from "./config";
+import { configDir, loadConfig, reloadConfig, readSettingsFile, writeSettingsFile } from "./config";
 import { createServer } from "./api/server";
 import type { Project } from "./scanner";
 
@@ -83,6 +83,33 @@ test("config.yml: malformed file is an error naming the file", () => {
   expect(() => loadConfig(dir, {})).toThrow(/config\.yml/);
   writeFileSync(join(dir, "config.yml"), "- just\n- a list\n");
   expect(() => loadConfig(dir, {})).toThrow(/config\.yml/);
+});
+
+test("reload: applies file edits, keeps the bound port, flags a port change", () => {
+  const dir = mk("cfg-reload");
+  writeSettingsFile({ port: 5000, token: "old", roots: ["/a"] }, dir);
+  const current = loadConfig(dir, {});
+  writeSettingsFile({ port: 5001, token: "new", roots: ["/b"] }, dir);
+  const r = reloadConfig(current, dir, {});
+  expect(r.ok).toBe(true);
+  if (!r.ok) return;
+  expect(r.restartRequired).toBe(true);
+  expect(r.config).toMatchObject({ port: 5000, token: "new", roots: ["/b"] });
+  writeSettingsFile({ port: 5000 }, dir);
+  const same = reloadConfig(r.config, dir, {});
+  expect(same.ok && same.restartRequired).toBe(false);
+});
+
+test("reload: malformed file keeps the previous config and reports the error", () => {
+  const dir = mk("cfg-reload-bad");
+  writeSettingsFile({ token: "keep" }, dir);
+  const current = loadConfig(dir, {});
+  writeFileSync(join(dir, "config.yml"), "token: [oops");
+  const r = reloadConfig(current, dir, {});
+  expect(r.ok).toBe(false);
+  if (r.ok) return;
+  expect(r.error).toMatch(/config\.yml/);
+  expect(current.token).toBe("keep");
 });
 
 test("DAS_CONFIG_DIR selects the config dir; default is ~/.config/das", () => {

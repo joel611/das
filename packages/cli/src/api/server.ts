@@ -23,6 +23,8 @@ const TOPIC = "sessions";
 type Opts = {
   port: number;
   token: string;
+  /** Live token source (the daemon's config, so a reload applies at once). Overrides `token` when set. */
+  getToken?: () => string;
   getProjects: () => Project[];
   decider?: Decider;
   spawner?: Spawner;
@@ -79,6 +81,7 @@ function parseSettings(b: any): { patch: Partial<Config> } | { error: string } {
 export function createServer({
   port,
   token,
+  getToken,
   getProjects,
   decider = jevDecider,
   spawner = claudeSpawner,
@@ -109,10 +112,14 @@ export function createServer({
     return getProjects().filter((p) => !isTrusted(p.path, t));
   };
 
-  const authorized = (req: Request) =>
-    !token ||
-    req.headers.get("authorization") === `Bearer ${token}` ||
-    new URL(req.url).searchParams.get("token") === token;
+  const authorized = (req: Request) => {
+    const t = getToken ? getToken() : token;
+    return (
+      !t ||
+      req.headers.get("authorization") === `Bearer ${t}` ||
+      new URL(req.url).searchParams.get("token") === t
+    );
+  };
 
   const settingsView = () => {
     const c = loadConfig(configDir);
