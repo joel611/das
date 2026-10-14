@@ -18,6 +18,16 @@
 | `solid`      | `lightOn(rgb)`              |
 | `blink`      | `lightBlink(rgb, periodMs)` |
 
+## Link state
+
+While the socket is not open the mod shows the Link state itself and ignores the server Display (the daemon is unreachable by definition). Retries run every 3 s forever.
+
+| state      | when                                        | light                  | face                                      | head                        |
+| ---------- | ------------------------------------------- | ---------------------- | ----------------------------------------- | --------------------------- |
+| connecting | boot, after a close, fewer than 3 failures  | blue blink, 500 ms     | NEUTRAL                                   | pans +-0.35 rad, 10 s cycle |
+| failed     | 3 consecutive failed attempts, until `open` | red solid              | eyes closed, HAPPY (approximates X X / ^) | centred                     |
+| connected  | `open`                                      | server `display.light` | server expression                         | centred                     |
+
 Valid emotions in stack-chan: NEUTRAL, ANGRY, SAD, HAPPY, SLEEPY, DOUBTFUL, COLD, HOT.
 
 ## Build (tested, macOS)
