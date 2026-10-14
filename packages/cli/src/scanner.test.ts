@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from "node:
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { matchProject, scan } from "./scanner";
+import { parseHook } from "./agents/claude-code/events";
 import { SessionTracker } from "./sessions";
 
 let root: string;
@@ -61,35 +62,40 @@ test("a cwd reached through a symlink still matches its project", () => {
   expect(matchProject(projects, join(link, "sub"))).toBeNull(); // missing dir under the link: no crash, no match
 });
 
+const hook = (t: SessionTracker, event: string, payload: object) => {
+  const signal = parseHook(event, payload);
+  if (signal) t.handle("claude-code", signal);
+};
+
 test("hook events drive session state", () => {
   const projects = scan([root]);
   const t = new SessionTracker(() => projects);
   const cwd = join(root, "solo");
-  t.handleHook("SessionStart", { session_id: "s1", cwd });
-  t.handleHook("PreToolUse", { session_id: "s1", cwd, tool_name: "Edit" });
+  hook(t, "SessionStart", { session_id: "s1", cwd });
+  hook(t, "PreToolUse", { session_id: "s1", cwd, tool_name: "Edit" });
   expect(t.list()[0]).toMatchObject({ project: "solo", state: "running", detail: "Edit" });
-  t.handleHook("Stop", { session_id: "s1", cwd });
+  hook(t, "Stop", { session_id: "s1", cwd });
   expect(t.list()[0].state).toBe("done");
-  t.handleHook("SessionEnd", { session_id: "s1" });
+  hook(t, "SessionEnd", { session_id: "s1" });
   expect(t.list()).toHaveLength(0);
 });
 
 test("skills are counted from the Skill tool only, not from /slash prompts", () => {
   const t = new SessionTracker(() => []);
-  t.handleHook("UserPromptSubmit", { session_id: "s1", cwd: "/x", prompt: "/simplify the diff" });
-  t.handleHook("UserPromptSubmit", { session_id: "s1", prompt: "/Users/me/file.ts please read" });
-  t.handleHook("PreToolUse", {
+  hook(t, "UserPromptSubmit", { session_id: "s1", cwd: "/x", prompt: "/simplify the diff" });
+  hook(t, "UserPromptSubmit", { session_id: "s1", prompt: "/Users/me/file.ts please read" });
+  hook(t, "PreToolUse", {
     session_id: "s1",
     cwd: "/x",
     tool_name: "Skill",
     tool_input: { skill: "dataviz" },
   });
-  t.handleHook("PreToolUse", {
+  hook(t, "PreToolUse", {
     session_id: "s1",
     tool_name: "Skill",
     tool_input: { skill: "simplify" },
   });
-  t.handleHook("PreToolUse", { session_id: "s1", tool_name: "Bash", tool_input: {} });
+  hook(t, "PreToolUse", { session_id: "s1", tool_name: "Bash", tool_input: {} });
   const s = t.list()[0];
   expect(s.skills.map((k) => [k.name, k.count])).toEqual([
     ["simplify", 1],

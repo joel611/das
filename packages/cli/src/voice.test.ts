@@ -14,7 +14,8 @@ import {
 } from "./router";
 import type { Project } from "./scanner";
 import { createServer } from "./server";
-import { parseId, spawnArgs, type Spawner } from "./spawner";
+import { parseId, spawnArgs } from "./agents/claude-code/spawner";
+import type { Spawner } from "./agents/types";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
 const projects: Project[] = [

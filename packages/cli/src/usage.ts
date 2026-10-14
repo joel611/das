@@ -1,14 +1,15 @@
 import { constants } from "node:fs";
-import { open, readdir, realpath, stat as statPath } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { open, realpath } from "node:fs/promises";
+import { sep } from "node:path";
 
 /**
- * Token usage read from the Claude Code transcripts that hook events point at (`transcript_path`).
- * Each transcript is read incrementally from where the last read stopped. Plan limits (percent of the
- * 5-hour or weekly allowance) are not in transcripts, so `limits` stays null until something reports them.
+ * Token usage read from agent transcripts, incrementally from where the last read stopped. The core
+ * reads JSONL files and aggregates; each agent's `TranscriptFormat` says where its transcripts live
+ * and how one line maps to a usage entry. Plan limits (percent of the 5-hour or weekly allowance) are
+ * not in transcripts, so `limits` stays null until something reports them.
  *
- * The path comes from a hook payload, which any local process can post, so it is only read when it
- * resolves to a regular `.jsonl` file under the Claude projects directory.
+ * A transcript path comes from an event payload, which any local process can post, so it is only read
+ * when it resolves to a regular `.jsonl` file under that agent's transcript root.
  */
 
 const HOUR = 3_600_000;
@@ -20,7 +21,7 @@ const CHUNK = 1 << 20;
 /** A single line longer than this is dropped rather than buffered. */
 const MAX_LINE = 32 << 20;
 
-type Entry = {
+export type Entry = {
   id: string;
   session: string;
   at: number;
@@ -49,36 +50,21 @@ export type Usage = {
   limits: null;
 };
 
+/** How one agent writes transcripts. */
+export type TranscriptFormat = {
+  /** Directory every transcript must resolve under; anything outside it is ignored. */
+  root: string;
+  /** Parse one line; null unless it carries usage. `id` must be unique per model response. */
+  parseLine(line: string, session: string): Entry | null;
+  /** Transcripts of sessions active since `since`, read once at startup. Omit to skip backfill. */
+  recent?(since: number): Promise<{ session: string; path: string }[]>;
+};
+
 const total = (e: Entry) => e.input + e.output + e.cacheCreate;
-const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
 
 /** Short model family for display: "claude-opus-5-5" -> "opus". */
 export const family = (model: string) =>
   model.match(/(opus|sonnet|haiku|fable)/i)?.[1].toLowerCase() ?? model;
-
-/** Parse one transcript line; null unless it is an assistant message with usage. */
-export function parseLine(line: string, session: string): Entry | null {
-  let d: any;
-  try {
-    d = JSON.parse(line);
-  } catch {
-    return null;
-  }
-  const m = d?.message;
-  if (d?.type !== "assistant" || !m?.usage || typeof m.id !== "string") return null;
-  const at = Date.parse(d.timestamp);
-  if (!Number.isFinite(at) || m.model === "<synthetic>") return null;
-  return {
-    id: m.id,
-    session,
-    at,
-    model: String(m.model ?? "unknown"),
-    input: n(m.usage.input_tokens),
-    output: n(m.usage.output_tokens),
-    cacheCreate: n(m.usage.cache_creation_input_tokens),
-    cacheRead: n(m.usage.cache_read_input_tokens),
-  };
-}
 
 /** The active 5-hour block, ccusage-style: it starts at the hour of its first message and a new one starts after 5h or a 5h gap. */
 export function activeBlock(sorted: Entry[], now: number) {
@@ -104,50 +90,43 @@ export class UsageTracker {
   /** reads run one at a time, so two hooks for one transcript never read the same bytes twice */
   private queue: Promise<void> = Promise.resolve();
 
-  /** @param root the Claude projects directory; transcripts outside it are ignored, null ignores all */
-  constructor(
-    private root: string | null,
-    private opts: { chunk?: number; now?: () => number } = {},
-  ) {}
+  /** agent id -> its transcript format */
+  private formats = new Map<string, TranscriptFormat>();
+
+  constructor(private opts: { chunk?: number; now?: () => number } = {}) {}
+
+  /** Read an agent's transcripts from now on. */
+  register(agent: string, format: TranscriptFormat) {
+    this.formats.set(agent, format);
+  }
 
   /**
    * Read the transcripts of sessions that were already running when the daemon started, so the block
-   * total is complete before their next hook. Only `<root>/<project>/<session>.jsonl` files touched in
-   * the last 5 hours are read: that is what hook events point at (subagent transcripts live deeper
-   * and are not reported by hooks, so they are not counted here either). Never rejects.
+   * total is complete before their next event. Only what each format's `recent` lists, touched in the
+   * last 5 hours. Never rejects.
    */
   async backfill(): Promise<void> {
-    if (!this.root) return;
     const since = this.now() - BLOCK_MS;
-    try {
-      for (const proj of await readdir(this.root, { withFileTypes: true })) {
-        if (!proj.isDirectory()) continue;
-        const dir = join(this.root, proj.name);
-        for (const f of await readdir(dir, { withFileTypes: true }).catch(() => [])) {
-          if (!f.isFile() || !f.name.endsWith(".jsonl")) continue;
-          const path = join(dir, f.name);
-          const st = await statPath(path).catch(() => null);
-          if (st && st.mtimeMs >= since) void this.ingest(f.name.slice(0, -".jsonl".length), path);
-        }
-      }
-    } catch {
-      // no projects directory yet: nothing to backfill
+    for (const [agent, f] of this.formats) {
+      const found = await f.recent?.(since).catch(() => []);
+      for (const t of found ?? []) void this.ingest(agent, t.session, t.path);
     }
     await this.queue;
   }
 
   /** Read whatever the transcript gained since the last call. Never rejects. */
-  ingest(session: string, path: string | undefined): Promise<void> {
-    if (!session || !path) return this.queue;
-    this.queue = this.queue.then(() => this.read(session, path));
+  ingest(agent: string, session: string, path: string | undefined): Promise<void> {
+    const format = this.formats.get(agent);
+    if (!format || !session || !path) return this.queue;
+    this.queue = this.queue.then(() => this.read(format, session, path));
     return this.queue;
   }
 
-  private async read(session: string, path: string) {
+  private async read(format: TranscriptFormat, session: string, path: string) {
     let fh;
     try {
-      if (!this.root || !path.endsWith(".jsonl")) return;
-      const [root, real] = await Promise.all([realpath(this.root), realpath(path)]);
+      if (!path.endsWith(".jsonl")) return;
+      const [root, real] = await Promise.all([realpath(format.root), realpath(path)]);
       if (!real.startsWith(root + sep)) return;
       // O_NONBLOCK so a FIFO planted at the path fails the isFile check instead of blocking the open.
       fh = await open(real, constants.O_RDONLY | constants.O_NONBLOCK);
@@ -169,7 +148,7 @@ export class UsageTracker {
         if (rest.length > MAX_LINE) rest = Buffer.alloc(0);
         if (nl < 0) continue;
         for (const line of data.subarray(0, nl).toString("utf8").split("\n")) {
-          const e = parseLine(line, session);
+          const e = format.parseLine(line, session);
           if (!e) continue;
           // A forked or resumed session replays another session's messages under the same ids.
           // The session that saw an id first keeps it; later lines only update tokens within it.

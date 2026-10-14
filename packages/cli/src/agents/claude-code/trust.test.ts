@@ -2,9 +2,9 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Project } from "./scanner";
+import type { Project } from "../../scanner";
 import { isTrusted, trustAdvice, trustedPaths } from "./trust";
-import { handleTranscript, type VoiceDeps } from "./voice";
+import { handleTranscript, type VoiceDeps } from "../../voice";
 
 const proj = (path: string): Project => ({
   id: path,

@@ -90,20 +90,27 @@ Every decision is appended as a JSON line to `DECISIONS_LOG` (default `./data/de
 
 At startup the daemon reads `~/.claude.json` (read-only) and prints which scanned projects are not covered. Fix: run `claude` once in the root folder and accept the dialog. Trusting a root also lets the project hooks, `.mcp.json` and allow rules of every repo under it run, so pick the narrowest folder that holds only repos you trust. A refused spawn replies `status: "error"`, `text: "Claude does not trust <project> yet"`.
 
+## Agents
+
+Everything specific to one coding agent lives in a provider under `src/agents/<id>/` behind the `AgentProvider` interface (`src/agents/types.ts`); the core (sessions, usage, display, voice) never reads an agent's files or payloads directly. Claude Code (`src/agents/claude-code/`) is the only provider today. How to add another (Codex, pi, ...) is in [docs/agents.md](../../docs/agents.md).
+
 ## Admin and state API
 
 Admin routes are localhost only, plus the token if set.
 
-| Route                                              | Result                                                                                                                                       |
-| -------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /admin/settings`                              | `{roots, port, hasToken, hasOpenrouterKey, envOverrides, trustAdvice}`                                                                       |
-| `PUT /admin/settings`                              | body: any of `roots` (existing dirs), `port` (1-65535), `token`, `openrouterKey` (`""` clears); returns the GET shape plus `restartRequired` |
-| `GET /admin/hooks`                                 | `{state, events:{<Event>: installed\|partial\|missing}, portMatches, port}`                                                                  |
-| `POST /admin/hooks/install`, `DELETE /admin/hooks` | same shape after the change                                                                                                                  |
-| `GET /v1/projects`, `GET /v1/sessions`             | scanned projects (worktrees grouped), tracked sessions; each session has `skills: [{name, count, lastAt}]`                                   |
-| `GET /v1/usage`                                    | `{block, limits}`: tokens in the current 5-hour block read from session transcripts; `limits` is always `null` for now                       |
-| `GET /v1/devices`                                  | `[{id, device, capabilities, connectedAt}]` (from `hello`)                                                                                   |
-| `GET /v1/state`                                    | `{display, sessions, devices, projects, untrustedProjects}`                                                                                  |
+| Route                                                                                       | Result                                                                                                                                       |
+| ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /admin/settings`                                                                       | `{roots, port, hasToken, hasOpenrouterKey, envOverrides, trustAdvice}`                                                                       |
+| `PUT /admin/settings`                                                                       | body: any of `roots` (existing dirs), `port` (1-65535), `token`, `openrouterKey` (`""` clears); returns the GET shape plus `restartRequired` |
+| `GET /admin/hooks`                                                                          | `{state, events:{<Event>: installed\|partial\|missing}, portMatches, port}`                                                                  |
+| `POST /admin/hooks/install`, `DELETE /admin/hooks`                                          | same shape after the change                                                                                                                  |
+| `GET\|DELETE /admin/agents/<id>/integration`, `POST /admin/agents/<id>/integration/install` | the same, for any agent; `/admin/hooks` is the default agent's (Claude Code)                                                                 |
+| `POST /hooks/<id>/<event>`                                                                  | an agent's native event (localhost only); `/hooks/<event>` goes to the default agent                                                         |
+| `GET /v1/agents`                                                                            | `[{id, name, usage, integration, spawn, trust}]`: the agents this daemon listens to and what each supports                                   |
+| `GET /v1/projects`, `GET /v1/sessions`                                                      | scanned projects (worktrees grouped), tracked sessions; each session has `agent` and `skills: [{name, count, lastAt}]`                       |
+| `GET /v1/usage`                                                                             | `{block, limits}`: tokens in the current 5-hour block read from session transcripts; `limits` is always `null` for now                       |
+| `GET /v1/devices`                                                                           | `[{id, device, capabilities, connectedAt}]` (from `hello`)                                                                                   |
+| `GET /v1/state`                                                                             | `{display, sessions, devices, projects, untrustedProjects}`                                                                                  |
 
 Skills are counted from `PreToolUse` with `tool_name: "Skill"` (`tool_input.skill`). Typed `/name` prompts are not counted: only a Skill tool call is a trigger. Usage reads each session's `transcript_path` incrementally after the hook is answered: assistant messages are deduped by message id, `tokens` is input + output + cache writes (cache reads are reported separately), and a block starts at the hour of its first message and lasts 5 hours (the same rule as ccusage). At startup the daemon also reads the `<claude dir>/projects/<project>/<session>.jsonl` files touched in the last 5 hours, so sessions that were already running count before their next hook. Burn rate and the 12-bucket series cover the active block only. Plan limits (the percent of your allowance used) are not in hooks or transcripts, so they are not reported.
 

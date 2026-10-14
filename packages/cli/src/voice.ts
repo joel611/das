@@ -8,7 +8,7 @@ import {
   type Thresholds,
 } from "./router";
 import type { Project } from "./scanner";
-import type { Spawner } from "./spawner";
+import type { Spawner } from "./agents/types";
 
 export const MAX_TRANSCRIPT = 1000;
 const PENDING_TTL_MS = 2 * 60_000;
@@ -38,6 +38,8 @@ export type VoiceOpts = { dryRun?: boolean; debug?: boolean };
 export type VoiceDeps = {
   decider: Decider;
   spawner: Spawner;
+  /** Display name of the agent the spawner starts, for replies. */
+  agentName?: string;
   getProjects: () => Project[];
   pending: Map<string, { previous: string; candidates: string[]; at: number }>;
   logPath?: string;
@@ -179,7 +181,7 @@ export async function handleTranscript(
       {
         status: "error",
         text: untrusted
-          ? `Claude does not trust ${project.name} yet`
+          ? `${deps.agentName ?? "Claude"} does not trust ${project.name} yet`
           : `Could not start in ${project.name}`,
       },
       { ...meta, error: String(e) },

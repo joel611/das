@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { config, configDir } from "./config";
 import { scan, type Project } from "./scanner";
 import { createServer } from "./server";
-import { trustAdvice } from "./trust";
+import { claudeCode } from "./agents/claude-code";
 
 const dir = configDir();
 const pidFile = join(dir, "daemon.pid");
@@ -39,12 +39,16 @@ function serve() {
   const rescan = () => (projects = scan(config.roots));
   rescan();
   setInterval(rescan, 60_000);
+  // Every agent the daemon listens to; the first is the default. Add providers here (see docs/agents.md).
+  const agents = [
+    claudeCode({ claudeDir: process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude") }),
+  ];
   const server = createServer({
     port: config.port,
     token: config.token,
     getProjects: () => projects,
     configDir: dir,
-    claudeDir: process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"),
+    agents,
     onSettings: (c) => {
       Object.assign(config, c);
       rescan();
@@ -53,7 +57,7 @@ function serve() {
   console.log(
     `stack-chan daemon on :${server.port}, roots: ${config.roots.join(", ")}, ${projects.length} projects`,
   );
-  const advice = trustAdvice(config.roots, projects);
+  const advice = agents[0].trust?.advice(config.roots, projects, agents[0].trust.trusted());
   if (advice) console.warn(advice);
 }
 

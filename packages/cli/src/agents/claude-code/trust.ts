@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, sep } from "node:path";
-import type { Project } from "./scanner";
+import type { Project } from "../../scanner";
 
 /** Claude Code keeps per-folder trust in `~/.claude.json` -> projects[<path>].hasTrustDialogAccepted. */
 const claudeJson = () => join(process.env.CLAUDE_CONFIG_DIR || homedir(), ".claude.json");

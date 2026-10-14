@@ -1,8 +1,4 @@
-export type Spawner = (
-  cwd: string,
-  prompt: string,
-  name: string,
-) => Promise<{ id: string | null; stdout: string }>;
+import type { Spawner } from "../types";
 
 /** Pull a session id out of `claude --bg` output (first 8+ char hex/uuid-ish token), else null. */
 export function parseId(stdout: string): string | null {
