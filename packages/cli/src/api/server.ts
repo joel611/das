@@ -13,6 +13,8 @@ import { jevDecider, type Decider } from "../router";
 import { SessionTracker, type HookPayload } from "../sessions";
 import { claudeSpawner, type Spawner } from "../spawner";
 import { isTrusted, trustAdvice, trustedPaths } from "../trust";
+import { LimitsTracker } from "../limits";
+import { startUsagePoll } from "../usage-api";
 import { UsageTracker } from "../usage";
 import { handleTranscript, type VoiceDeps } from "../voice";
 import { deviceRoutes, type Device } from "./routes/devices";
@@ -36,6 +38,8 @@ type Opts = {
   claudeDir?: string;
   /** oh-my-pi agent dir. The das extension lives in its `extensions/` dir. Without it the `/admin/omp` endpoints answer 501. */
   ompDir?: string;
+  /** Whether the opt-in usage API poll is on (read on every poll); without it the poll never starts. */
+  usageApi?: () => boolean;
   /** Called with the new effective config after a settings save. */
   onSettings?: (c: Config) => void;
   /** Log sinks for api.log / ws.log. Omitted sinks log nothing (tests stay off the real log dir). */
@@ -76,6 +80,10 @@ function parseSettings(b: any): { patch: Partial<Config> } | { error: string } {
       return { error: "port must be an integer 1-65535" };
     patch.port = b.port;
   }
+  if (b?.usageApi !== undefined) {
+    if (typeof b.usageApi !== "boolean") return { error: "usageApi must be a boolean" };
+    patch.usageApi = b.usageApi;
+  }
   for (const k of ["token", "openrouterKey"] as const) {
     if (b?.[k] === undefined) continue;
     if (typeof b[k] !== "string") return { error: `${k} must be a string` };
@@ -95,6 +103,7 @@ export function createServer({
   configDir,
   claudeDir,
   ompDir,
+  usageApi,
   onSettings,
   logs: sinks = {},
   trusted = cachedTrusted,
@@ -112,6 +121,14 @@ export function createServer({
   const usage = new UsageTracker(
     join(claudeDir ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "projects"),
   );
+  const limits = new LimitsTracker();
+  if (usageApi && claudeDir)
+    startUsagePoll({
+      limits,
+      claudeDir,
+      enabled: usageApi,
+      log: (msg) => emit(logs.api, { event: "usage-api", msg }),
+    });
   // Only when the Claude dir is configured (the daemon does): tests and bare servers stay off the real one.
   if (claudeDir) void usage.backfill();
 
@@ -138,6 +155,7 @@ export function createServer({
       port: c.port,
       hasToken: !!c.token,
       hasOpenrouterKey: !!c.openrouterKey,
+      usageApi: c.usageApi,
       envOverrides: envOverrides(),
       trustAdvice: trustAdvice(c.roots, getProjects(), trusted()),
     };
@@ -173,6 +191,14 @@ export function createServer({
     // Read the transcript after answering, so a large first read never delays the agent.
     setTimeout(() => usage.ingest(payload.session_id ?? "", payload.transcript_path), 0);
     return c.body(null, 204);
+  });
+
+  // Status line relay (statusline.sh): plan limits from `rate_limits`. Answers the short line it prints
+  // when the user had no status line of their own.
+  app.post("/statusline", async (c) => {
+    if (!isLocal(c.env.srv.requestIP(c.req.raw)?.address)) return c.text("forbidden", 403);
+    limits.report(await c.req.json().catch(() => null));
+    return c.text(limits.line());
   });
 
   // Admin API: localhost only, plus the token when one is set. Secrets are write-only.
@@ -256,7 +282,7 @@ export function createServer({
   });
   v1.get("/logs", (c) => c.json(hub.since(Number(c.req.query("after")) || 0)));
   v1.get("/sessions", (c) => c.json(tracker.list()));
-  v1.get("/usage", (c) => c.json(usage.summary()));
+  v1.get("/usage", (c) => c.json({ ...usage.summary(), limits: limits.summary() }));
   v1.get("/state", (c) => {
     const sessions = tracker.list();
     return c.json({

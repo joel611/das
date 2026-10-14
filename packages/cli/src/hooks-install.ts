@@ -11,7 +11,15 @@ import {
 } from "node:fs";
 import { dirname, join } from "node:path";
 
-/** Edits Claude Code's user settings (`<claudeDir>/settings.json`, key `hooks`). Callers always pass claudeDir explicitly. */
+/**
+ * Edits Claude Code's user settings (`<claudeDir>/settings.json`, keys `hooks` and `statusLine`).
+ * Callers always pass claudeDir explicitly.
+ *
+ * The status line is how plan limits reach the daemon: Claude Code gives the status line command
+ * `rate_limits` (5-hour and weekly percent used, reset times), which hooks never see. A status line the
+ * user already had is kept: ours runs its command (base64 in DAS_WRAP_B64), keeps its other fields
+ * (padding, refreshInterval), and uninstall puts it back.
+ */
 
 export const EVENTS = [
   "SessionStart",
@@ -25,11 +33,29 @@ export const MARKER = "# stack-chan-server";
 
 type Hook = { type?: string; command?: string; [k: string]: unknown };
 type Group = { matcher?: string; hooks?: Hook[]; [k: string]: unknown };
-type Settings = { hooks?: Record<string, Group[]>; [k: string]: unknown };
+type StatusLine = { type?: string; command?: string; [k: string]: unknown };
+type Settings = { hooks?: Record<string, Group[]>; statusLine?: StatusLine; [k: string]: unknown };
 
 /** Fire-and-forget: stdin JSON -> local server, no output, always exit 0. */
 export const hookCommand = (event: string, port: number) =>
   `curl -s -m 2 -X POST -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:${port}/hooks/${event} >/dev/null 2>&1 || true ${MARKER}`;
+
+/** The relay script that ships next to this package's src/. */
+export const STATUSLINE_SCRIPT = join(import.meta.dir, "..", "statusline.sh");
+const sq = (v: string) => `'${v.replaceAll("'", `'\\''`)}'`;
+
+/** Our status line command; `wrapped` is the command of the user's previous status line, if any. */
+export const statusLineCommand = (port: number, wrapped?: string) =>
+  `${wrapped ? `DAS_WRAP_B64=${Buffer.from(wrapped).toString("base64")} ` : ""}sh ${sq(STATUSLINE_SCRIPT)} ${port} ${MARKER}`;
+
+const isOurStatusLine = (sl: StatusLine | undefined): boolean =>
+  typeof sl?.command === "string" && sl.command.includes(MARKER);
+const wrappedOf = (sl: StatusLine): string | undefined => {
+  const b64 = sl.command?.match(/DAS_WRAP_B64=([A-Za-z0-9+/=]+)/)?.[1];
+  return b64 ? Buffer.from(b64, "base64").toString("utf8") : undefined;
+};
+const statusLinePort = (sl: StatusLine) =>
+  Number(sl.command?.match(/statusline\.sh'? (\d+) /)?.[1]) || null;
 
 const isOurs = (h: Hook) =>
   h?.type === "command" && typeof h.command === "string" && h.command.includes(MARKER);
@@ -100,6 +126,10 @@ export function installHooks({ claudeDir, port }: { claudeDir: string; port: num
       groups.push({ hooks: [{ type: "command", command: cmd }] });
     }
   }
+  // Wrap a status line the user has (keeping its padding and refreshInterval); re-install keeps what we wrapped.
+  const prev = s.statusLine;
+  const wrapped = prev && isOurStatusLine(prev) ? wrappedOf(prev) : prev?.command;
+  s.statusLine = { ...prev, type: "command", command: statusLineCommand(port, wrapped) };
   if (JSON.stringify(s) !== before) write(file, s);
   return hooksStatus({ claudeDir, port });
 }
@@ -107,14 +137,18 @@ export function installHooks({ claudeDir, port }: { claudeDir: string; port: num
 export function uninstallHooks({ claudeDir }: { claudeDir: string }) {
   const file = target(claudeDir);
   const s = read(file);
+  let changed = false;
   if (s.hooks) {
-    let changed = false;
     for (const ev of Object.keys(s.hooks)) changed = strip(s.hooks, ev) || changed;
-    if (changed) {
-      if (!Object.keys(s.hooks).length) delete s.hooks;
-      write(file, s);
-    }
+    if (changed && !Object.keys(s.hooks).length) delete s.hooks;
   }
+  if (s.statusLine && isOurStatusLine(s.statusLine)) {
+    const wrapped = wrappedOf(s.statusLine);
+    if (wrapped) s.statusLine = { ...s.statusLine, command: wrapped };
+    else delete s.statusLine;
+    changed = true;
+  }
+  if (changed) write(file, s);
   return hooksStatus({ claudeDir, port: 0 });
 }
 
@@ -141,6 +175,11 @@ export function hooksStatus({ claudeDir, port }: { claudeDir: string; port: numb
         ? "partial"
         : "installed";
   }
+  if (s.statusLine && isOurStatusLine(s.statusLine)) {
+    const p = statusLinePort(s.statusLine);
+    ports.add(p);
+    events.StatusLine = p === port ? "installed" : "partial";
+  } else events.StatusLine = "missing";
   const vals = Object.values(events);
   const state = vals.every((v) => v === "missing")
     ? "missing"

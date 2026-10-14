@@ -85,3 +85,27 @@ test("health answers without a token", async () => {
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ status: "ok" });
 });
+
+test("status line relay: rate_limits show up in /v1/usage, the reply is the short line", async () => {
+  const reset5h = Math.round(Date.now() / 1000) + 3600;
+  const reset7d = reset5h + 86_400;
+  const res = await fetch(`http://${base}/statusline`, {
+    method: "POST",
+    body: JSON.stringify({
+      session_id: "s1",
+      rate_limits: {
+        five_hour: { used_percentage: 23.5, resets_at: reset5h },
+        seven_day: { used_percentage: 41.2, resets_at: reset7d },
+      },
+    }),
+  });
+  expect(res.status).toBe(200);
+  expect(await res.text()).toMatch(/^5h 24% \(\d+h\d+m\) · 7d 41% \(1d\dh\)$/);
+  const u: any = await (await fetch(`http://${base}/v1/usage?token=secret`)).json();
+  expect(u.limits.fiveHour).toEqual({ usedPercent: 23.5, resetsAt: reset5h * 1000 });
+  expect(u.limits.sevenDay).toEqual({ usedPercent: 41.2, resetsAt: reset7d * 1000 });
+  // a body without rate_limits, or not JSON, is fine
+  expect((await fetch(`http://${base}/statusline`, { method: "POST", body: "{" })).status).toBe(
+    200,
+  );
+});

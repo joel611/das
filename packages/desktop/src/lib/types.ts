@@ -39,9 +39,16 @@ export type Usage = {
     byModel: { model: string; tokens: number }[];
     bySession: { session: string; tokens: number }[];
   } | null;
-  /** Plan limits are not reported to the daemon yet. */
-  limits: null;
+  /** Plan limits as Claude Code reports them to its status line (packages/cli/src/limits.ts); null until one has. */
+  limits: {
+    fiveHour: LimitWindow | null;
+    sevenDay: LimitWindow | null;
+    updatedAt: number;
+  } | null;
 };
+
+/** Percent of a plan window used (0-100) and when it resets (epoch ms). */
+export type LimitWindow = { usedPercent: number; resetsAt: number };
 
 export type Project = {
   id: string;
@@ -57,6 +64,7 @@ export type Settings = {
   port: number;
   hasToken: boolean;
   hasOpenrouterKey: boolean;
+  usageApi: boolean;
   envOverrides: string[];
   trustAdvice: string | null;
   restartRequired?: boolean;
@@ -67,6 +75,7 @@ export type SettingsPatch = Partial<{
   port: number;
   token: string;
   openrouterKey: string;
+  usageApi: boolean;
 }>;
 
 export type HookStatus = {
