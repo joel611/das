@@ -5,7 +5,7 @@ import { defineConfig } from "vite-plus";
 
 // Browser-only dev (no Tauri window): `/daemon/*` is proxied to the daemon so the UI can be
 // developed and tested in a normal browser. Inside Tauri, calls go through the Rust `api` command instead.
-const DAEMON = process.env.DAEMON_URL ?? "http://127.0.0.1:4321";
+const DAEMON = process.env.DAEMON_URL ?? `http://127.0.0.1:${process.env.PORT || 5777}`;
 const TOKEN = process.env.TOKEN ?? "";
 
 export default defineConfig({

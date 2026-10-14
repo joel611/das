@@ -11,7 +11,7 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 
-const DEFAULT_PORT: u16 = 4321;
+const DEFAULT_PORT: u16 = 5777;
 
 // ---- settings (same file and precedence as the daemon: env > file > default) ----
 

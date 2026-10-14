@@ -1,9 +1,10 @@
-// Logging WebSocket proxy: client (Moddable sim) -> :4322 -> real server :4321.
+// Logging WebSocket proxy: client (Moddable sim) -> :$TAP_PORT (5778) -> real server :$PORT (5777).
 // Lets us see what the simulator actually sends/receives without reading xsbug.
-const UPSTREAM = process.env.UPSTREAM ?? "ws://127.0.0.1:4321/v1/ws";
+const UPSTREAM = process.env.UPSTREAM ?? `ws://127.0.0.1:${process.env.PORT || 5777}/v1/ws`;
+const TAP_PORT = Number(process.env.TAP_PORT || 5778);
 
 Bun.serve<{ up: WebSocket; queue: string[] }>({
-  port: 4322,
+  port: TAP_PORT,
   fetch(req, srv) {
     const up = new WebSocket(UPSTREAM);
     return srv.upgrade(req, { data: { up, queue: [] } })
@@ -30,4 +31,4 @@ Bun.serve<{ up: WebSocket; queue: string[] }>({
     },
   },
 });
-console.log("[tap] listening :4322");
+console.log(`[tap] listening :${TAP_PORT}`);

@@ -33,10 +33,10 @@ Rollup priority: error > waiting > running > done > idle. `button` is reserved (
 Try it:
 
 ```sh
-bun packages/cli/scripts/mock-client.ts ws://localhost:4321/v1/ws
-curl -X POST localhost:4321/hooks/UserPromptSubmit -d '{"session_id":"s1","cwd":"/tmp"}'
-curl -X POST localhost:4321/hooks/Stop -d '{"session_id":"s1"}'
-curl -X POST localhost:4321/hooks/SessionEnd -d '{"session_id":"s1"}'
+bun packages/cli/scripts/mock-client.ts ws://localhost:5777/v1/ws
+curl -X POST localhost:5777/hooks/UserPromptSubmit -d '{"session_id":"s1","cwd":"/tmp"}'
+curl -X POST localhost:5777/hooks/Stop -d '{"session_id":"s1"}'
+curl -X POST localhost:5777/hooks/SessionEnd -d '{"session_id":"s1"}'
 ```
 
 A session's folder is matched to a project by longest path prefix; a folder reached through a symlink is matched by its resolved path.

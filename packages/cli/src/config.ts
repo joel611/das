@@ -45,7 +45,7 @@ export function loadConfig(
       : ["~/Projects"];
   return {
     roots: roots.map((r) => expand(String(r).trim())).filter(Boolean),
-    port: Number(env.PORT || f.port || 4321),
+    port: Number(env.PORT || f.port || 5777),
     token: env.TOKEN ?? f.token ?? "",
     openrouterKey: env.OPENROUTER_API_KEY || f.openrouterKey || "",
   };

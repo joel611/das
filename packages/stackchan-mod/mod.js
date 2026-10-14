@@ -3,7 +3,7 @@ import { emotionFromName } from "face-state";
 import Timer from "timer";
 
 // Edit this to point at the stack-chan-server (use the LAN IP on a real device).
-const SERVER_URL = "ws://localhost:4321/v1/ws";
+const SERVER_URL = "ws://localhost:5777/v1/ws";
 const RETRY_MS = 3000;
 
 // server expression -> stack-chan face emotion name (see face-state.ts)

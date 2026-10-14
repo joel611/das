@@ -1,6 +1,6 @@
 # stack-chan MOD: Claude session status
 
-`mod.js` connects to `ws://localhost:4321/v1/ws` (change `SERVER_URL` at the top; use the LAN IP on a real device), sends `hello`, and maps `display.expression` to a face emotion and `display.headline` to a balloon. It retries every 3 s after a close.
+`mod.js` connects to `ws://localhost:5777/v1/ws` (change `SERVER_URL` at the top; use the LAN IP on a real device), sends `hello`, and maps `display.expression` to a face emotion and `display.headline` to a balloon. It retries every 3 s after a close.
 
 | server expression | face emotion          |
 | ----------------- | --------------------- |

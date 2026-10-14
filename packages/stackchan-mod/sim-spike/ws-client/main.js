@@ -1,7 +1,7 @@
 // Spike: can a Moddable desktop-simulator app talk to stack-chan-server over WebSocket?
 import { Client } from "websocket";
 
-const ws = new Client({ host: "127.0.0.1", port: 4322, path: "/v1/ws" });
+const ws = new Client({ host: "127.0.0.1", port: 5778, path: "/v1/ws" });
 
 ws.callback = function (message, value) {
   switch (message) {
