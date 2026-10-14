@@ -1,8 +1,7 @@
 import { useState } from "react";
 
 import { useNow } from "@/hooks/use-now";
-import { usePoll } from "@/hooks/use-poll";
-import { api } from "@/lib/api";
+import { useProjects, useSessions, useUsage } from "@/lib/queries";
 
 import { AgentsPanel, SkillsPanel } from "./agents";
 import { URGENCY } from "./hud";
@@ -11,9 +10,9 @@ import { UsagePanel } from "./usage";
 
 /** The command center: agents and their skills on the left, Jev in the middle, usage on the right. */
 export function Command() {
-  const sessions = usePoll(api.sessions, 2000);
-  const projects = usePoll(api.projects, 10_000);
-  const usage = usePoll(api.usage, 10_000);
+  const sessions = useSessions();
+  const projects = useProjects();
+  const usage = useUsage();
   const now = useNow(5000);
   const [picked, setPicked] = useState<string>();
 

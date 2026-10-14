@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
-import { api } from "@/lib/api";
+import { useVoice } from "@/lib/queries";
 import { hhmm } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Project, Session, VoiceReply } from "@/lib/types";
@@ -141,7 +141,8 @@ const newDevice = () => "jev-" + Math.random().toString(36).slice(2, 8);
 export function JevPanel({ sessions, projects }: { sessions: Session[]; projects: Project[] }) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
+  const voice = useVoice();
+  const busy = voice.isPending;
   const [dry, setDry] = useState(true);
   const [pendingReal, setPendingReal] = useState<string | null>(null);
   const [device, setDevice] = useState(newDevice);
@@ -154,15 +155,13 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
 
   async function run(text: string, isDry: boolean) {
     setMsgs((m) => [...m, { id: Date.now(), at: Date.now(), you: text }]);
-    setBusy(true);
     let reply: VoiceReply;
     try {
-      reply = await api.voice(text, device, isDry);
+      reply = await voice.mutateAsync({ text, device, dryRun: isDry });
     } catch (e) {
       reply = { status: "error", text: e instanceof Error ? e.message : String(e) };
     }
     setMsgs((m) => [...m, { id: Date.now() + 1, at: Date.now(), reply, dry: isDry }]);
-    setBusy(false);
   }
 
   function send(e: FormEvent) {

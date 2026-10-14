@@ -1,9 +1,8 @@
 import { useState } from "react";
 
 import { useNow } from "@/hooks/use-now";
-import { usePoll } from "@/hooks/use-poll";
-import { api } from "@/lib/api";
 import { clock } from "@/lib/format";
+import { useDaemonState } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { Command } from "@/views/command";
 import { Console } from "@/views/console";
@@ -53,7 +52,7 @@ function StatusChip({
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("command");
-  const state = usePoll(api.state, 2000);
+  const state = useDaemonState();
   const now = useNow(1000);
   const s = state.data;
 
