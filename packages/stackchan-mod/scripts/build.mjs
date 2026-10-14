@@ -11,19 +11,20 @@ import { fileURLToPath } from "node:url";
 
 const pkg = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
-const i = args.findIndex((a) => a === "--server-url" || a.startsWith("--server-url="));
-if (i === -1) {
-  console.error("usage: build --server-url <ws://host:port/v1/ws> [extra mod:build args]");
-  process.exit(1);
+// Strip every --server-url (the package.json script sets a default); the last one wins.
+let url;
+const rest = [];
+for (let j = 0; j < args.length; j++) {
+  const a = args[j];
+  if (a === "--server-url") url = args[++j];
+  else if (a.startsWith("--server-url=")) url = a.slice("--server-url=".length);
+  else if (a !== "--install") rest.push(a);
 }
-const eq = args[i].startsWith("--server-url=");
-const url = eq ? args[i].slice("--server-url=".length) : args[i + 1];
 if (!url) {
-  console.error("--server-url needs a value");
+  console.error("usage: build --server-url <ws://host:port/v1/ws> [--install] [extra mod:build args]");
   process.exit(1);
 }
 const install = args.includes("--install");
-const rest = args.filter((a, j) => j !== i && (eq || j !== i + 1) && a !== "--install");
 
 const src = readFileSync(join(pkg, "mod.js"), "utf8");
 const re = /^const SERVER_URL = .*;$/m;
