@@ -48,13 +48,15 @@ The workspace is a [Vite+](https://viteplus.dev) monorepo (`vite-plus` provides 
 ```sh
 bun install
 
-bun run daemon --bg      # start the daemon in the background (also: --stop, --status; no flag = foreground)
+bun run daemon --bg      # start the daemon in the background (also: --stop, --reload, --status; no flag = foreground)
 bun run desktop          # menu bar app + dashboard in dev mode (tauri dev)
 bun run dev              # daemon (watch) + tauri desktop in parallel (vp run -r --parallel dev:all)
 
 bun run test             # vp run -r test  (the daemon's bun tests)
 bun run check            # vp check: format, lint, type-check
 ```
+
+Settings live in `~/.config/das/config.yml` (override the dir with `DAS_CONFIG_DIR`). Logs are in `~/.config/das/logs/` (`ws.log` for WebSocket traffic, `api.log` for HTTP requests); `daemon.log` next to the config holds the raw output of `--bg`. `daemon --reload` re-reads the config. Details: [`packages/cli/README.md`](packages/cli/README.md).
 
 In an interactive shell `vp` may be aliased to something else; the scripts above call the project-local `vp`.
 
