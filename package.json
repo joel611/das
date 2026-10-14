@@ -9,6 +9,8 @@
     "dev": "vp run -r --parallel dev:all",
     "daemon": "bun packages/cli/src/daemon.ts",
     "desktop": "bun run --cwd packages/desktop tauri dev",
+    "mod:build": "bun run --cwd packages/stackchan-mod mod:build",
+    "mod:install": "bun run --cwd packages/stackchan-mod mod:build --install",
     "test": "vp run -r test",
     "check": "vp check",
     "ready": "vp check && vp run -r test && vp run -r build"
