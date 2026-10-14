@@ -1,5 +1,6 @@
 // Build the MOD with an overridden server URL.
-// Usage: bun run build -- --server-url ws://192.168.1.10:5777/v1/ws
+// Usage: bun run build -- --server-url ws://192.168.1.10:5777/v1/ws [--install [--port /dev/cu.usbmodemXXXX]]
+// --install flashes the built MOD to the connected device (needs esptool on PATH and a matching host).
 // Env: STACKCHAN_DIR (default ~/Developer/stack-chan), MODDABLE (required by the SDK tools).
 import { spawnSync } from "node:child_process";
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -20,7 +21,8 @@ if (!url) {
   console.error("--server-url needs a value");
   process.exit(1);
 }
-const rest = args.filter((_, j) => j !== i && (eq || j !== i + 1));
+const install = args.includes("--install");
+const rest = args.filter((a, j) => j !== i && (eq || j !== i + 1) && a !== "--install");
 
 const src = readFileSync(join(pkg, "mod.js"), "utf8");
 const re = /^const SERVER_URL = .*;$/m;
@@ -38,7 +40,7 @@ copyFileSync(join(pkg, "manifest.json"), join(tmp, "manifest.json"));
 const firmware = join(process.env.STACKCHAN_DIR ?? join(homedir(), "Developer/stack-chan"), "firmware");
 const run = spawnSync(
   "npm",
-  ["run", "mod:build", "--", join(tmp, "manifest.json"), "--mode=release", ...rest],
+  ["run", install ? "mod" : "mod:build", "--", join(tmp, "manifest.json"), "--mode=release", ...rest],
   { cwd: firmware, stdio: "inherit" },
 );
 if (run.error) {
