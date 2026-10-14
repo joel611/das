@@ -1,4 +1,6 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { LimitsTracker } from "./limits";
 
@@ -8,7 +10,8 @@ import type { LimitsTracker } from "./limits";
  * Claude Code login token. Undocumented and rate limited, so it runs at most every few minutes, only when
  * the status line has gone quiet, backs off on errors, and never refreshes or writes the token.
  *
- * Token: $CLAUDE_CODE_OAUTH_TOKEN, else the macOS Keychain item "Claude Code-credentials", else
+ * Token: $CLAUDE_CODE_OAUTH_TOKEN, else the macOS Keychain item "Claude Code-credentials" (with a
+ * "-<sha256(dir)[:8]>" suffix when CLAUDE_CONFIG_DIR points elsewhere, as Claude Code names it), else
  * `<claude dir>/.credentials.json` (both hold `claudeAiOauth.{accessToken, expiresAt}`).
  */
 
@@ -30,6 +33,14 @@ function tokenFrom(text: string, now: number): string | null {
   }
 }
 
+/** Keychain service names to try: Claude Code scopes the item by config dir when it is not ~/.claude. */
+export function keychainServices(claudeDir: string, home = homedir()): string[] {
+  const base = "Claude Code-credentials";
+  if (claudeDir === join(home, ".claude")) return [base];
+  const hash = createHash("sha256").update(claudeDir).digest("hex").slice(0, 8);
+  return [`${base}-${hash}`, base];
+}
+
 export async function readClaudeToken(
   claudeDir: string,
   now = Date.now(),
@@ -37,17 +48,16 @@ export async function readClaudeToken(
 ): Promise<string | null> {
   if (env.CLAUDE_CODE_OAUTH_TOKEN) return env.CLAUDE_CODE_OAUTH_TOKEN;
   if (process.platform === "darwin") {
-    const p = Bun.spawn(
-      ["security", "find-generic-password", "-s", "Claude Code-credentials", "-w"],
-      {
+    for (const service of keychainServices(claudeDir)) {
+      const p = Bun.spawn(["security", "find-generic-password", "-s", service, "-w"], {
         stdout: "pipe",
         stderr: "ignore",
-      },
-    );
-    const out = await new Response(p.stdout).text();
-    if ((await p.exited) === 0) {
-      const t = tokenFrom(out.trim(), now);
-      if (t) return t;
+      });
+      const out = await new Response(p.stdout).text();
+      if ((await p.exited) === 0) {
+        const t = tokenFrom(out.trim(), now);
+        if (t) return t;
+      }
     }
   }
   const file = await readFile(join(claudeDir, ".credentials.json"), "utf8").catch(() => null);

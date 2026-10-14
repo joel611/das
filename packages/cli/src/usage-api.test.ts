@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LimitsTracker } from "./limits";
-import { pollOnce, readClaudeToken, toRateLimits, USAGE_URL } from "./usage-api";
+import { keychainServices, pollOnce, readClaudeToken, toRateLimits, USAGE_URL } from "./usage-api";
 
 const T0 = Date.parse("2026-10-14T20:00:00Z");
 const M = 60_000;
@@ -115,4 +115,11 @@ test("poll: backs off on 429 (honouring retry-after) and on network errors, then
   res = ok;
   expect(await pollOnce(s.o, s.failures)).toBe(5 * M);
   expect(s.failures.n).toBe(0);
+});
+
+test("keychain item is scoped by config dir unless it is ~/.claude", () => {
+  expect(keychainServices("/h/.claude", "/h")).toEqual(["Claude Code-credentials"]);
+  const [scoped, base] = keychainServices("/h/.claude-work", "/h");
+  expect(scoped).toMatch(/^Claude Code-credentials-[0-9a-f]{8}$/);
+  expect(base).toBe("Claude Code-credentials");
 });
