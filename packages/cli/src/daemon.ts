@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { config, configDir } from "./config";
 import { scan, type Project } from "./scanner";
-import { createServer } from "./server";
+import { createServer } from "./api/server";
 import { trustAdvice } from "./trust";
 
 const dir = configDir();

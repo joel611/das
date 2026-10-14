@@ -64,3 +64,9 @@ test("a hook body that is not an object is ignored, not fatal", async () => {
   await Bun.sleep(10); // the deferred transcript read must not throw either
   expect((await fetch(`http://${base}/v1/usage?token=secret`)).status).toBe(200);
 });
+
+test("health answers without a token", async () => {
+  const res = await fetch(`http://${base}/health`);
+  expect(res.status).toBe(200);
+  expect(await res.json()).toEqual({ status: "ok" });
+});

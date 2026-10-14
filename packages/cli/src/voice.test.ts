@@ -13,7 +13,7 @@ import {
   type Decision,
 } from "./router";
 import type { Project } from "./scanner";
-import { createServer } from "./server";
+import { createServer } from "./api/server";
 import { parseId, spawnArgs, type Spawner } from "./spawner";
 import { handleTranscript, type VoiceDeps } from "./voice";
 

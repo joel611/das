@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Decider, Decision } from "./router";
 import type { Project } from "./scanner";
-import { createServer } from "./server";
+import { createServer } from "./api/server";
 import type { Spawner } from "./spawner";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
