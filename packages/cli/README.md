@@ -8,13 +8,13 @@ bun run daemon --stop
 bun run test              # bun tests for this package
 ```
 
-Settings dir: `~/Library/Application Support/stack-chan-server/` (or `$STACKCHAN_CONFIG_DIR`) holds `config.json`, `daemon.pid` and `daemon.log`.
+Settings dir: `~/.config/das/` (or `$DAS_CONFIG_DIR`) holds `config.yml`, `daemon.pid` and `daemon.log`.
 
 The daemon does not need the desktop app. The desktop app does not own the daemon: it shows its status and talks to it over the API below.
 
 ## Settings
 
-`config.json` (mode 0600): `{roots, port, token, openrouterKey}`. Precedence: env (`PROJECT_ROOTS`, `PORT`, `TOKEN`, `OPENROUTER_API_KEY`) over the file over defaults. Token and OpenRouter key are write-only in the API (`hasToken`, `hasOpenrouterKey`). A root change rescans at once; a token change applies at once; a port change replies `restartRequired: true` and needs `daemon --stop` then `--bg`.
+`config.yml` (YAML, mode 0600): keys `roots`, `port`, `token`, `openrouterKey`. Precedence: env (`PROJECT_ROOTS`, `PORT`, `TOKEN`, `OPENROUTER_API_KEY`) over the file over defaults. Token and OpenRouter key are write-only in the API (`hasToken`, `hasOpenrouterKey`). A root change rescans at once; a token change applies at once; a port change replies `restartRequired: true` and needs `daemon --stop` then `--bg`.
 
 ## WebSocket protocol
 

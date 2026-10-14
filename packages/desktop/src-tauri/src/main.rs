@@ -13,19 +13,19 @@ use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
 
 const DEFAULT_PORT: u16 = 5777;
 
-// ---- settings (same file and precedence as the daemon: env > file > default) ----
+// ---- settings (same file and precedence as the daemon: env > file > default). Read-only: only the daemon writes config.yml. ----
 
 fn config_dir() -> PathBuf {
-    match std::env::var("STACKCHAN_CONFIG_DIR") {
+    match std::env::var("DAS_CONFIG_DIR") {
         Ok(d) if !d.is_empty() => PathBuf::from(d),
-        _ => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join("Library/Application Support/stack-chan-server"),
+        _ => PathBuf::from(std::env::var("HOME").unwrap_or_default()).join(".config/das"),
     }
 }
 
 fn port_and_token() -> (u16, String) {
-    let file: Value = std::fs::read_to_string(config_dir().join("config.json"))
+    let file: Value = std::fs::read_to_string(config_dir().join("config.yml"))
         .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
+        .and_then(|s| serde_yaml::from_str::<Value>(&s).ok())
         .unwrap_or(Value::Null);
     let port = std::env::var("PORT")
         .ok()

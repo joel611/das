@@ -7,25 +7,41 @@ export type Config = { roots: string[]; port: number; token: string; openrouterK
 const expand = (p: string) => (p.startsWith("~") ? homedir() + p.slice(1) : p);
 
 export const configDir = (env: Record<string, string | undefined> = process.env) =>
-  env.STACKCHAN_CONFIG_DIR ||
-  join(homedir(), "Library", "Application Support", "stack-chan-server");
+  env.DAS_CONFIG_DIR || join(homedir(), ".config", "das");
 
-/** Raw persisted settings (what the user saved; env overrides are not included). */
+const FILE = "config.yml";
+
+/**
+ * Raw persisted settings (what the user saved; env overrides are not included).
+ * A missing file is `{}`; a file that exists but is not a YAML mapping throws, naming the file.
+ */
 export function readSettingsFile(dir = configDir()): Partial<Config> {
+  const file = join(dir, FILE);
+  let text: string;
   try {
-    const j = JSON.parse(readFileSync(join(dir, "config.json"), "utf8"));
-    return j && typeof j === "object" ? j : {};
-  } catch {
-    return {};
+    text = readFileSync(file, "utf8");
+  } catch (e: any) {
+    if (e?.code === "ENOENT") return {};
+    throw new Error(`cannot read ${file}: ${e?.message ?? e}`);
   }
+  let doc: unknown;
+  try {
+    doc = Bun.YAML.parse(text);
+  } catch (e: any) {
+    throw new Error(`malformed ${file}: ${e?.message ?? e}`);
+  }
+  if (doc === null || doc === undefined) return {};
+  if (typeof doc !== "object" || Array.isArray(doc))
+    throw new Error(`malformed ${file}: expected a mapping of settings`);
+  return doc as Partial<Config>;
 }
 
-/** Merge a patch into the settings file (mode 0600, atomic). */
+/** Merge a patch into the settings file (mode 0600, atomic). Comments in the file are dropped. */
 export function writeSettingsFile(patch: Partial<Config>, dir = configDir()) {
   mkdirSync(dir, { recursive: true });
-  const file = join(dir, "config.json");
+  const file = join(dir, FILE);
   const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify({ ...readSettingsFile(dir), ...patch }, null, 2) + "\n", {
+  writeFileSync(tmp, Bun.YAML.stringify({ ...readSettingsFile(dir), ...patch }, null, 2) + "\n", {
     mode: 0o600,
   });
   chmodSync(tmp, 0o600);
