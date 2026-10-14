@@ -1,5 +1,5 @@
 // Build the MOD with an overridden server URL.
-// Usage: bun run build -- --server-url ws://192.168.1.10:5777/v1/ws [--install [--port /dev/cu.usbmodemXXXX]]
+// Usage: bun run mod:build -- --server-url ws://192.168.1.10:5777/v1/ws [--install [--port /dev/cu.usbmodemXXXX]]
 // --install flashes the built MOD to the connected device (needs esptool on PATH and a matching host).
 // Env: STACKCHAN_DIR (default ~/Developer/stack-chan), MODDABLE (default ~/.local/share/moddable-9.0.0).
 // --install picks the only /dev/cu.usbmodem* port when --port is omitted.
@@ -21,7 +21,7 @@ for (let j = 0; j < args.length; j++) {
   else if (a !== "--install") rest.push(a);
 }
 if (!url) {
-  console.error("usage: build --server-url <ws://host:port/v1/ws> [--install] [extra mod:build args]");
+  console.error("usage: mod:build --server-url <ws://host:port/v1/ws> [--install] [extra mod:build args]");
   process.exit(1);
 }
 const install = args.includes("--install");
