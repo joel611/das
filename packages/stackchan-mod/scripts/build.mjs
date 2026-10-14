@@ -2,7 +2,7 @@
 // Usage: bun run build -- --server-url ws://192.168.1.10:5777/v1/ws
 // Env: STACKCHAN_DIR (default ~/Developer/stack-chan), MODDABLE (required by the SDK tools).
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -29,7 +29,9 @@ if (!re.test(src)) {
   process.exit(1);
 }
 
-const tmp = mkdtempSync(join(tmpdir(), "stackchan-mod-"));
+// The archive is named after the manifest's directory, so keep that name fixed.
+const tmp = join(mkdtempSync(join(tmpdir(), "stackchan-mod-")), "stackchan-mod");
+mkdirSync(tmp);
 writeFileSync(join(tmp, "mod.js"), src.replace(re, () => `const SERVER_URL = ${JSON.stringify(url)};`));
 copyFileSync(join(pkg, "manifest.json"), join(tmp, "manifest.json"));
 
