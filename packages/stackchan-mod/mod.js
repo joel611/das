@@ -9,9 +9,11 @@ const RETRY_MS = 3000;
 const CONNECT_TIMEOUT_MS = 5000;
 // Consecutive failed attempts before the Link state becomes "failed".
 const FAIL_AFTER = 3;
-// Head sweep while connecting: sinusoid +-PAN_RAD, one full left-right-left
-// cycle per SWEEP_PERIOD_MS, sent as small steps so the servo moves smoothly.
-const PAN_RAD = 0.35;
+// Head tilt. Pan stays centred. Connecting nods between 0 and TILT_UP_RAD,
+// one full cycle per SWEEP_PERIOD_MS, sent as small steps so the servo moves
+// smoothly. Failed rests at 0; connected (idle) holds TILT_UP_RAD.
+// Pose pitch is positive when looking down, so "up" is negated when sent.
+const TILT_UP_RAD = (20 * Math.PI) / 180;
 const SWEEP_PERIOD_MS = 10000;
 const SWEEP_STEP_MS = 200;
 const CONNECTING_LIGHT = { mode: "blink", rgb: [0, 0, 255], periodMs: 500 };
@@ -61,17 +63,27 @@ function onContextCreated(robot, _option) {
     }
   }
 
-  function pan(y, seconds) {
-    robot.motion.setPose({ rotation: { y, p: 0, r: 0 } }, seconds).catch((e) => trace(`pan failed: ${e}\n`));
+  function tilt(up, seconds) {
+    robot.motion.setPose({ rotation: { y: 0, p: -up, r: 0 } }, seconds).catch((e) => trace(`tilt failed: ${e}\n`));
   }
 
   function stopSweep() {
     if (sweep === undefined) return;
     Timer.clear(sweep);
     sweep = undefined;
-    pan(0, 0.5);
-    // Let the move finish, then release torque like the stock motion controller.
-    Timer.set(() => robot.motion.setTorque(false).catch(() => {}), 600);
+  }
+
+  // Move to a fixed tilt and stay there. Torque stays on unless resting at 0,
+  // where it is released after the move like the stock motion controller.
+  function settleTilt(up) {
+    stopSweep();
+    robot.motion
+      .setTorque(true)
+      .then(() => {
+        tilt(up, 0.5);
+        if (up === 0) Timer.set(() => robot.motion.setTorque(false).catch(() => {}), 600);
+      })
+      .catch((e) => trace(`torque failed: ${e}\n`));
   }
 
   function startSweep() {
@@ -80,11 +92,10 @@ function onContextCreated(robot, _option) {
     robot.motion
       .setTorque(true)
       .then(() => {
-        if (link !== "connecting") return robot.motion.setTorque(false);
-        if (sweep !== undefined) return;
+        if (link !== "connecting" || sweep !== undefined) return;
         sweep = Timer.repeat(() => {
           const phase = ((Date.now() - t0) / SWEEP_PERIOD_MS) * 2 * Math.PI;
-          pan(PAN_RAD * Math.sin(phase), (SWEEP_STEP_MS * 1.5) / 1000);
+          tilt((TILT_UP_RAD * (1 - Math.cos(phase))) / 2, (SWEEP_STEP_MS * 1.5) / 1000);
         }, SWEEP_STEP_MS);
       })
       .catch((e) => trace(`torque failed: ${e}\n`));
@@ -95,7 +106,7 @@ function onContextCreated(robot, _option) {
     if (next === link) return;
     link = next;
     if (link === "connected") {
-      stopSweep();
+      settleTilt(TILT_UP_RAD);
       robot.face.setEyeOpen("left", 1);
       robot.face.setEyeOpen("right", 1);
       return;
@@ -107,7 +118,7 @@ function onContextCreated(robot, _option) {
       robot.face.setEmotion(emotionFromName("NEUTRAL"));
       startSweep();
     } else {
-      stopSweep();
+      settleTilt(0);
       setLight(FAILED_LIGHT);
       // Closest built-in to X X eyes and ^ mouth: closed eyes, happy.
       robot.face.setEmotion(emotionFromName("HAPPY"));
