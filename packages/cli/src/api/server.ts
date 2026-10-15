@@ -1,11 +1,12 @@
 import type { Server } from "bun";
 import { Hono, type Context } from "hono";
-import { statSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { envOverrides, loadConfig, writeSettingsFile, type Config } from "../config";
 import { computeDisplay } from "../display";
 import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
+import { installOmp, ompStatus, uninstallOmp } from "../omp-extension";
 import type { Project } from "../scanner";
 import { emit, LogHub, type Logs } from "../logs";
 import { jevDecider, type Decider } from "../router";
@@ -33,6 +34,8 @@ type Opts = {
   /** Admin API: settings dir and Claude config dir. Without them the matching endpoints answer 501 (never guess a real path). */
   configDir?: string;
   claudeDir?: string;
+  /** oh-my-pi agent dir. Hook install also manages the das extension there, but only when this dir exists (omp is installed). */
+  ompDir?: string;
   /** Called with the new effective config after a settings save. */
   onSettings?: (c: Config) => void;
   /** Log sinks for api.log / ws.log. Omitted sinks log nothing (tests stay off the real log dir). */
@@ -91,6 +94,7 @@ export function createServer({
   decisionsLog,
   configDir,
   claudeDir,
+  ompDir,
   onSettings,
   logs: sinks = {},
   trusted = cachedTrusted,
@@ -192,26 +196,42 @@ export function createServer({
     onSettings?.(next);
     return c.json({ ...settingsView(), restartRequired: next.port !== boundPort });
   });
-  const hooksRoute = (run: (dir: string, port: number) => unknown) => (c: Context) => {
-    if (!claudeDir) return c.text("claude dir not configured", 501);
-    const port = configDir ? loadConfig(configDir).port : boundPort;
-    try {
-      return c.json(run(claudeDir, port));
-    } catch (e) {
-      return c.json({ error: String(e instanceof Error ? e.message : e) }, 500);
-    }
-  };
+  const hooksRoute =
+    (
+      run: (dir: string, port: number) => unknown,
+      omp: (dir: string, port: number) => unknown,
+    ) =>
+    (c: Context) => {
+      if (!claudeDir) return c.text("claude dir not configured", 501);
+      const port = configDir ? loadConfig(configDir).port : boundPort;
+      try {
+        const res: any = run(claudeDir, port);
+        if (ompDir && existsSync(ompDir)) res.omp = omp(ompDir, port);
+        return c.json(res);
+      } catch (e) {
+        return c.json({ error: String(e instanceof Error ? e.message : e) }, 500);
+      }
+    };
   admin.get(
     "/hooks",
-    hooksRoute((claudeDir, port) => hooksStatus({ claudeDir, port })),
+    hooksRoute(
+      (claudeDir, port) => hooksStatus({ claudeDir, port }),
+      (ompDir, port) => ompStatus({ ompDir, port }),
+    ),
   );
   admin.post(
     "/hooks/install",
-    hooksRoute((claudeDir, port) => installHooks({ claudeDir, port })),
+    hooksRoute(
+      (claudeDir, port) => installHooks({ claudeDir, port }),
+      (ompDir, port) => installOmp({ ompDir, port }),
+    ),
   );
   admin.delete(
     "/hooks",
-    hooksRoute((claudeDir) => uninstallHooks({ claudeDir })),
+    hooksRoute(
+      (claudeDir) => uninstallHooks({ claudeDir }),
+      (ompDir) => uninstallOmp({ ompDir }),
+    ),
   );
   app.route("/admin", admin);
 

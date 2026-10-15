@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { configDir, loadConfig, reloadConfig, readSettingsFile, writeSettingsFile } from "./config";
@@ -120,6 +120,7 @@ test("DAS_CONFIG_DIR selects the config dir; default is ~/.config/das", () => {
 const setup = (token = "") => {
   const configDir = mk("cfg-" + Math.random().toString(36).slice(2));
   const claudeDir = mk("claude-" + Math.random().toString(36).slice(2));
+  const ompDir = mk("omp-" + Math.random().toString(36).slice(2));
   const projects: Project[] = [
     { id: "/p/a", name: "a", path: "/p/a", worktrees: [] },
     { id: "/p/b", name: "b", path: "/p/b", worktrees: [] },
@@ -131,10 +132,11 @@ const setup = (token = "") => {
     getProjects: () => projects,
     configDir,
     claudeDir,
+    ompDir,
     trusted: () => ["/p/a"],
     onSettings: (c) => changed.push(c),
   });
-  return { server, configDir, claudeDir, changed, base: `http://127.0.0.1:${server.port}` };
+  return { server, configDir, claudeDir, ompDir, changed, base: `http://127.0.0.1:${server.port}` };
 };
 const json = (method: string, body?: unknown, headers: Record<string, string> = {}) => ({
   method,
@@ -197,16 +199,20 @@ test("settings API: validation, secrets write-only, restartRequired, onSettings"
 });
 
 test("admin auth, 501 without dirs, hooks endpoints use the given claudeDir", async () => {
-  const { server, claudeDir, base } = setup("s3");
+  const { server, claudeDir, ompDir, base } = setup("s3");
   expect((await fetch(`${base}/admin/hooks`)).status).toBe(401);
   const auth = { authorization: "Bearer s3" };
   let j: any = await (await fetch(`${base}/admin/hooks`, { headers: auth })).json();
   expect(j.state).toBe("missing");
   j = await (await fetch(`${base}/admin/hooks/install`, json("POST", undefined, auth))).json();
   expect(j.state).toBe("installed");
+  expect(j.omp.state).toBe("installed");
   expect(readFileSync(join(claudeDir, "settings.json"), "utf8")).toContain("/hooks/SessionEnd");
+  expect(j.omp.portMatches).toBe(true);
+  expect(existsSync(join(ompDir, "extensions/das-session.ts"))).toBe(true);
   j = await (await fetch(`${base}/admin/hooks`, json("DELETE", undefined, auth))).json();
   expect(j.state).toBe("missing");
+  expect(j.omp.state).toBe("missing");
   expect((await fetch(`${base}/admin/nope`, { headers: auth })).status).toBe(404);
   server.stop(true);
 

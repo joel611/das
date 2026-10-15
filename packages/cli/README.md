@@ -131,3 +131,7 @@ Adds one command hook per event (`SessionStart`, `UserPromptSubmit`, `PreToolUse
 - Additive: your existing hooks and all other keys stay. Our entry is a new matcher group (no `matcher`, so it matches all).
 - Marker: every command ends with `# stack-chan-server`. Install is idempotent (re-install updates the port, no duplicates). Uninstall removes only marked entries and the groups or events it emptied.
 - Safe write: the path is resolved with `realpath` (a symlinked `~/.claude` or `settings.json` stays a symlink), a `settings.json.bak-<timestamp>` copy is made before each change, and the new file is written to a temp file in the same directory and renamed onto the target. A file that is not valid JSON is refused and left alone. Nothing is written when nothing changes.
+
+### oh-my-pi (omp)
+
+When the omp agent dir exists (`~/.omp/agent`, or `$PI_CODING_AGENT_DIR`), install also writes `extensions/das-session.ts` there, and uninstall removes it. The extension maps omp events onto the same `/hooks/<Event>` endpoint: `session_start` -> `SessionStart`, `agent_start` -> `UserPromptSubmit`, `tool_execution_start` -> `PreToolUse`, `tool_approval_requested` -> `Notification`, `agent_end` (unless `willContinue`) -> `Stop`, `session_shutdown` -> `SessionEnd`. Nested omp sessions (`OMPCODE=1`) are skipped. The `/admin/hooks` responses gain an `omp: {state, portMatches, port}` field when omp is present. Skill counts and usage are not reported for omp sessions (no `transcript_path`).
