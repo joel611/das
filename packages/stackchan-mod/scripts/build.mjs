@@ -1,10 +1,17 @@
 // Build the MOD with an overridden server URL.
 // Usage: bun run mod:build -- --server-url ws://192.168.1.10:5777/v1/ws [--install [--port /dev/cu.usbmodemXXXX]]
 // --install flashes the built MOD to the connected device (needs esptool on PATH and a matching host).
-// Env: STACKCHAN_DIR (default ~/Developer/stack-chan), MODDABLE (default ~/.local/share/moddable-9.0.0).
+// Env: STACKCHAN_DIR (default <repo>/vendor/stack-chan, cloned by the root postinstall), MODDABLE (default ~/.local/share/moddable-9.0.0).
 // --install picks the only /dev/cu.usbmodem* port when --port is omitted.
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,7 +28,9 @@ for (let j = 0; j < args.length; j++) {
   else if (a !== "--install") rest.push(a);
 }
 if (!url) {
-  console.error("usage: mod:build --server-url <ws://host:port/v1/ws> [--install] [extra mod:build args]");
+  console.error(
+    "usage: mod:build --server-url <ws://host:port/v1/ws> [--install] [extra mod:build args]",
+  );
   process.exit(1);
 }
 const install = args.includes("--install");
@@ -36,10 +45,16 @@ if (!re.test(src)) {
 // The archive is named after the manifest's directory, so keep that name fixed.
 const tmp = join(mkdtempSync(join(tmpdir(), "stackchan-mod-")), "stackchan-mod");
 mkdirSync(tmp);
-writeFileSync(join(tmp, "mod.js"), src.replace(re, () => `const SERVER_URL = ${JSON.stringify(url)};`));
+writeFileSync(
+  join(tmp, "mod.js"),
+  src.replace(re, () => `const SERVER_URL = ${JSON.stringify(url)};`),
+);
 copyFileSync(join(pkg, "manifest.json"), join(tmp, "manifest.json"));
 
-const firmware = join(process.env.STACKCHAN_DIR ?? join(homedir(), "Developer/stack-chan"), "firmware");
+const firmware = join(
+  process.env.STACKCHAN_DIR ?? resolve(pkg, "../../vendor/stack-chan"),
+  "firmware",
+);
 
 // The SDK must match the host version on the device (9.0.0 here), so default to it.
 const moddable = process.env.MODDABLE ?? join(homedir(), ".local/share/moddable-9.0.0");
@@ -61,7 +76,14 @@ if (install && !rest.some((a) => a === "--port" || a.startsWith("--port="))) {
 
 const run = spawnSync(
   "npm",
-  ["run", install ? "mod" : "mod:build", "--", join(tmp, "manifest.json"), "--mode=release", ...rest],
+  [
+    "run",
+    install ? "mod" : "mod:build",
+    "--",
+    join(tmp, "manifest.json"),
+    "--mode=release",
+    ...rest,
+  ],
   { cwd: firmware, stdio: "inherit", env },
 );
 if (run.error) {
