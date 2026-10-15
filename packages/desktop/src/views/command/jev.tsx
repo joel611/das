@@ -17,11 +17,13 @@ import { useJevStyle } from "@/lib/jev-style";
 
 import { AsciiOrb, AsciiScope } from "./jev-ascii";
 
-type Msg = { id: number; at: number } & ({ you: string } | { reply: VoiceReply; dry: boolean });
+type Msg = { id: number; at: number } & (
+  { you: string } | { reply: VoiceReply; dry: boolean }
+);
 
 const HEIGHTS = [
-  6, 10, 16, 22, 14, 28, 18, 30, 12, 24, 32, 20, 10, 26, 34, 22, 14, 30, 18, 26, 12, 20, 28, 16, 10,
-  22, 14, 18, 8, 12, 6, 10,
+  6, 10, 16, 22, 14, 28, 18, 30, 12, 24, 32, 20, 10, 26, 34, 22, 14, 30, 18, 26,
+  12, 20, 28, 16, 10, 22, 14, 18, 8, 12, 6, 10,
 ];
 
 const STATUS_TONE: Record<VoiceReply["status"], string> = {
@@ -41,7 +43,14 @@ function Orb({ hot }: { hot: boolean }) {
       aria-label="Jev status orb"
     >
       <g className="hud-spin-slow">
-        <circle cx="150" cy="150" r="146" fill="none" stroke={hud["hud-ring"]} strokeWidth="1" />
+        <circle
+          cx="150"
+          cy="150"
+          r="146"
+          fill="none"
+          stroke={hud["hud-ring"]}
+          strokeWidth="1"
+        />
         <circle
           cx="150"
           cy="150"
@@ -154,13 +163,19 @@ function RouteCard({ r }: { r: VoiceReply }) {
         PROJECT <span className="text-hud-ink">{project ?? "none"}</span>
       </span>
       <span className="text-hud-dim">
-        CONFIDENCE <span className="text-neon-green">{d ? d.confidence.toFixed(2) : "-"}</span>
+        CONFIDENCE{" "}
+        <span className="text-neon-green">
+          {d ? d.confidence.toFixed(2) : "-"}
+        </span>
       </span>
       <span className="truncate text-hud-dim">
         WORKTREE <span className="text-hud-ink">{d ? worktree : "-"}</span>
       </span>
       <span className="text-hud-dim">
-        STATUS <span className={cn("uppercase", STATUS_TONE[r.status])}>{r.status}</span>
+        STATUS{" "}
+        <span className={cn("uppercase", STATUS_TONE[r.status])}>
+          {r.status}
+        </span>
       </span>
     </div>
   );
@@ -170,7 +185,13 @@ const AUTO = "auto";
 
 const newDevice = () => "jev-" + Math.random().toString(36).slice(2, 8);
 
-export function JevPanel({ sessions, projects }: { sessions: Session[]; projects: Project[] }) {
+export function JevPanel({
+  sessions,
+  projects,
+}: {
+  sessions: Session[];
+  projects: Project[];
+}) {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [draft, setDraft] = useState("");
   const voice = useVoice();
@@ -190,12 +211,20 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
     setMsgs((m) => [...m, { id: Date.now(), at: Date.now(), you: text }]);
     let reply: VoiceReply;
     try {
-      const hinted = project ? `Start a session in ${project} to ${text}` : text;
+      const hinted = project
+        ? `Start a session in ${project} to ${text}`
+        : text;
       reply = await voice.mutateAsync({ text: hinted, device, dryRun: isDry });
     } catch (e) {
-      reply = { status: "error", text: e instanceof Error ? e.message : String(e) };
+      reply = {
+        status: "error",
+        text: e instanceof Error ? e.message : String(e),
+      };
     }
-    setMsgs((m) => [...m, { id: Date.now() + 1, at: Date.now(), reply, dry: isDry }]);
+    setMsgs((m) => [
+      ...m,
+      { id: Date.now() + 1, at: Date.now(), reply, dry: isDry },
+    ]);
   }
 
   function send(e: FormEvent) {
@@ -221,7 +250,9 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
 
   const projectItems = [AUTO, ...projects.map((p) => p.name)];
   const running = sessions.filter((s) => s.state === "running").length;
-  const needsYou = sessions.filter((s) => s.state === "waiting" || s.state === "error").length;
+  const needsYou = sessions.filter(
+    (s) => s.state === "waiting" || s.state === "error",
+  ).length;
 
   return (
     <section
@@ -231,9 +262,17 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
       <div className="flex items-center justify-between border-b border-hud-rule px-5 py-3.5 font-mono text-[11px] tracking-[.12em] text-hud-dim">
         <span>JEV // VOICE ROUTER</span>
         <span
-          className={cn("flex items-center gap-2", busy ? "text-neon-amber" : "text-neon-green")}
+          className={cn(
+            "flex items-center gap-2",
+            busy ? "text-neon-amber" : "text-neon-green",
+          )}
         >
-          <span className={cn("hud-blink size-1.5", busy ? "bg-neon-amber" : "bg-neon-green")} />
+          <span
+            className={cn(
+              "hud-blink size-1.5",
+              busy ? "bg-neon-amber" : "bg-neon-green",
+            )}
+          />
           {busy ? "ROUTING" : "STANDBY"}
         </span>
       </div>
@@ -267,13 +306,16 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
       >
         {msgs.length === 0 ? (
           <p className="m-0 font-mono text-xs text-hud-faint">
-            Tell Jev what to start, as you would say it to the robot. Dry run is on: Jev decides,
-            nothing starts.
+            Tell Jev what to start, as you would say it to the robot. Dry run is
+            on: Jev decides, nothing starts.
           </p>
         ) : null}
         {msgs.map((m) =>
           "you" in m ? (
-            <div key={m.id} className="flex max-w-[560px] flex-col items-end gap-1.5 self-end">
+            <div
+              key={m.id}
+              className="flex max-w-[560px] flex-col items-end gap-1.5 self-end"
+            >
               <span className="font-mono text-[10px] tracking-[.14em] text-hud-faint">
                 YOU · {hhmm(m.at)}
               </span>
@@ -294,7 +336,9 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
                 <span
                   className={cn(
                     "font-hud text-[15px] leading-normal select-text",
-                    m.reply.status === "error" ? "text-neon-pink" : "text-hud-text",
+                    m.reply.status === "error"
+                      ? "text-neon-pink"
+                      : "text-hud-text",
                   )}
                 >
                   {m.reply.text}
@@ -319,8 +363,8 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
             className="flex flex-col gap-2 border border-neon-magenta bg-neon-magenta/10 px-3 py-2.5 font-mono text-xs text-hud-hot-ink"
           >
             <span>
-              Send for real? This starts a Claude session in auto mode in an isolated worktree:{" "}
-              <q className="text-hud-ink">{pendingReal}</q>
+              Send for real? This starts a Claude session in auto mode in an
+              isolated worktree: <q className="text-hud-ink">{pendingReal}</q>
             </span>
             <span className="flex gap-2">
               <button
@@ -340,34 +384,40 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
             </span>
           </div>
         ) : null}
-          <div className="flex items-center gap-1.5">
-            PROJECT
-            <Combobox
-              items={projectItems}
-              value={project || AUTO}
-              onValueChange={(v) => {
-                setProject(!v || v === AUTO ? "" : v);
-                setPendingReal(null);
-              }}
-            >
-              <ComboboxInput className="w-44 font-mono text-[11px]" placeholder="auto" />
-              <ComboboxContent>
-                <ComboboxEmpty>No project</ComboboxEmpty>
-                <ComboboxList>
-                  {(item: string) => (
-                    <ComboboxItem key={item} value={item}>
-                      {item}
-                    </ComboboxItem>
-                  )}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-          </div>
+        <div className="flex items-center gap-2 font-mono text-[10px] tracking-[.1em] text-hud-faint">
+          PROJECT
+          <Combobox
+            items={projectItems}
+            value={project || AUTO}
+            onValueChange={(v) => {
+              setProject(!v || v === AUTO ? "" : v);
+              setPendingReal(null);
+            }}
+          >
+            <ComboboxInput
+              className="w-44 font-mono text-[11px]"
+              placeholder="auto"
+            />
+            <ComboboxContent>
+              <ComboboxEmpty>No project</ComboboxEmpty>
+              <ComboboxList>
+                {(item: string) => (
+                  <ComboboxItem key={item} value={item}>
+                    {item}
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </div>
         <form
           onSubmit={send}
           className="flex items-center gap-2 border border-hud-edge bg-hud-surface py-1.5 pr-1.5 pl-4 focus-within:border-neon-cyan focus-within:shadow-[0_0_0_1px_var(--theme-neon-cyan),0_0_24px_color-mix(in_srgb,var(--theme-neon-cyan)_25%,transparent)]"
         >
-          <span aria-hidden="true" className="font-mono font-bold text-neon-magenta">
+          <span
+            aria-hidden="true"
+            className="font-mono font-bold text-neon-magenta"
+          >
             &gt;
           </span>
           <label htmlFor="jev-cmd" className="sr-only">
@@ -421,7 +471,9 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
               className="accent-neon-cyan"
             />
             DRY RUN{" "}
-            <span className={dry ? "text-neon-cyan" : "text-neon-pink"}>{dry ? "ON" : "OFF"}</span>
+            <span className={dry ? "text-neon-cyan" : "text-neon-pink"}>
+              {dry ? "ON" : "OFF"}
+            </span>
           </label>
           <button
             type="button"
@@ -434,7 +486,9 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
           >
             NEW CONVERSATION
           </button>
-          <span>routes to the best-matching project, spawns in an isolated worktree</span>
+          <span>
+            routes to the best-matching project, spawns in an isolated worktree
+          </span>
         </div>
       </div>
     </section>
