@@ -86,6 +86,7 @@ function onContextCreated(robot, _option) {
     lastHeadline = undefined;
     robot.hideBalloon();
     if (link === "connecting") {
+      settleTilt(IDLE_TILT_UP_RAD);
       setLight(CONNECTING_LIGHT);
       robot.face.setEmotion(emotionFromName("NEUTRAL"));
     } else {
