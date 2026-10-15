@@ -12,7 +12,9 @@ export type OmpStatus = {
 
 const fileOf = (ompDir: string) => join(ompDir, "extensions", "das-session.ts");
 
-export const extensionSource = (port: number) => `// ${MARKER}: managed by das, reinstall overwrites this file
+export const extensionSource = (
+  port: number,
+) => `// ${MARKER}: managed by das, reinstall overwrites this file
 // @ts-nocheck
 const URL_ = "http://127.0.0.1:${port}/hooks/";
 
