@@ -1,13 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { configDir, loadConfig, reloadConfig, readSettingsFile, writeSettingsFile } from "./config";
 import { createServer } from "./api/server";
 import type { Project } from "./scanner";
 
-const TMP = "/Users/joel.chan/.claude/jobs/f23bdb0a/tmp";
-mkdirSync(TMP, { recursive: true });
-const root = mkdtempSync(join(TMP, "admin-"));
+const root = mkdtempSync(join(tmpdir(), "admin-"));
 const VARS = ["PROJECT_ROOTS", "PORT", "TOKEN", "OPENROUTER_API_KEY"];
 const saved = VARS.map((k) => process.env[k]);
 beforeAll(() => VARS.forEach((k) => delete process.env[k]));
