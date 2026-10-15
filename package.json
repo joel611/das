@@ -6,6 +6,7 @@
   ],
   "type": "module",
   "scripts": {
+    "postinstall": "node scripts/vendor-stack-chan.mjs",
     "dev": "vp run -r --parallel dev:all",
     "daemon": "bun packages/cli/src/daemon.ts",
     "desktop": "bun run --cwd packages/desktop tauri dev",

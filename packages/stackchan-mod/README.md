@@ -30,13 +30,13 @@ export MODDABLE=~/.local/share/moddable-9.0.0
 export PATH=$MODDABLE/build/bin/mac/release:$PATH
 make -C $MODDABLE/build/makefiles/mac
 
-git clone --depth 1 -b develop https://github.com/stack-chan/stack-chan.git ~/Developer/stack-chan
-cd ~/Developer/stack-chan/firmware && npm ci
+bun install   # repo root: postinstall clones/pulls stack-chan into vendor/stack-chan (gitignored)
+cd vendor/stack-chan/firmware && npm ci
 npm run mod:build -- <this-repo>/packages/stackchan-mod/manifest.json --mode=release
 # -> firmware/dist/bin/esp32/release/stackchan-mod/stackchan-mod.xsa (2 KB)
 ```
 
-To override the server URL without editing `mod.js`, use the package script (set `STACKCHAN_DIR` if stack-chan is not at `~/Developer/stack-chan`). It is named `mod:build`, not `build`, so `vp run -r build` / `bun run ready` do not need Moddable:
+To override the server URL without editing `mod.js`, use the package script (it always uses `vendor/stack-chan`). It is named `mod:build`, not `build`, so `vp run -r build` / `bun run ready` do not need Moddable:
 
 ```sh
 bun run mod:build -- --server-url ws://192.168.1.10:5777/v1/ws   # -> dist/stackchan-mod.xsa (gitignored)
@@ -73,7 +73,7 @@ Only the SDK tools are needed; no ESP-IDF or Emscripten for building a MOD. Inst
 ## Browser simulator
 
 ```sh
-cd ~/Developer/stack-chan/web && npm ci
+cd vendor/stack-chan/web && npm ci
 # the simulator needs mc.js / mc.wasm; fetch the published ones instead of building with Emscripten
 curl -fo simulator/mc.js   https://stack-chan.github.io/stack-chan/web/simulator/mc.js
 curl -fo simulator/mc.wasm https://stack-chan.github.io/stack-chan/web/simulator/mc.wasm
