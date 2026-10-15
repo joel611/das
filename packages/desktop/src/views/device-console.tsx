@@ -23,7 +23,11 @@ export function DeviceConsole() {
     if (!inTauri) return;
     const subs = [
       listen<string>("device-log", (e) => {
-        const line = { id: id.current++, time: new Date().toISOString().slice(11, 23), text: e.payload };
+        const line = {
+          id: id.current++,
+          time: new Date().toISOString().slice(11, 23),
+          text: e.payload,
+        };
         setLines((old) => [...old, line].slice(-KEEP));
       }),
       listen<string>("device-status", (e) => setStatus(e.payload)),
@@ -37,7 +41,8 @@ export function DeviceConsole() {
     end.current?.scrollIntoView({ block: "end" });
   }, [lines.length]);
 
-  if (!inTauri) return <p className="text-muted-foreground">Device console needs the desktop app.</p>;
+  if (!inTauri)
+    return <p className="text-muted-foreground">Device console needs the desktop app.</p>;
 
   const toggle = async () => {
     await invoke(on ? "serial_stop" : "serial_start");

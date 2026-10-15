@@ -97,11 +97,11 @@ The USB port is exclusive: stop `device:logs` (and the desktop Serial tab) befor
 
 Where logs live:
 
-| Log                            | Location                                                                                                              |
-| ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| Device log (USB serial)        | No file. `device:logs` prints to stdout (timestamped; notices go to stderr); redirect it yourself as above.           |
-| Daemon WebSocket / HTTP traffic | `~/.config/das/logs/ws.log`, `~/.config/das/logs/api.log` (symlinks to `ws/current.log`, `api/current.log`)           |
-| Daemon raw output (`--bg`)     | `~/.config/das/daemon.log` (config dir is `DAS_CONFIG_DIR` if set)                                                    |
+| Log                             | Location                                                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Device log (USB serial)         | No file. `device:logs` prints to stdout (timestamped; notices go to stderr); redirect it yourself as above. |
+| Daemon WebSocket / HTTP traffic | `~/.config/das/logs/ws.log`, `~/.config/das/logs/api.log` (symlinks to `ws/current.log`, `api/current.log`) |
+| Daemon raw output (`--bg`)      | `~/.config/das/daemon.log` (config dir is `DAS_CONFIG_DIR` if set)                                          |
 
 To see whether the device reached the daemon, compare the device log (`ws open`, `ws closed`, `ws connect timeout`) with `ws.log`.
 

@@ -30,7 +30,13 @@ const LIGHT: Record<SessionState, Light> = {
 
 export function computeDisplay(sessions: Pick<Session, "state">[]): Display {
   const state = PRIORITY.find((s) => sessions.some((x) => x.state === s)) ?? "idle";
-  if (state === "idle") return { expression: EXPRESSION.idle, headline: "idle", count: 0, light: LIGHT.idle };
+  if (state === "idle")
+    return { expression: EXPRESSION.idle, headline: "idle", count: 0, light: LIGHT.idle };
   const count = sessions.filter((x) => x.state === state).length;
-  return { expression: EXPRESSION[state], headline: `${count} ${state}`, count, light: LIGHT[state] };
+  return {
+    expression: EXPRESSION[state],
+    headline: `${count} ${state}`,
+    count,
+    light: LIGHT[state],
+  };
 }

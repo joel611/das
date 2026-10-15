@@ -1,13 +1,12 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { configDir, loadConfig, reloadConfig, readSettingsFile, writeSettingsFile } from "./config";
 import { createServer } from "./api/server";
 import type { Project } from "./scanner";
 
-const TMP = "/Users/joel.chan/.claude/jobs/f23bdb0a/tmp";
-mkdirSync(TMP, { recursive: true });
-const root = mkdtempSync(join(TMP, "admin-"));
+const root = mkdtempSync(join(tmpdir(), "admin-"));
 const VARS = ["PROJECT_ROOTS", "PORT", "TOKEN", "OPENROUTER_API_KEY"];
 const saved = VARS.map((k) => process.env[k]);
 beforeAll(() => VARS.forEach((k) => delete process.env[k]));
@@ -229,7 +228,12 @@ test("devices from hello, removed on close; /v1/state", async () => {
   expect(typeof devs[0].id).toBe("string");
   expect(typeof devs[0].connectedAt).toBe("number");
   expect(await (await fetch(`${base}/v1/state`)).json()).toEqual({
-    display: { expression: "neutral", headline: "idle", count: 0 },
+    display: {
+      expression: "neutral",
+      headline: "idle",
+      count: 0,
+      light: { mode: "blink", rgb: [255, 255, 255], periodMs: 1000 },
+    },
     sessions: 0,
     devices: 1,
     projects: 2,

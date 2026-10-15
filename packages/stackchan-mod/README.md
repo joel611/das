@@ -22,11 +22,11 @@
 
 While the socket is not open the mod shows the Link state itself and ignores the server Display (the daemon is unreachable by definition). Retries run every 3 s forever.
 
-| state      | when                                        | light                  | face                                      | head                        |
-| ---------- | ------------------------------------------- | ---------------------- | ----------------------------------------- | --------------------------- |
-| connecting | boot, after a close, fewer than 3 failures  | blue blink, 500 ms     | NEUTRAL                                   | unchanged |
-| failed     | 3 consecutive failed attempts, until `open` | red solid              | eyes closed, HAPPY (approximates X X / ^) | tilts down to the limit   |
-| connected  | `open`                                      | server `display.light` | server expression                         | holds 10° up              |
+| state      | when                                        | light                  | face                                      | head                    |
+| ---------- | ------------------------------------------- | ---------------------- | ----------------------------------------- | ----------------------- |
+| connecting | boot, after a close, fewer than 3 failures  | blue blink, 500 ms     | NEUTRAL                                   | unchanged               |
+| failed     | 3 consecutive failed attempts, until `open` | red solid              | eyes closed, HAPPY (approximates X X / ^) | tilts down to the limit |
+| connected  | `open`                                      | server `display.light` | server expression                         | holds 10° up            |
 
 Valid emotions in stack-chan: NEUTRAL, ANGRY, SAD, HAPPY, SLEEPY, DOUBTFUL, COLD, HOT.
 

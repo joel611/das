@@ -26,7 +26,15 @@ if (!port) {
 
 if (cmd === "restart") {
   // Hard-reset via esptool (the documented recovery); the port must be free, so stop device:logs first.
-  const r = runInToolchain("esptool", ["--chip", "esp32s3", "--port", port, "--after", "hard-reset", "chip-id"]);
+  const r = runInToolchain("esptool", [
+    "--chip",
+    "esp32s3",
+    "--port",
+    port,
+    "--after",
+    "hard-reset",
+    "chip-id",
+  ]);
   process.exit(r.status ?? 1);
 }
 

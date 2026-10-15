@@ -2,7 +2,6 @@ import { afterAll, expect, test } from "bun:test";
 import {
   existsSync,
   lstatSync,
-  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -10,12 +9,11 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EVENTS, hooksStatus, installHooks, MARKER, uninstallHooks } from "./hooks-install";
 
-const TMP = "/Users/joel.chan/.claude/jobs/f23bdb0a/tmp";
-mkdirSync(TMP, { recursive: true });
-const root = mkdtempSync(join(TMP, "hooks-"));
+const root = mkdtempSync(join(tmpdir(), "hooks-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 const fresh = (settings?: object) => {
