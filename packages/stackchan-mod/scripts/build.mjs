@@ -13,25 +13,17 @@ import {
   pickPort,
   runInToolchain,
 } from "../../../scripts/toolchain.mjs";
+import { MOD_NAME, parseArgs, xsaPath } from "./args.mjs";
 
 const pkg = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
-// Strip every --server-url (the package.json script sets a default); the last one wins.
-let url;
-const rest = [];
-for (let j = 0; j < args.length; j++) {
-  const a = args[j];
-  if (a === "--server-url") url = args[++j];
-  else if (a.startsWith("--server-url=")) url = a.slice("--server-url=".length);
-  else if (a !== "--install") rest.push(a);
-}
+const { url, install, rest } = parseArgs(args);
 if (!url) {
   console.error(
     "usage: mod:build --server-url <ws://host:port/v1/ws> [--install] [extra mod:build args]",
   );
   process.exit(1);
 }
-const install = args.includes("--install");
 
 const src = readFileSync(join(pkg, "mod.js"), "utf8");
 const re = /^const SERVER_URL = .*;$/m;
@@ -41,7 +33,7 @@ if (!re.test(src)) {
 }
 
 // The archive is named after the manifest's directory, so keep that name fixed.
-const tmp = join(mkdtempSync(join(tmpdir(), "stackchan-mod-")), "stackchan-mod");
+const tmp = join(mkdtempSync(join(tmpdir(), "stackchan-mod-")), MOD_NAME);
 mkdirSync(tmp);
 writeFileSync(
   join(tmp, "mod.js"),
@@ -74,7 +66,7 @@ if (run.error) {
 }
 if (run.status !== 0) process.exit(run.status ?? 1);
 
-const xsa = join(firmware, "dist/bin/esp32/release/stackchan-mod/stackchan-mod.xsa");
+const xsa = xsaPath(firmware);
 const out = join(pkg, "dist", "stackchan-mod.xsa");
 mkdirSync(dirname(out), { recursive: true });
 copyFileSync(xsa, out);
