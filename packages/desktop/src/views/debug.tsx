@@ -89,9 +89,7 @@ export function Debug() {
       <Card>
         <CardContent>
           <div className="h-[60vh] overflow-auto font-mono text-xs" aria-live="off">
-            {shown.length === 0 ? (
-              <p className="text-muted-foreground">No entries.</p>
-            ) : null}
+            {shown.length === 0 ? <p className="text-muted-foreground">No entries.</p> : null}
             {shown.map((e) => (
               <div key={e.seq} className="whitespace-pre-wrap break-all">
                 <span className="text-muted-foreground">{e.time.slice(11, 23)}</span>{" "}

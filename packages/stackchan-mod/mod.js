@@ -85,7 +85,7 @@ function onContextCreated(robot, _option) {
       .setTorque(true)
       .then(() => robot.motion.setPose({ rotation: { y: 0, p: -up, r: 0 } }, 0.8))
       .then(() => {
-        if (releaseTorque) Timer.set(() => robot.motion.setTorque(false).catch(() => { }), 1000);
+        if (releaseTorque) Timer.set(() => robot.motion.setTorque(false).catch(() => {}), 1000);
       })
       .catch((e) => trace(`tilt failed: ${e}\n`));
   }
@@ -153,7 +153,7 @@ function onContextCreated(robot, _option) {
       Timer.clear(timeout);
       try {
         ws.close();
-      } catch (e) { }
+      } catch (e) {}
       if (wasOpen) {
         failures = 0;
         setLink("connecting");

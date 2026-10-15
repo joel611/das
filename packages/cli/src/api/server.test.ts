@@ -29,7 +29,12 @@ test("hello -> snapshot, then hook -> delta, SessionEnd -> removal delta", async
     type: "snapshot",
     projects: [],
     sessions: [],
-    display: { expression: "neutral", headline: "idle", count: 0 },
+    display: {
+      expression: "neutral",
+      headline: "idle",
+      count: 0,
+      light: { mode: "blink", rgb: [255, 255, 255], periodMs: 1000 },
+    },
   });
 
   ws.send("not json");
@@ -44,14 +49,24 @@ test("hello -> snapshot, then hook -> delta, SessionEnd -> removal delta", async
   const d = await delta;
   expect(d.type).toBe("delta");
   expect(d.session.id).toBe("s1");
-  expect(d.display).toEqual({ expression: "focused", headline: "1 running", count: 1 });
+  expect(d.display).toEqual({
+    expression: "focused",
+    headline: "1 running",
+    count: 1,
+    light: { mode: "rainbow" },
+  });
 
   delta = nextMessage(ws);
   await post("SessionEnd", { session_id: "s1" });
   expect(await delta).toEqual({
     type: "delta",
     removed: "s1",
-    display: { expression: "neutral", headline: "idle", count: 0 },
+    display: {
+      expression: "neutral",
+      headline: "idle",
+      count: 0,
+      light: { mode: "blink", rgb: [255, 255, 255], periodMs: 1000 },
+    },
   });
   ws.close();
 });

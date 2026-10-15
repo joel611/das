@@ -229,7 +229,12 @@ test("devices from hello, removed on close; /v1/state", async () => {
   expect(typeof devs[0].id).toBe("string");
   expect(typeof devs[0].connectedAt).toBe("number");
   expect(await (await fetch(`${base}/v1/state`)).json()).toEqual({
-    display: { expression: "neutral", headline: "idle", count: 0 },
+    display: {
+      expression: "neutral",
+      headline: "idle",
+      count: 0,
+      light: { mode: "blink", rgb: [255, 255, 255], periodMs: 1000 },
+    },
     sessions: 0,
     devices: 1,
     projects: 2,
