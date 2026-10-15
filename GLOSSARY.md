@@ -50,5 +50,9 @@ What the robot shows for the whole fleet of sessions: an expression, a headline,
 **Light**:
 The LED effect part of a Display: rainbow, solid colour, or blink. Server decides the colour; the robot only renders it.
 
+**Link state**:
+Whether the robot's connection to the daemon is connecting, failed, or connected. Known only to the robot, so the robot itself shows it: while not connected it overrides the Display (and any stale Display is dropped). Failed begins after three consecutive failed attempts and lasts until the connection opens.
+_Avoid_: connection status, network state
+
 **Session state**:
 One of running, waiting, done, error, idle. Priority when mixed: error > waiting > running > done > idle.
