@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { JEV_STYLES, useJevStyle } from "@/lib/jev-style";
 import {
   useHookAction,
   useHooks,
@@ -62,6 +63,37 @@ function Secret(props: {
         ) : null}
       </div>
     </div>
+  );
+}
+
+/** Local display choice, so it works without the daemon and is not sent to it. */
+function JevStyleCard() {
+  const [style, setStyle] = useJevStyle();
+  const current = JEV_STYLES.find((s) => s.id === style);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Jev animation</CardTitle>
+        <CardDescription>
+          How Jev is drawn on the Command tab. Saved on this machine.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2">
+        <div role="group" aria-label="Jev animation style" className="flex gap-2">
+          {JEV_STYLES.map((s) => (
+            <Button
+              key={s.id}
+              variant={s.id === style ? "default" : "outline"}
+              aria-pressed={s.id === style}
+              onClick={() => setStyle(s.id)}
+            >
+              {s.label}
+            </Button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">{current?.hint}</p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -147,12 +179,15 @@ export function Settings() {
 
   if (settings.error && !s) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>Daemon not reachable</AlertTitle>
-        <AlertDescription>
-          Start it with <code>bun run daemon --bg</code>. ({settings.error.message})
-        </AlertDescription>
-      </Alert>
+      <div className="flex flex-col gap-4">
+        <Alert variant="destructive">
+          <AlertTitle>Daemon not reachable</AlertTitle>
+          <AlertDescription>
+            Start it with <code>bun run daemon --bg</code>. ({settings.error.message})
+          </AlertDescription>
+        </Alert>
+        <JevStyleCard />
+      </div>
     );
   }
 
@@ -308,6 +343,7 @@ export function Settings() {
           </Button>
         </CardFooter>
       </Card>
+      <JevStyleCard />
     </div>
   );
 }
