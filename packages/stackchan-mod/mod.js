@@ -6,7 +6,7 @@ import Timer from "timer";
 const SERVER_URL = "ws://localhost:5777/v1/ws";
 const RETRY_MS = 3000;
 // An attempt with no open/error/close by then counts as failed.
-const CONNECT_TIMEOUT_MS = 5000;
+const CONNECT_TIMEOUT_MS = 15000;
 // Consecutive failed attempts before the Link state becomes "failed".
 const FAIL_AFTER = 3;
 // Head tilt (pan stays centred). Pose pitch is positive when looking down, so
@@ -68,7 +68,7 @@ function onContextCreated(robot, _option) {
       .setTorque(true)
       .then(() => robot.motion.setPose({ rotation: { y: 0, p: -up, r: 0 } }, 0.8))
       .then(() => {
-        if (up < 0) Timer.set(() => robot.motion.setTorque(false).catch(() => {}), 1000);
+        if (up < 0) Timer.set(() => robot.motion.setTorque(false).catch(() => { }), 1000);
       })
       .catch((e) => trace(`tilt failed: ${e}\n`));
   }
@@ -139,7 +139,7 @@ function onContextCreated(robot, _option) {
       Timer.clear(timeout);
       try {
         ws.close();
-      } catch (e) {}
+      } catch (e) { }
       attemptFailed();
     }
     ws.addEventListener("open", () => {
@@ -149,7 +149,7 @@ function onContextCreated(robot, _option) {
         // Attempt already counted failed (timeout); drop the late socket, next retry reconnects.
         try {
           ws.close();
-        } catch (e) {}
+        } catch (e) { }
         return;
       }
       opened = true;
@@ -171,18 +171,27 @@ function onContextCreated(robot, _option) {
         trace(`ws bad message: ${e}\n`);
       }
     });
+    // Open socket lost (close, or error with no close after it): back to connecting.
+    function lost() {
+      opened = false;
+      settled = true; // a later close/error on this socket must not count as a new failure
+      try {
+        ws.close();
+      } catch (e) { }
+      failures = 0;
+      setLink("connecting");
+      if (retry === undefined) retry = Timer.set(connect, RETRY_MS);
+    }
     ws.addEventListener("error", () => {
       trace("ws error\n");
-      fail();
+      if (opened) lost();
+      else fail();
     });
+
     ws.addEventListener("close", () => {
       trace("ws closed\n");
-      if (opened) {
-        opened = false;
-        failures = 0;
-        setLink("connecting");
-        if (retry === undefined) retry = Timer.set(connect, RETRY_MS);
-      } else fail();
+      if (opened) lost();
+      else fail();
     });
   }
 
