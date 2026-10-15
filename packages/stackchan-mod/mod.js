@@ -15,7 +15,20 @@ const EMOTIONS = {
   sad: "SAD",
 };
 
-function onContextCreated(robot) {
+// Type hints for the editor only; Moddable ignores these comments.
+// Import StackchanContext by relative path: the bare 'capabilities' name is
+// shadowed by ambient stubs and loses the robot types.
+// Paths assume this mod lives at packages/stackchan-mod/ (two levels below the repo root).
+/** @typedef {import('../../vendor/stack-chan/firmware/host/app/capabilities').StackchanContext} StackchanContext */
+/** @typedef {import('../../vendor/stack-chan/firmware/host/app/app-behavior').StackchanAppBehaviorOption} Option */
+/** @typedef {import('stackchan-util').Pose} Pose */
+/** @typedef {import('face-state').Emotion} Emotion */
+
+/**
+ * @param {StackchanContext} robot
+ * @param {Option} _option rename to `option` once used
+ */
+function onContextCreated(robot, _option) {
   let lastHeadline;
   let lastLight;
   let retry;
