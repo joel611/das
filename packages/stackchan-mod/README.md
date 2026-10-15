@@ -36,7 +36,7 @@ npm run mod:build -- <this-repo>/packages/stackchan-mod/manifest.json --mode=rel
 # -> firmware/dist/bin/esp32/release/stackchan-mod/stackchan-mod.xsa (2 KB)
 ```
 
-To override the server URL without editing `mod.js`, use the package script (it uses `vendor/stack-chan`; set `STACKCHAN_DIR` to use another checkout). It is named `mod:build`, not `build`, so `vp run -r build` / `bun run ready` do not need Moddable:
+To override the server URL without editing `mod.js`, use the package script (it always uses `vendor/stack-chan`). It is named `mod:build`, not `build`, so `vp run -r build` / `bun run ready` do not need Moddable:
 
 ```sh
 bun run mod:build -- --server-url ws://192.168.1.10:5777/v1/ws   # -> dist/stackchan-mod.xsa (gitignored)

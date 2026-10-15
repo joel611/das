@@ -1,11 +1,12 @@
 // Build the MOD with an overridden server URL.
 // Usage: bun run mod:build -- --server-url ws://192.168.1.10:5777/v1/ws [--install [--port /dev/cu.usbmodemXXXX]]
 // --install flashes the built MOD to the connected device (needs esptool on PATH and a matching host).
-// Env: STACKCHAN_DIR (default <repo>/vendor/stack-chan, cloned by the root postinstall), MODDABLE (default ~/.local/share/moddable-9.0.0).
+// Uses <repo>/vendor/stack-chan (cloned by the root postinstall). Env: MODDABLE (default ~/.local/share/moddable-9.0.0).
 // --install picks the only /dev/cu.usbmodem* port when --port is omitted.
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -51,10 +52,11 @@ writeFileSync(
 );
 copyFileSync(join(pkg, "manifest.json"), join(tmp, "manifest.json"));
 
-const firmware = join(
-  process.env.STACKCHAN_DIR ?? resolve(pkg, "../../vendor/stack-chan"),
-  "firmware",
-);
+const firmware = resolve(pkg, "../../vendor/stack-chan/firmware");
+if (!existsSync(firmware)) {
+  console.error(`${firmware} not found: run \`bun install\` at the repo root to vendor stack-chan`);
+  process.exit(1);
+}
 
 // The SDK must match the host version on the device (9.0.0 here), so default to it.
 const moddable = process.env.MODDABLE ?? join(homedir(), ".local/share/moddable-9.0.0");
