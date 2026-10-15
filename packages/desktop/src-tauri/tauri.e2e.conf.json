@@ -1,0 +1,14 @@
+{
+  "app": {
+    "withGlobalTauri": true,
+    "security": {
+      "capabilities": [
+        {
+          "identifier": "e2e",
+          "windows": ["main"],
+          "permissions": ["core:default", "core:window:default", "wdio:default"]
+        }
+      ]
+    }
+  }
+}
