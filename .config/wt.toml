@@ -1,0 +1,4 @@
+# Copy gitignored vendor/ (stack-chan firmware, ~6GB, cloned by postinstall)
+# into new worktrees. Reflink on APFS, so near-free. Limited by .worktreeinclude.
+[post-start]
+copy = "wt step copy-ignored --require-include"
