@@ -16,7 +16,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useHookAction, useHooks, useSaveSettings, useSettings } from "@/lib/queries";
+import {
+  useHookAction,
+  useHooks,
+  useOmp,
+  useOmpAction,
+  useSaveSettings,
+  useSettings,
+} from "@/lib/queries";
 import type { SettingsPatch } from "@/lib/types";
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -61,6 +68,8 @@ function Secret(props: {
 export function Settings() {
   const settings = useSettings(60_000);
   const hooks = useHooks();
+  const omp = useOmp();
+  const ompAction = useOmpAction();
   const saveSettings = useSaveSettings();
   const hookAction = useHookAction();
 
@@ -123,6 +132,19 @@ export function Settings() {
     }
   }
 
+  async function runOmpAction(kind: "install" | "uninstall") {
+    try {
+      await ompAction.mutateAsync(kind);
+      toast.success(
+        kind === "install"
+          ? "omp extension installed. Restart running omp sessions to load it."
+          : "omp extension removed.",
+      );
+    } catch (e) {
+      toast.error(msg(e));
+    }
+  }
+
   if (settings.error && !s) {
     return (
       <Alert variant="destructive">
@@ -135,6 +157,7 @@ export function Settings() {
   }
 
   const h = hooks.data;
+  const o = omp.data;
   return (
     <div className="flex flex-col gap-4">
       <Card>
@@ -247,6 +270,41 @@ export function Settings() {
             disabled={h?.state === "missing"}
           >
             Uninstall hooks
+          </Button>
+        </CardFooter>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>oh-my-pi (omp) extension</CardTitle>
+          <CardDescription>
+            Writes one extension file into your omp agent dir that reports session events to the
+            daemon.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2">
+          <div className="flex flex-wrap gap-1.5">
+            {o ? (
+              <Badge variant={o.state === "installed" ? "default" : "secondary"}>{o.state}</Badge>
+            ) : null}
+          </div>
+          {o && o.state === "installed" && !o.portMatches ? (
+            <p className="text-xs text-muted-foreground">
+              Installed for port {o.port}, which differs from the saved port. Install again to
+              update.
+            </p>
+          ) : null}
+        </CardContent>
+        <CardFooter className="gap-2">
+          <Button onClick={() => runOmpAction("install")}>
+            {o?.state === "installed" ? "Reinstall omp extension" : "Install omp extension"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => runOmpAction("uninstall")}
+            disabled={o?.state === "missing"}
+          >
+            Uninstall omp extension
           </Button>
         </CardFooter>
       </Card>

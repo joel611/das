@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { envOverrides, loadConfig, writeSettingsFile, type Config } from "../config";
 import { computeDisplay } from "../display";
 import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
+import { installOmp, ompStatus, uninstallOmp } from "../omp-extension";
 import type { Project } from "../scanner";
 import { emit, LogHub, type Logs } from "../logs";
 import { jevDecider, type Decider } from "../router";
@@ -33,6 +34,8 @@ type Opts = {
   /** Admin API: settings dir and Claude config dir. Without them the matching endpoints answer 501 (never guess a real path). */
   configDir?: string;
   claudeDir?: string;
+  /** oh-my-pi agent dir. The das extension lives in its `extensions/` dir. Without it the `/admin/omp` endpoints answer 501. */
+  ompDir?: string;
   /** Called with the new effective config after a settings save. */
   onSettings?: (c: Config) => void;
   /** Log sinks for api.log / ws.log. Omitted sinks log nothing (tests stay off the real log dir). */
@@ -91,6 +94,7 @@ export function createServer({
   decisionsLog,
   configDir,
   claudeDir,
+  ompDir,
   onSettings,
   logs: sinks = {},
   trusted = cachedTrusted,
@@ -212,6 +216,27 @@ export function createServer({
   admin.delete(
     "/hooks",
     hooksRoute((claudeDir) => uninstallHooks({ claudeDir })),
+  );
+  const ompRoute = (run: (dir: string, port: number) => unknown) => (c: Context) => {
+    if (!ompDir) return c.text("omp dir not configured", 501);
+    const port = configDir ? loadConfig(configDir).port : boundPort;
+    try {
+      return c.json(run(ompDir, port));
+    } catch (e) {
+      return c.json({ error: String(e instanceof Error ? e.message : e) }, 500);
+    }
+  };
+  admin.get(
+    "/omp",
+    ompRoute((ompDir, port) => ompStatus({ ompDir, port })),
+  );
+  admin.post(
+    "/omp/install",
+    ompRoute((ompDir, port) => installOmp({ ompDir, port })),
+  );
+  admin.delete(
+    "/omp",
+    ompRoute((ompDir) => uninstallOmp({ ompDir })),
   );
   app.route("/admin", admin);
 

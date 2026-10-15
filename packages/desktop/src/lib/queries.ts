@@ -19,6 +19,9 @@ export const useSettings = (ms = 10_000) =>
 export const useHooks = (ms = 5000) =>
   useQuery({ queryKey: ["hooks"], queryFn: api.hooks, refetchInterval: ms });
 
+export const useOmp = (ms = 5000) =>
+  useQuery({ queryKey: ["omp"], queryFn: api.omp, refetchInterval: ms });
+
 export function useSaveSettings() {
   const qc = useQueryClient();
   return useMutation({
@@ -33,6 +36,15 @@ export function useHookAction() {
     mutationFn: (kind: "install" | "uninstall") =>
       kind === "install" ? api.installHooks() : api.uninstallHooks(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hooks"] }),
+  });
+}
+
+export function useOmpAction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (kind: "install" | "uninstall") =>
+      kind === "install" ? api.installOmp() : api.uninstallOmp(),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["omp"] }),
   });
 }
 

@@ -63,6 +63,7 @@ function serve() {
     getProjects: () => projects,
     configDir: dir,
     claudeDir: process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"),
+    ompDir: process.env.PI_CODING_AGENT_DIR || join(homedir(), ".omp", "agent"),
     onSettings: (c) => {
       Object.assign(config, c);
       rescan();
