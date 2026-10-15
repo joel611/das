@@ -170,7 +170,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
   const [device, setDevice] = useState(newDevice);
   const [style] = useJevStyle();
   const log = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const [project, setProject] = useState(""); // "" = auto
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -180,7 +180,8 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
     setMsgs((m) => [...m, { id: Date.now(), at: Date.now(), you: text }]);
     let reply: VoiceReply;
     try {
-      reply = await voice.mutateAsync({ text, device, dryRun: isDry });
+      const hinted = project ? `Start a session in ${project} to ${text}` : text;
+      reply = await voice.mutateAsync({ text: hinted, device, dryRun: isDry });
     } catch (e) {
       reply = { status: "error", text: e instanceof Error ? e.message : String(e) };
     }
@@ -210,7 +211,6 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
 
   const running = sessions.filter((s) => s.state === "running").length;
   const needsYou = sessions.filter((s) => s.state === "waiting" || s.state === "error").length;
-  const chips = projects.slice(0, 3).map((p) => `Start a session in ${p.name} to `);
 
   return (
     <section
@@ -329,24 +329,6 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
             </span>
           </div>
         ) : null}
-        {chips.length ? (
-          <div className="flex flex-wrap gap-2">
-            {chips.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => {
-                  setDraft(c);
-                  setPendingReal(null); // the confirm box must not outlive the text it asked about
-                  input.current?.focus();
-                }}
-                className="min-h-8 cursor-pointer border border-hud-chip bg-transparent px-3 py-1.5 font-mono text-[11px] text-hud-soft hover:border-neon-cyan hover:text-hud-ink"
-              >
-                {c}…
-              </button>
-            ))}
-          </div>
-        ) : null}
         <form
           onSubmit={send}
           className="flex items-center gap-2 border border-hud-edge bg-hud-surface py-1.5 pr-1.5 pl-4 focus-within:border-neon-cyan focus-within:shadow-[0_0_0_1px_var(--theme-neon-cyan),0_0_24px_color-mix(in_srgb,var(--theme-neon-cyan)_25%,transparent)]"
@@ -359,7 +341,6 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
           </label>
           <input
             id="jev-cmd"
-            ref={input}
             type="text"
             autoComplete="off"
             autoFocus
@@ -395,6 +376,24 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
         </form>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10px] tracking-[.1em] text-hud-faint">
           <span>ENTER to send</span>
+          <label className="flex items-center gap-1.5">
+            PROJECT
+            <select
+              value={project}
+              onChange={(e) => {
+                setProject(e.target.value);
+                setPendingReal(null);
+              }}
+              className="max-w-40 cursor-pointer border border-hud-chip bg-hud-surface px-2 py-1 font-mono text-[11px] text-hud-soft outline-none hover:border-neon-cyan focus:border-neon-cyan"
+            >
+              <option value="">auto</option>
+              {projects.map((p) => (
+                <option key={p.name} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <label className="flex cursor-pointer items-center gap-1.5">
             <input
               type="checkbox"
