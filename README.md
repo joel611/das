@@ -80,6 +80,31 @@ bun run device:setup        # only install the toolchain, flash nothing
 
 `device:deploy` replaces the host firmware, and the MOD with it, so run `mod:install` afterwards. Pass `-- --port /dev/cu.usbmodemXXXX` when more than one device is connected. The Moddable and ESP-IDF versions are pinned in `scripts/toolchain.mjs`.
 
+## Debugging
+
+Connect the stack-chan over USB (it shows up as `/dev/cu.usbmodem*`), then:
+
+```sh
+# 1. Stream the device log (boot + trace() output) in one shell. Leave it running: it reattaches after reset/unplug.
+bun run device:logs                                       # follow until Ctrl-C
+bun run device:logs -- --seconds 60 > /tmp/device.log &   # or capture to a file you choose (agents: use a bounded run)
+
+# 2. In another shell, restart the device; the stream above shows the ROM banner and full boot.
+bun run device:restart
+```
+
+The USB port is exclusive: stop `device:logs` (and the desktop Serial tab) before `device:deploy` / `mod:install`. `--port /dev/cu.usbmodemXXXX` picks a port when several are connected.
+
+Where logs live:
+
+| Log                            | Location                                                                                                              |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Device log (USB serial)        | No file. `device:logs` prints to stdout (timestamped; notices go to stderr); redirect it yourself as above.           |
+| Daemon WebSocket / HTTP traffic | `~/.config/das/logs/ws.log`, `~/.config/das/logs/api.log` (symlinks to `ws/current.log`, `api/current.log`)           |
+| Daemon raw output (`--bg`)     | `~/.config/das/daemon.log` (config dir is `DAS_CONFIG_DIR` if set)                                                    |
+
+To see whether the device reached the daemon, compare the device log (`ws open`, `ws closed`, `ws connect timeout`) with `ws.log`.
+
 ## Connecting a device
 
 Any device that can make HTTP requests and open a WebSocket can use the API: connect to `WS /v1/ws`, send `hello`, receive `snapshot` and `delta` frames, and send transcripts or commands over `POST /v1/voice` (or the socket). Speech-to-text stays on the device side. Protocol details are in [`packages/cli/README.md`](packages/cli/README.md).

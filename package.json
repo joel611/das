@@ -12,6 +12,8 @@
     "desktop": "bun run --cwd packages/desktop tauri dev",
     "device:setup": "node scripts/device.mjs setup",
     "device:deploy": "node scripts/device.mjs deploy",
+    "device:restart": "node scripts/device.mjs restart",
+    "device:logs": "node scripts/device-logs.mjs",
     "mod:build": "bun run --cwd packages/stackchan-mod mod:build",
     "mod:install": "bun run --cwd packages/stackchan-mod mod:build --install",
     "test": "vp run -r test",

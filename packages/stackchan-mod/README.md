@@ -51,6 +51,8 @@ Building a MOD needs only the SDK tools. ESP-IDF is installed only on `--install
   ```
 
 - Serial port: `/dev/cu.usbmodem*`.
+- Read the device log (`trace()` output): `bun run device:logs` (follow), `bun run device:logs -- --seconds 20` (bounded, for agents), `--port <path>` to pick a port. Stop it before `mod:install` / `device:deploy`; the port is exclusive. It reattaches after unplug or reset, so leave it running.
+- Restart the device (hard reset via esptool; keeps firmware and MOD): `bun run device:restart`. A running `device:logs` keeps going and shows the ROM banner and full boot log (notices go to stderr as `[device:logs] ...`).
 - The MOD is written to the `xs` partition at `0xfa0000`.
 - Do not toggle DTR/RTS by hand. If the device hangs, recover with `esptool --chip esp32s3 --after hard-reset chip-id`.
 
