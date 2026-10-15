@@ -181,8 +181,6 @@ function RouteCard({ r }: { r: VoiceReply }) {
   );
 }
 
-const AUTO = "auto";
-
 const newDevice = () => "jev-" + Math.random().toString(36).slice(2, 8);
 
 export function JevPanel({
@@ -201,7 +199,7 @@ export function JevPanel({
   const [device, setDevice] = useState(newDevice);
   const [style] = useJevStyle();
   const log = useRef<HTMLDivElement>(null);
-  const [project, setProject] = useState(""); // "" = auto
+  const [project, setProject] = useState<string | null>(null); // null = auto
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -248,7 +246,7 @@ export function JevPanel({
     void run(text, false);
   }
 
-  const projectItems = [AUTO, ...projects.map((p) => p.name)];
+  const projectItems = projects.map((p) => p.name);
   const running = sessions.filter((s) => s.state === "running").length;
   const needsYou = sessions.filter(
     (s) => s.state === "waiting" || s.state === "error",
@@ -388,9 +386,9 @@ export function JevPanel({
           PROJECT
           <Combobox
             items={projectItems}
-            value={project || AUTO}
+            value={project}
             onValueChange={(v) => {
-              setProject(!v || v === AUTO ? "" : v);
+              setProject(v);
               setPendingReal(null);
             }}
           >
