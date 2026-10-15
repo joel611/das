@@ -22,34 +22,28 @@ Valid emotions in stack-chan: NEUTRAL, ANGRY, SAD, HAPPY, SLEEPY, DOUBTFUL, COLD
 
 ## Build (tested, macOS)
 
-The SDK version must match the host firmware on the device (see Device). Build the SDK for that version; the device currently runs 9.0.0.
+The SDK version must match the host firmware on the device (see Device). The root scripts install the whole toolchain into `<repo>/vendor` on first use (Moddable SDK 10.0.1, ESP-IDF v6.1, the stack-chan checkout and its `node_modules`; versions pinned in `scripts/toolchain.mjs`), so there is no manual SDK setup and no `MODDABLE` export.
 
 ```sh
-git clone --depth 1 -b 9.0.0 https://github.com/Moddable-OpenSource/moddable.git ~/.local/share/moddable-9.0.0
-export MODDABLE=~/.local/share/moddable-9.0.0
-export PATH=$MODDABLE/build/bin/mac/release:$PATH
-make -C $MODDABLE/build/makefiles/mac
-
-bun install   # repo root: postinstall clones/pulls stack-chan into vendor/stack-chan (gitignored)
-cd vendor/stack-chan/firmware && npm ci
-npm run mod:build -- <this-repo>/packages/stackchan-mod/manifest.json --mode=release
-# -> firmware/dist/bin/esp32/release/stackchan-mod/stackchan-mod.xsa (2 KB)
+bun install              # repo root: postinstall clones/pulls stack-chan into vendor/stack-chan
+bun run device:deploy    # flash the vendored host firmware to the connected device
+bun run mod:install      # build the MOD and flash it
 ```
 
-To override the server URL without editing `mod.js`, use the package script (it always uses `vendor/stack-chan`). It is named `mod:build`, not `build`, so `vp run -r build` / `bun run ready` do not need Moddable:
+To override the server URL without editing `mod.js`, use the package script (it always uses `vendor/`). It is named `mod:build`, not `build`, so `vp run -r build` / `bun run ready` do not need Moddable:
 
 ```sh
 bun run mod:build -- --server-url ws://192.168.1.10:5777/v1/ws   # -> dist/stackchan-mod.xsa (gitignored)
 bun run mod:build -- --server-url ws://192.168.1.10:5777/v1/ws --install   # also flash the connected device
 ```
 
-`MODDABLE` defaults to `~/.local/share/moddable-9.0.0` and `--install` auto-picks the only `/dev/cu.usbmodem*` port unless `--port` is given. The default URL is the Tailscale Funnel one (see Which URL).
+`--install` auto-picks the only `/dev/cu.usbmodem*` port unless `--port` is given. The default URL is the Tailscale Funnel one (see Which URL).
 
-Only the SDK tools are needed; no ESP-IDF or Emscripten for building a MOD. Install the `.xsa` on a device with `npm run mod -- <manifest>` (from `firmware/`).
+Building a MOD needs only the SDK tools. ESP-IDF is installed only on `--install` / `device:deploy`, because flashing uses its `esptool`.
 
 ## Device
 
-- Host version must equal the SDK version that built the `.xsa`. A mismatch fails `npm run mod` with `Incompatible Moddable version: A != B`. The device runs `9.0.0+stackchan.1`.
+- Host version must equal the SDK version that built the `.xsa`. A mismatch fails `npm run mod` with `Incompatible Moddable version: A != B`. After `bun run device:deploy` the device runs `10.0.1+stackchan.1`; a device flashed earlier with a 9.0.0 host must be redeployed before `mod:install` works.
 - Check the host version: read 256 bytes at flash `0x10000` and run `strings` on them; look for `x.y.z+stackchan.1`.
 
   ```sh
