@@ -8,6 +8,7 @@ import {
   ComboboxItem,
   ComboboxList,
 } from "@/components/ui/combobox";
+import { fuzzyFilter } from "@/lib/fuzzy";
 import { useVoice } from "@/lib/queries";
 import { hhmm } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -181,6 +182,22 @@ function RouteCard({ r }: { r: VoiceReply }) {
   );
 }
 
+function Highlight({ text, at }: { text: string; at: number[] }) {
+  return (
+    <span>
+      {[...text].map((c, i) =>
+        at.includes(i) ? (
+          <mark key={i} className="bg-transparent font-bold text-neon-cyan">
+            {c}
+          </mark>
+        ) : (
+          c
+        ),
+      )}
+    </span>
+  );
+}
+
 const newDevice = () => "jev-" + Math.random().toString(36).slice(2, 8);
 
 export function JevPanel({
@@ -246,7 +263,9 @@ export function JevPanel({
     void run(text, false);
   }
 
+  const [query, setQuery] = useState("");
   const projectItems = projects.map((p) => p.name);
+  const hits = fuzzyFilter(projectItems, query);
   const running = sessions.filter((s) => s.state === "running").length;
   const needsYou = sessions.filter(
     (s) => s.state === "waiting" || s.state === "error",
@@ -386,6 +405,9 @@ export function JevPanel({
           PROJECT
           <Combobox
             items={projectItems}
+            filteredItems={hits.map((h) => h.item)}
+            inputValue={query}
+            onInputValueChange={setQuery}
             value={project}
             onValueChange={(v) => {
               setProject(v);
@@ -401,7 +423,10 @@ export function JevPanel({
               <ComboboxList>
                 {(item: string) => (
                   <ComboboxItem key={item} value={item}>
-                    {item}
+                    <Highlight
+                      text={item}
+                      at={hits.find((h) => h.item === item)?.at ?? []}
+                    />
                   </ComboboxItem>
                 )}
               </ComboboxList>
