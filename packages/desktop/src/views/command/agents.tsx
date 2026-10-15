@@ -2,7 +2,7 @@ import { ago } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Session, SessionState } from "@/lib/types";
 
-import { Bar, Panel, PanelTitle, STATE_COLOR, URGENCY } from "./hud";
+import { Panel, PanelTitle, STATE_COLOR, URGENCY } from "./hud";
 
 export const sessionLabel = (s: Session) => s.project ?? s.cwd.split("/").pop() ?? s.cwd;
 
@@ -110,58 +110,3 @@ const STATE_HINT: Record<SessionState, string> = {
   done: "Finished its turn",
   idle: "Idle",
 };
-
-export function SkillsPanel({ session, now }: { session: Session | undefined; now: number }) {
-  const skills = session?.skills ?? [];
-  const total = skills.reduce((n, k) => n + k.count, 0);
-  const max = Math.max(1, ...skills.map((k) => k.count));
-  return (
-    <Panel className="flex flex-1 flex-col gap-3 px-4 pt-3.5 pb-4">
-      <div className="flex flex-col gap-1">
-        <PanelTitle tone="magenta">TRIGGERED SKILLS</PanelTitle>
-        <span className="font-mono text-[11px] text-hud-dim">
-          {session
-            ? [sessionLabel(session), session.branch, `${total} ${total === 1 ? "call" : "calls"}`]
-                .filter(Boolean)
-                .join(" · ")
-            : "Select an agent"}
-        </span>
-      </div>
-      {skills.length ? (
-        <ul className="m-0 flex list-none flex-col gap-2.5 p-0">
-          {skills.map((k) => {
-            const [plugin, name] = k.name.includes(":") ? k.name.split(/:(.*)/s) : [null, k.name];
-            return (
-              <li key={k.name} className="flex flex-col gap-1.5">
-                <span className="flex items-baseline gap-2 font-mono text-xs">
-                  <span className="font-medium text-hud-ink">/{name}</span>
-                  {plugin ? (
-                    <span className="border border-hud-chip-dim px-1 text-[10px] text-hud-dim">
-                      {plugin}
-                    </span>
-                  ) : null}
-                  <span className="ml-auto font-bold text-neon-pink">×{k.count}</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <span className="flex-1">
-                    <Bar
-                      pct={(k.count / max) * 100}
-                      className="bg-neon-magenta shadow-[0_0_8px_color-mix(in_srgb,var(--theme-neon-magenta)_60%,transparent)]"
-                    />
-                  </span>
-                  <span className="w-14 text-right font-mono text-[10px] text-hud-faint">
-                    {ago(k.lastAt, now)}
-                  </span>
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="m-0 font-mono text-xs text-hud-faint">
-          {session ? "No skills triggered in this session yet." : "No agent selected."}
-        </p>
-      )}
-    </Panel>
-  );
-}

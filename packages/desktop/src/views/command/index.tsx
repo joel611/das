@@ -3,12 +3,13 @@ import { useState } from "react";
 import { useNow } from "@/hooks/use-now";
 import { useProjects, useSessions, useUsage } from "@/lib/queries";
 
-import { AgentsPanel, SkillsPanel } from "./agents";
+import { AgentsPanel } from "./agents";
 import { URGENCY } from "./hud";
 import { JevPanel } from "./jev";
+import { ProjectsPanel } from "./projects";
 import { UsagePanel } from "./usage";
 
-/** The command center: agents and their skills on the left, Jev in the middle, usage on the right. */
+/** The command center: agents and projects on the left, Jev in the middle, usage on the right. */
 export function Command() {
   const sessions = useSessions();
   const projects = useProjects();
@@ -25,7 +26,12 @@ export function Command() {
     <div className="grid items-stretch gap-4 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)_minmax(260px,320px)]">
       <section aria-labelledby="agents-h" className="flex min-w-0 flex-col gap-4">
         <AgentsPanel sessions={list} selected={selected} onSelect={setPicked} now={now} />
-        <SkillsPanel session={selected} now={now} />
+        <ProjectsPanel
+          projects={projects.data ?? []}
+          sessions={list}
+          selected={selected}
+          onSelect={setPicked}
+        />
       </section>
       <JevPanel sessions={list} projects={projects.data ?? []} />
       <aside aria-labelledby="usage-h" className="flex min-w-0 flex-col gap-4">
