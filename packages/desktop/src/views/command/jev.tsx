@@ -5,6 +5,9 @@ import { hhmm } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Project, Session, VoiceReply } from "@/lib/types";
 import { hud } from "@/lib/neon-theme";
+import { useJevStyle } from "@/lib/jev-style";
+
+import { AsciiOrb, AsciiScope } from "./jev-ascii";
 
 type Msg = { id: number; at: number } & ({ you: string } | { reply: VoiceReply; dry: boolean });
 
@@ -109,6 +112,25 @@ function Orb({ hot }: { hot: boolean }) {
   );
 }
 
+function Bars({ busy }: { busy: boolean }) {
+  return (
+    <div className="flex h-[34px] items-center gap-[3px]" aria-hidden="true">
+      {HEIGHTS.map((h, i) => (
+        <span
+          key={i}
+          className={cn("block w-[3px] origin-center", busy && "hud-wave")}
+          style={{
+            height: busy ? 34 : h,
+            background: i % 7 === 3 ? hud["neon-magenta"] : hud["neon-cyan"],
+            opacity: busy ? 1 : 0.45,
+            animationDelay: `${(i * 53) % 900}ms`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function RouteCard({ r }: { r: VoiceReply }) {
   const d = r.debug;
   const project = r.project ?? d?.choice;
@@ -146,6 +168,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
   const [dry, setDry] = useState(true);
   const [pendingReal, setPendingReal] = useState<string | null>(null);
   const [device, setDevice] = useState(newDevice);
+  const [style] = useJevStyle();
   const log = useRef<HTMLDivElement>(null);
   const input = useRef<HTMLInputElement>(null);
 
@@ -205,23 +228,19 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
       </div>
 
       <div className="flex flex-col items-center gap-3.5 px-5 pt-6 pb-2">
-        <div className="w-full max-w-[300px]">
-          <Orb hot={busy} />
-        </div>
-        <div className="flex h-[34px] items-center gap-[3px]" aria-hidden="true">
-          {HEIGHTS.map((h, i) => (
-            <span
-              key={i}
-              className={cn("block w-[3px] origin-center", busy && "hud-wave")}
-              style={{
-                height: busy ? 34 : h,
-                background: i % 7 === 3 ? hud["neon-magenta"] : hud["neon-cyan"],
-                opacity: busy ? 1 : 0.45,
-                animationDelay: `${(i * 53) % 900}ms`,
-              }}
-            />
-          ))}
-        </div>
+        {style === "ascii" ? (
+          <>
+            <AsciiOrb hot={busy} />
+            <AsciiScope hot={busy} />
+          </>
+        ) : (
+          <>
+            <div className="w-full max-w-[300px]">
+              <Orb hot={busy} />
+            </div>
+            <Bars busy={busy} />
+          </>
+        )}
         <p className="m-0 text-center font-hud text-sm tracking-[.06em] text-hud-soft">
           {busy
             ? "Matching your request to a project…"
