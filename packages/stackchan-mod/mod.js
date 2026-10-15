@@ -6,7 +6,7 @@ import Timer from "timer";
 const SERVER_URL = "ws://localhost:5777/v1/ws";
 const RETRY_MS = 3000;
 // An attempt with no open/error/close by then counts as failed.
-const CONNECT_TIMEOUT_MS = 15000;
+const CONNECT_TIMEOUT_MS = 10000;
 // Consecutive failed attempts before the Link state becomes "failed".
 const FAIL_AFTER = 3;
 // Head tilt (pan stays centred). Pose pitch is positive when looking down, so
