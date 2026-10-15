@@ -14,8 +14,25 @@ const FAIL_AFTER = 3;
 // (M5StackChan: 5-85 degrees up), so FAILED_DOWN_RAD just means "as low as it goes".
 const IDLE_TILT_UP_RAD = (10 * Math.PI) / 180;
 const FAILED_DOWN_RAD = 0.5;
-const CONNECTING_LIGHT = { mode: "blink", rgb: [0, 0, 255], periodMs: 500 };
-const FAILED_LIGHT = { mode: "solid", rgb: [255, 0, 0] };
+
+// Per Link state: what the robot shows. Failed uses closed eyes + HAPPY as the
+// closest built-in to X X eyes and a ^ mouth.
+const LINKS = {
+  connecting: {
+    tiltUp: IDLE_TILT_UP_RAD,
+    light: { mode: "blink", rgb: [0, 0, 255], periodMs: 500 },
+    emotion: "NEUTRAL",
+    eyes: 1,
+  },
+  failed: {
+    tiltUp: -FAILED_DOWN_RAD,
+    releaseTorque: true,
+    light: { mode: "solid", rgb: [255, 0, 0] },
+    emotion: "HAPPY",
+    eyes: 0,
+  },
+  connected: { tiltUp: IDLE_TILT_UP_RAD, eyes: 1 },
+};
 
 // server expression -> stack-chan face emotion name (see face-state.ts)
 const EMOTIONS = {
@@ -60,49 +77,44 @@ function onContextCreated(robot, _option) {
     }
   }
 
-  // Move to a fixed tilt (negative = down). Torque stays on to hold an upward
-  // pose; when resting at the bottom it is released after the move so the
-  // servo does not push against its stop.
-  function settleTilt(up) {
+  // Move to a fixed tilt (positive = up). Torque stays on to hold the pose;
+  // with releaseTorque it is dropped after the move so the servo does not
+  // push against its stop.
+  function settleTilt(up, releaseTorque) {
     robot.motion
       .setTorque(true)
       .then(() => robot.motion.setPose({ rotation: { y: 0, p: -up, r: 0 } }, 0.8))
       .then(() => {
-        if (up < 0) Timer.set(() => robot.motion.setTorque(false).catch(() => { }), 1000);
+        if (releaseTorque) Timer.set(() => robot.motion.setTorque(false).catch(() => { }), 1000);
       })
       .catch((e) => trace(`tilt failed: ${e}\n`));
   }
 
   // Link state overrides the Display until connected. Stale Display is dropped.
+  // Connected has no light/emotion: the server Display supplies them.
   function setLink(next) {
     if (next === link) return;
     link = next;
-    if (link === "connected") {
-      settleTilt(IDLE_TILT_UP_RAD);
-      robot.face.setEyeOpen("left", 1);
-      robot.face.setEyeOpen("right", 1);
-      return;
+    const s = LINKS[next];
+    if (next !== "connected") {
+      lastHeadline = undefined;
+      robot.hideBalloon();
     }
-    lastHeadline = undefined;
-    robot.hideBalloon();
-    if (link === "connecting") {
-      settleTilt(IDLE_TILT_UP_RAD);
-      setLight(CONNECTING_LIGHT);
-      robot.face.setEmotion(emotionFromName("NEUTRAL"));
-    } else {
-      settleTilt(-FAILED_DOWN_RAD);
-      setLight(FAILED_LIGHT);
-      // Closest built-in to X X eyes and ^ mouth: closed eyes, happy.
-      robot.face.setEmotion(emotionFromName("HAPPY"));
-      robot.face.setEyeOpen("left", 0);
-      robot.face.setEyeOpen("right", 0);
-    }
+    if (s.light) setLight(s.light);
+    if (s.emotion) robot.face.setEmotion(emotionFromName(s.emotion));
+    robot.face.setEyeOpen("left", s.eyes);
+    robot.face.setEyeOpen("right", s.eyes);
+    settleTilt(s.tiltUp, s.releaseTorque);
+  }
+
+  function scheduleRetry() {
+    if (retry === undefined) retry = Timer.set(connect, RETRY_MS);
   }
 
   function attemptFailed() {
     failures += 1;
     if (failures >= FAIL_AFTER) setLink("failed");
-    if (retry === undefined) retry = Timer.set(connect, RETRY_MS);
+    scheduleRetry();
   }
 
   function apply(display) {
@@ -128,32 +140,33 @@ function onContextCreated(robot, _option) {
       attemptFailed();
       return;
     }
-    let opened = false;
-    let settled = false; // this attempt already counted as failed
+    // pending -> open -> dead. Events on a dead socket are no-ops.
+    let phase = "pending";
     const timeout = Timer.set(() => {
       trace("ws connect timeout\n");
-      fail();
+      end();
     }, CONNECT_TIMEOUT_MS);
-    function fail() {
-      if (opened || settled) return;
-      settled = true;
+    function end() {
+      if (phase === "dead") return;
+      const wasOpen = phase === "open";
+      phase = "dead";
       Timer.clear(timeout);
       try {
         ws.close();
       } catch (e) { }
-      attemptFailed();
+      if (wasOpen) {
+        failures = 0;
+        setLink("connecting");
+        scheduleRetry();
+      } else {
+        attemptFailed();
+      }
     }
     ws.addEventListener("open", () => {
       trace("ws open\n");
+      if (phase !== "pending") return;
+      phase = "open";
       Timer.clear(timeout);
-      if (settled) {
-        // Attempt already counted failed (timeout); drop the late socket, next retry reconnects.
-        try {
-          ws.close();
-        } catch (e) { }
-        return;
-      }
-      opened = true;
       failures = 0;
       setLink("connected");
       ws.send(
@@ -172,27 +185,13 @@ function onContextCreated(robot, _option) {
         trace(`ws bad message: ${e}\n`);
       }
     });
-    // Open socket lost (close, or error with no close after it): back to connecting.
-    function lost() {
-      opened = false;
-      settled = true; // a later close/error on this socket must not count as a new failure
-      try {
-        ws.close();
-      } catch (e) { }
-      failures = 0;
-      setLink("connecting");
-      if (retry === undefined) retry = Timer.set(connect, RETRY_MS);
-    }
     ws.addEventListener("error", () => {
       trace("ws error\n");
-      if (opened) lost();
-      else fail();
+      end();
     });
-
     ws.addEventListener("close", () => {
       trace("ws closed\n");
-      if (opened) lost();
-      else fail();
+      end();
     });
   }
 
