@@ -1,15 +1,19 @@
 // Menu bar app. It does not own the daemon (`bun run daemon --bg`): it shows the daemon's status in the tray,
 // opens the dashboard window, and relays the dashboard's calls to the daemon through the `api` command.
+mod serial;
+
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde_json::{json, Value};
 use tauri::image::Image;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::TrayIconBuilder;
-use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
 
 const DEFAULT_PORT: u16 = 5777;
 
@@ -86,6 +90,53 @@ fn api(method: String, path: String, body: Option<String>) -> Result<Value, Stri
     Ok(json!({ "status": status, "body": serde_json::from_str::<Value>(&text).unwrap_or(Value::String(text)) }))
 }
 
+// ---- device serial console (prototype) ----
+// Streams the device's USB serial log to the dashboard as `device-log` / `device-status` events.
+// Only one reader runs at a time; stop it before flashing (`mod:install`), which needs the port.
+
+#[derive(Default)]
+struct Serial(Mutex<Option<Arc<AtomicBool>>>);
+
+#[tauri::command]
+fn serial_start(app: AppHandle, state: State<Serial>) -> Result<(), String> {
+    let mut slot = state.0.lock().unwrap();
+    if slot.is_some() {
+        return Ok(());
+    }
+    let stop = Arc::new(AtomicBool::new(false));
+    *slot = Some(stop.clone());
+    std::thread::spawn(move || {
+        // Reconnect after unplug / device reset until stopped.
+        while !stop.load(Ordering::Relaxed) {
+            match serial::find_port() {
+                None => {
+                    app.emit("device-status", "no device").ok();
+                    std::thread::sleep(Duration::from_secs(1));
+                }
+                Some(path) => {
+                    app.emit("device-status", format!("connected {path}")).ok();
+                    let r = serial::read_lines(&path, &stop, |line| {
+                        app.emit("device-log", line).ok();
+                    });
+                    if let Err(e) = r {
+                        app.emit("device-status", format!("disconnected: {e}")).ok();
+                        std::thread::sleep(Duration::from_secs(1));
+                    }
+                }
+            }
+        }
+        app.emit("device-status", "stopped").ok();
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn serial_stop(state: State<Serial>) {
+    if let Some(stop) = state.0.lock().unwrap().take() {
+        stop.store(true, Ordering::Relaxed);
+    }
+}
+
 // ---- tray ----
 
 const STATES: [&str; 6] = ["idle", "running", "waiting", "done", "error", "offline"];
@@ -153,7 +204,8 @@ fn open_dashboard(app: &AppHandle) {
 
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![api])
+        .manage(Serial::default())
+        .invoke_handler(tauri::generate_handler![api, serial_start, serial_stop])
         // Closing the dashboard hides it; the menu bar app keeps running.
         .on_window_event(|window, event| {
             if let WindowEvent::CloseRequested { api, .. } = event {
