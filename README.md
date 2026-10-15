@@ -67,6 +67,19 @@ In an interactive shell `vp` may be aliased to something else; the scripts above
 3. Click "Install hooks". Running Claude sessions need a restart to load them.
 4. Run `claude` once in each root folder and accept the trust dialog, so spawned sessions work (the Settings tab lists untrusted projects).
 
+## Flashing a stack-chan
+
+Contributors need no manual SDK setup. The first `device:*` or `mod:*` command installs the toolchain into `vendor/` (ignored by VCS: stack-chan firmware, Moddable SDK, ESP-IDF; about 3 GB, one time). Nothing is written to `$HOME` or a shell profile. Needs Xcode command line tools, `node` and `python3`.
+
+```sh
+bun install                 # vendors stack-chan into vendor/stack-chan
+bun run device:deploy       # flash the vendored firmware (host) to the USB device
+bun run mod:install         # build the MOD and flash it (run after device:deploy)
+bun run device:setup        # only install the toolchain, flash nothing
+```
+
+`device:deploy` replaces the host firmware, and the MOD with it, so run `mod:install` afterwards. Pass `-- --port /dev/cu.usbmodemXXXX` when more than one device is connected. The Moddable and ESP-IDF versions are pinned in `scripts/toolchain.mjs`.
+
 ## Connecting a device
 
 Any device that can make HTTP requests and open a WebSocket can use the API: connect to `WS /v1/ws`, send `hello`, receive `snapshot` and `delta` frames, and send transcripts or commands over `POST /v1/voice` (or the socket). Speech-to-text stays on the device side. Protocol details are in [`packages/cli/README.md`](packages/cli/README.md).

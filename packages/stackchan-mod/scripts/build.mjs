@@ -1,21 +1,18 @@
 // Build the MOD with an overridden server URL.
 // Usage: bun run mod:build -- --server-url ws://192.168.1.10:5777/v1/ws [--install [--port /dev/cu.usbmodemXXXX]]
-// --install flashes the built MOD to the connected device (needs esptool on PATH and a matching host).
-// Uses <repo>/vendor/stack-chan (cloned by the root postinstall). Env: MODDABLE (default ~/.local/share/moddable-9.0.0).
+// --install flashes the built MOD to the connected device (the host on it must be built with the same SDK).
+// Uses the toolchain under <repo>/vendor (Moddable, ESP-IDF, stack-chan), installed on first run by scripts/toolchain.mjs.
 // --install picks the only /dev/cu.usbmodem* port when --port is omitted.
-import { spawnSync } from "node:child_process";
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readdirSync,
-  readFileSync,
-  writeFileSync,
-} from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  ensureToolchain,
+  firmware,
+  pickPort,
+  runInToolchain,
+} from "../../../scripts/toolchain.mjs";
 
 const pkg = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -52,31 +49,14 @@ writeFileSync(
 );
 copyFileSync(join(pkg, "manifest.json"), join(tmp, "manifest.json"));
 
-const firmware = resolve(pkg, "../../vendor/stack-chan/firmware");
-if (!existsSync(firmware)) {
-  console.error(`${firmware} not found: run \`bun install\` at the repo root to vendor stack-chan`);
-  process.exit(1);
-}
-
-// The SDK must match the host version on the device (9.0.0 here), so default to it.
-const moddable = process.env.MODDABLE ?? join(homedir(), ".local/share/moddable-9.0.0");
-const env = {
-  ...process.env,
-  MODDABLE: moddable,
-  PATH: `${join(moddable, "build/bin/mac/release")}:${process.env.PATH}`,
-};
+ensureToolchain({ idf: install });
 
 // Single connected device: pick its serial port unless --port was given.
 if (install && !rest.some((a) => a === "--port" || a.startsWith("--port="))) {
-  const ports = readdirSync("/dev").filter((n) => n.startsWith("cu.usbmodem"));
-  if (ports.length !== 1) {
-    console.error(`pass --port: found ${ports.length} cu.usbmodem* ports`);
-    process.exit(1);
-  }
-  rest.push("--port", `/dev/${ports[0]}`);
+  rest.push("--port", pickPort());
 }
 
-const run = spawnSync(
+const run = runInToolchain(
   "npm",
   [
     "run",
@@ -86,7 +66,7 @@ const run = spawnSync(
     "--mode=release",
     ...rest,
   ],
-  { cwd: firmware, stdio: "inherit", env },
+  { cwd: firmware },
 );
 if (run.error) {
   console.error(`cannot run mod:build in ${firmware}: ${run.error.message}`);
