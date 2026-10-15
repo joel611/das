@@ -340,6 +340,29 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
             </span>
           </div>
         ) : null}
+          <div className="flex items-center gap-1.5">
+            PROJECT
+            <Combobox
+              items={projectItems}
+              value={project || AUTO}
+              onValueChange={(v) => {
+                setProject(!v || v === AUTO ? "" : v);
+                setPendingReal(null);
+              }}
+            >
+              <ComboboxInput className="w-44 font-mono text-[11px]" placeholder="auto" />
+              <ComboboxContent>
+                <ComboboxEmpty>No project</ComboboxEmpty>
+                <ComboboxList>
+                  {(item: string) => (
+                    <ComboboxItem key={item} value={item}>
+                      {item}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+          </div>
         <form
           onSubmit={send}
           className="flex items-center gap-2 border border-hud-edge bg-hud-surface py-1.5 pr-1.5 pl-4 focus-within:border-neon-cyan focus-within:shadow-[0_0_0_1px_var(--theme-neon-cyan),0_0_24px_color-mix(in_srgb,var(--theme-neon-cyan)_25%,transparent)]"
@@ -387,29 +410,6 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
         </form>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10px] tracking-[.1em] text-hud-faint">
           <span>ENTER to send</span>
-          <div className="flex items-center gap-1.5">
-            PROJECT
-            <Combobox
-              items={projectItems}
-              value={project || AUTO}
-              onValueChange={(v) => {
-                setProject(!v || v === AUTO ? "" : v);
-                setPendingReal(null);
-              }}
-            >
-              <ComboboxInput className="w-44 font-mono text-[11px]" placeholder="auto" />
-              <ComboboxContent>
-                <ComboboxEmpty>No project</ComboboxEmpty>
-                <ComboboxList>
-                  {(item: string) => (
-                    <ComboboxItem key={item} value={item}>
-                      {item}
-                    </ComboboxItem>
-                  )}
-                </ComboboxList>
-              </ComboboxContent>
-            </Combobox>
-          </div>
           <label className="flex cursor-pointer items-center gap-1.5">
             <input
               type="checkbox"
