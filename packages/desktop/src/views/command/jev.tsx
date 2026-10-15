@@ -1,5 +1,13 @@
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import { useVoice } from "@/lib/queries";
 import { hhmm } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -158,6 +166,8 @@ function RouteCard({ r }: { r: VoiceReply }) {
   );
 }
 
+const AUTO = "auto";
+
 const newDevice = () => "jev-" + Math.random().toString(36).slice(2, 8);
 
 export function JevPanel({ sessions, projects }: { sessions: Session[]; projects: Project[] }) {
@@ -209,6 +219,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
     void run(text, false);
   }
 
+  const projectItems = [AUTO, ...projects.map((p) => p.name)];
   const running = sessions.filter((s) => s.state === "running").length;
   const needsYou = sessions.filter((s) => s.state === "waiting" || s.state === "error").length;
 
@@ -376,24 +387,29 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
         </form>
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 font-mono text-[10px] tracking-[.1em] text-hud-faint">
           <span>ENTER to send</span>
-          <label className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5">
             PROJECT
-            <select
-              value={project}
-              onChange={(e) => {
-                setProject(e.target.value);
+            <Combobox
+              items={projectItems}
+              value={project || AUTO}
+              onValueChange={(v) => {
+                setProject(!v || v === AUTO ? "" : v);
                 setPendingReal(null);
               }}
-              className="max-w-40 cursor-pointer border border-hud-chip bg-hud-surface px-2 py-1 font-mono text-[11px] text-hud-soft outline-none hover:border-neon-cyan focus:border-neon-cyan"
             >
-              <option value="">auto</option>
-              {projects.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
+              <ComboboxInput className="w-44 font-mono text-[11px]" placeholder="auto" />
+              <ComboboxContent>
+                <ComboboxEmpty>No project</ComboboxEmpty>
+                <ComboboxList>
+                  {(item: string) => (
+                    <ComboboxItem key={item} value={item}>
+                      {item}
+                    </ComboboxItem>
+                  )}
+                </ComboboxList>
+              </ComboboxContent>
+            </Combobox>
+          </div>
           <label className="flex cursor-pointer items-center gap-1.5">
             <input
               type="checkbox"
