@@ -34,7 +34,9 @@ function groupByProject(projects: Project[], sessions: Session[]): ProjectGroup[
     }
     wt.agents.push(s);
   }
-  return [...groups.values()];
+  return [...groups.values()]
+    .map((g) => ({ ...g, worktrees: g.worktrees.filter((w) => w.agents.length) }))
+    .filter((g) => g.worktrees.length);
 }
 
 export function ProjectsPanel({
@@ -48,12 +50,13 @@ export function ProjectsPanel({
   selected: Session | undefined;
   onSelect: (id: string) => void;
 }) {
-  const groups = groupByProject(projects, sessions);
+  const active = sessions.filter((s) => s.state === "running" || s.state === "waiting");
+  const groups = groupByProject(projects, active);
   return (
     <Panel className="flex flex-1 flex-col gap-3 px-4 pt-3.5 pb-4">
       <PanelTitle tone="magenta">PROJECTS</PanelTitle>
       {groups.length === 0 ? (
-        <p className="m-0 font-mono text-xs text-hud-faint">No projects found.</p>
+        <p className="m-0 font-mono text-xs text-hud-faint">No active agents.</p>
       ) : (
         <ul className="m-0 flex list-none flex-col gap-3 p-0">
           {groups.map((g) => (
