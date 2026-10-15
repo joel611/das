@@ -76,6 +76,12 @@ export type HookStatus = {
   port: number;
 };
 
+export type OmpStatus = {
+  state: "installed" | "missing";
+  portMatches: boolean;
+  port: number | null;
+};
+
 export type VoiceDebug = {
   choice: string | null;
   confidence: number;

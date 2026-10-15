@@ -4,6 +4,7 @@ import type {
   DaemonState,
   Device,
   HookStatus,
+  OmpStatus,
   LogEntry,
   Project,
   Session,
@@ -64,6 +65,9 @@ export const api = {
   hooks: () => call<HookStatus>("GET", "/admin/hooks"),
   installHooks: () => call<HookStatus>("POST", "/admin/hooks/install"),
   uninstallHooks: () => call<HookStatus>("DELETE", "/admin/hooks"),
+  omp: () => call<OmpStatus>("GET", "/admin/omp"),
+  installOmp: () => call<OmpStatus>("POST", "/admin/omp/install"),
+  uninstallOmp: () => call<OmpStatus>("DELETE", "/admin/omp"),
   voice: (text: string, device: string, dryRun: boolean) =>
     call<VoiceReply>("POST", "/v1/voice", { text, device, dryRun, debug: dryRun }),
 };

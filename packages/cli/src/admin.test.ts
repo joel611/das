@@ -206,18 +206,23 @@ test("admin auth, 501 without dirs, hooks endpoints use the given claudeDir", as
   expect(j.state).toBe("missing");
   j = await (await fetch(`${base}/admin/hooks/install`, json("POST", undefined, auth))).json();
   expect(j.state).toBe("installed");
-  expect(j.omp.state).toBe("installed");
+  expect(existsSync(join(ompDir, "extensions/das-session.ts"))).toBe(false);
   expect(readFileSync(join(claudeDir, "settings.json"), "utf8")).toContain("/hooks/SessionEnd");
-  expect(j.omp.portMatches).toBe(true);
-  expect(existsSync(join(ompDir, "extensions/das-session.ts"))).toBe(true);
   j = await (await fetch(`${base}/admin/hooks`, json("DELETE", undefined, auth))).json();
   expect(j.state).toBe("missing");
-  expect(j.omp.state).toBe("missing");
+  j = await (await fetch(`${base}/admin/omp`, { headers: auth })).json();
+  expect(j.state).toBe("missing");
+  j = await (await fetch(`${base}/admin/omp/install`, json("POST", undefined, auth))).json();
+  expect(j).toMatchObject({ state: "installed", portMatches: true });
+  expect(existsSync(join(ompDir, "extensions/das-session.ts"))).toBe(true);
+  j = await (await fetch(`${base}/admin/omp`, json("DELETE", undefined, auth))).json();
+  expect(j.state).toBe("missing");
   expect((await fetch(`${base}/admin/nope`, { headers: auth })).status).toBe(404);
   server.stop(true);
 
   const bare = createServer({ port: 0, token: "", getProjects: () => [] });
   expect((await fetch(`http://127.0.0.1:${bare.port}/admin/hooks`)).status).toBe(501);
+  expect((await fetch(`http://127.0.0.1:${bare.port}/admin/omp`)).status).toBe(501);
   expect((await fetch(`http://127.0.0.1:${bare.port}/admin/settings`)).status).toBe(501);
   bare.stop(true);
 });
