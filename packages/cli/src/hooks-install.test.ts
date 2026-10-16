@@ -11,13 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  EVENTS,
-  hooksStatus,
-  installHooks,
-  MARKER,
-  uninstallHooks,
-} from "./hooks-install";
+import { EVENTS, hooksStatus, installHooks, MARKER, uninstallHooks } from "./hooks-install";
 
 const root = mkdtempSync(join(tmpdir(), "hooks-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
