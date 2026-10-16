@@ -83,6 +83,24 @@ test("a hook body that is not an object is ignored, not fatal", async () => {
   expect((await fetch(`http://${base}/v1/usage?token=secret`)).status).toBe(200);
 });
 
+test("entering done publishes a sound frame once", async () => {
+  const ws = new WebSocket(`ws://${base}/v1/ws?token=secret`);
+  await opened(ws);
+  const frames: any[] = [];
+  ws.addEventListener("message", (e) => frames.push(JSON.parse(String(e.data))));
+  const post = (event: string) =>
+    fetch(`http://${base}/hooks/${event}`, {
+      method: "POST",
+      body: JSON.stringify({ session_id: "snd", cwd: "/x" }),
+    });
+  await post("UserPromptSubmit");
+  await post("Stop");
+  await post("Stop");
+  await Bun.sleep(100);
+  ws.close();
+  expect(frames.filter((f) => f.type === "sound")).toEqual([{ type: "sound", hz: 880, ms: 150 }]);
+});
+
 test("health answers without a token", async () => {
   const res = await fetch(`http://${base}/health`);
   expect(res.status).toBe(200);

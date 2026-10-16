@@ -4,13 +4,13 @@ import { realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { envOverrides, loadConfig, writeSettingsFile, type Config } from "../config";
-import { computeDisplay } from "../display";
+import { computeDisplay, soundFor } from "../display";
 import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
 import { installOmp, ompStatus, uninstallOmp } from "../omp-extension";
 import type { Project } from "../scanner";
 import { emit, LogHub, type Logs } from "../logs";
 import { jevDecider, type Decider } from "../router";
-import { SessionTracker, type HookPayload } from "../sessions";
+import { SessionTracker, type HookPayload, type SessionState } from "../sessions";
 import { claudeSpawner, type Spawner } from "../spawner";
 import { isTrusted, trustAdvice, trustedPaths } from "../trust";
 import { LimitsTracker } from "../limits";
@@ -373,12 +373,23 @@ export function createServer({
   });
 
   boundPort = server.port ?? port;
+  const lastState = new Map<string, SessionState>();
   tracker.onChange((e) => {
     server.publish(
       TOPIC,
       JSON.stringify({ type: "delta", ...e, display: computeDisplay(tracker.list()) }),
     );
     wsLog("message", { dir: "out", type: "delta", subscribers: server.subscriberCount(TOPIC) });
+    if ("removed" in e) {
+      lastState.delete(e.removed);
+      return;
+    }
+    const sound = soundFor(lastState.get(e.session.id), e.session.state);
+    lastState.set(e.session.id, e.session.state);
+    if (sound) {
+      server.publish(TOPIC, JSON.stringify({ type: "sound", ...sound }));
+      wsLog("message", { dir: "out", type: "sound", subscribers: server.subscriberCount(TOPIC) });
+    }
   });
 
   return server;

@@ -181,6 +181,8 @@ function onContextCreated(robot, _option) {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === "snapshot" || msg.type === "delta") apply(msg.display);
+        else if (msg.type === "sound" && link === "connected")
+          robot.audio.tone(msg.hz, msg.ms).catch((e) => trace(`tone failed: ${e}\n`));
       } catch (e) {
         trace(`ws bad message: ${e}\n`);
       }

@@ -18,6 +18,10 @@
 | `solid`      | `lightOn(rgb)`              |
 | `blink`      | `lightBlink(rgb, periodMs)` |
 
+## Sound
+
+The daemon sends `{type:"sound", hz, ms}` when a session enters waiting (660 Hz), done (880 Hz) or error (220 Hz). The mod plays it with `robot.audio.tone(hz, ms)` while connected. Frequencies and durations live in `packages/cli/src/display.ts`, so they change without a mod rebuild.
+
 ## Link state
 
 While the socket is not open the mod shows the Link state itself and ignores the server Display (the daemon is unreachable by definition). Retries run every 3 s forever.
