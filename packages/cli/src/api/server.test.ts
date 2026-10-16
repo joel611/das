@@ -1,4 +1,7 @@
 import { afterAll, expect, test } from "bun:test";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createServer } from "./server";
 
 const server = createServer({ port: 0, token: "secret", getProjects: () => [] });
@@ -84,4 +87,13 @@ test("health answers without a token", async () => {
   const res = await fetch(`http://${base}/health`);
   expect(res.status).toBe(200);
   expect(await res.json()).toEqual({ status: "ok" });
+});
+
+test("the status line relay endpoint is gone", async () => {
+  const res = await fetch(`http://${base}/statusline`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ rate_limits: { five_hour: { used_percentage: 5, resets_at: 1 } } }),
+  });
+  expect(res.status).toBe(404);
 });

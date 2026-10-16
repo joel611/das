@@ -10,8 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-
-/** Edits Claude Code's user settings (`<claudeDir>/settings.json`, key `hooks`). Callers always pass claudeDir explicitly. */
+import { configDir } from "./config";
 
 export const EVENTS = [
   "SessionStart",
@@ -25,11 +24,28 @@ export const MARKER = "# stack-chan-server";
 
 type Hook = { type?: string; command?: string; [k: string]: unknown };
 type Group = { matcher?: string; hooks?: Hook[]; [k: string]: unknown };
-type Settings = { hooks?: Record<string, Group[]>; [k: string]: unknown };
+type StatusLine = { type?: string; command?: string; [k: string]: unknown };
+type Settings = { hooks?: Record<string, Group[]>; statusLine?: StatusLine; [k: string]: unknown };
 
 /** Fire-and-forget: stdin JSON -> local server, no output, always exit 0. */
 export const hookCommand = (event: string, port: number) =>
   `curl -s -m 2 -X POST -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:${port}/hooks/${event} >/dev/null 2>&1 || true ${MARKER}`;
+
+const isOurStatusLine = (sl: StatusLine | undefined): boolean =>
+  typeof sl?.command === "string" && sl.command.includes(MARKER);
+const wrappedOf = (sl: StatusLine): string | undefined => {
+  const b64 = sl.command?.match(/DAS_WRAP_B64=([A-Za-z0-9+/=]+)/)?.[1];
+  return b64 ? Buffer.from(b64, "base64").toString("utf8") : undefined;
+};
+
+/** Earlier versions installed a status line relay. Restore the user's own status line, or drop ours. */
+function dropStatusLine(s: Settings): boolean {
+  if (!isOurStatusLine(s.statusLine)) return false;
+  const wrapped = wrappedOf(s.statusLine!);
+  if (wrapped) s.statusLine = { ...s.statusLine, command: wrapped };
+  else delete s.statusLine;
+  return true;
+}
 
 const isOurs = (h: Hook) =>
   h?.type === "command" && typeof h.command === "string" && h.command.includes(MARKER);
@@ -100,6 +116,7 @@ export function installHooks({ claudeDir, port }: { claudeDir: string; port: num
       groups.push({ hooks: [{ type: "command", command: cmd }] });
     }
   }
+  dropStatusLine(s);
   if (JSON.stringify(s) !== before) write(file, s);
   return hooksStatus({ claudeDir, port });
 }
@@ -107,14 +124,13 @@ export function installHooks({ claudeDir, port }: { claudeDir: string; port: num
 export function uninstallHooks({ claudeDir }: { claudeDir: string }) {
   const file = target(claudeDir);
   const s = read(file);
+  let changed = false;
   if (s.hooks) {
-    let changed = false;
     for (const ev of Object.keys(s.hooks)) changed = strip(s.hooks, ev) || changed;
-    if (changed) {
-      if (!Object.keys(s.hooks).length) delete s.hooks;
-      write(file, s);
-    }
+    if (changed && !Object.keys(s.hooks).length) delete s.hooks;
   }
+  changed = dropStatusLine(s) || changed;
+  if (changed) write(file, s);
   return hooksStatus({ claudeDir, port: 0 });
 }
 

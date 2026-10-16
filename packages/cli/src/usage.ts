@@ -1,11 +1,13 @@
 import { constants } from "node:fs";
 import { open, readdir, realpath, stat as statPath } from "node:fs/promises";
 import { join, sep } from "node:path";
+import type { Limits } from "./limits";
 
 /**
  * Token usage read from the Claude Code transcripts that hook events point at (`transcript_path`).
  * Each transcript is read incrementally from where the last read stopped. Plan limits (percent of the
- * 5-hour or weekly allowance) are not in transcripts, so `limits` stays null until something reports them.
+ * 5-hour or weekly allowance) are not in transcripts: they come from the Claude app file or the usage API (limits.ts), and the
+ * server fills `limits` in.
  *
  * The path comes from a hook payload, which any local process can post, so it is only read when it
  * resolves to a regular `.jsonl` file under the Claude projects directory.
@@ -46,7 +48,7 @@ export type Usage = {
     byModel: { model: string; tokens: number }[];
     bySession: { session: string; tokens: number }[];
   } | null;
-  limits: null;
+  limits: Limits | null;
 };
 
 const total = (e: Entry) => e.input + e.output + e.cacheCreate;

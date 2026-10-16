@@ -1,0 +1,20 @@
+{
+  "app": {
+    "withGlobalTauri": true,
+    "security": {
+      "capabilities": [
+        {
+          "identifier": "e2e",
+          "windows": ["main"],
+          "permissions": [
+            "core:default",
+            "core:window:default",
+            "core:window:allow-show",
+            "core:window:allow-close",
+            "wdio:default"
+          ]
+        }
+      ]
+    }
+  }
+}

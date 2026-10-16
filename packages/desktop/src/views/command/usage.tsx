@@ -1,5 +1,5 @@
 import { duration, tokens } from "@/lib/format";
-import type { Session, Usage } from "@/lib/types";
+import type { LimitWindow, Session, Usage } from "@/lib/types";
 
 import { sessionLabel } from "./agents";
 import { Bar, Panel, PanelTitle, STATE_COLOR } from "./hud";
@@ -14,6 +14,37 @@ const MODEL_COLOR = [
 ];
 const R = 50;
 const CIRC = 2 * Math.PI * R;
+
+const STALE_MS = 30 * 60_000;
+
+const SOURCE_NOTE = { api: " (usage API)", app: " (Claude app)" } as const;
+
+const limitColor = (pct: number) =>
+  pct >= 95 ? "bg-neon-magenta" : pct >= 80 ? "bg-neon-amber" : "bg-neon-cyan";
+
+function LimitRow({ label, w, now }: { label: string; w: LimitWindow | null; now: number }) {
+  const age = w ? now - w.observedAt : 0;
+  const stale = age > STALE_MS;
+  return (
+    <div className="flex flex-col gap-1.25">
+      <span className="flex justify-between font-mono text-xs">
+        <span className="text-hud-text">{label}</span>
+        <span className="font-bold text-hud-ink">{w ? `${Math.round(w.usedPercent)}%` : "—"}</span>
+      </span>
+      <Bar pct={w?.usedPercent ?? 0} h="h-1.5" className={limitColor(w?.usedPercent ?? 0)} />
+      <span className="font-mono text-[10px] text-hud-faint">
+        {!w
+          ? "Not reported since the last reset"
+          : w.resetsAt === null
+            ? w.usedPercent === 0
+              ? "No window running"
+              : "Reset time unknown"
+            : `Resets in ${duration(w.resetsAt - now)}`}
+        {stale && ` · as of ${duration(age)} ago${SOURCE_NOTE[w.source]}`}
+      </span>
+    </div>
+  );
+}
 
 /** Burn rate sparkline; `series` is tokens per 5-minute bucket, oldest first. */
 function Sparkline({ series }: { series: number[] }) {
@@ -54,7 +85,15 @@ export function UsagePanel({
   now: number;
 }) {
   const b = usage?.block ?? null;
-  const elapsed = b ? Math.round(((now - b.start) / (b.end - b.start)) * 100) : 0;
+  const limits = usage?.limits ?? null;
+  const five = limits?.fiveHour ?? null;
+  const ringPct = five
+    ? Math.round(five.usedPercent)
+    : b
+      ? Math.round(((now - b.start) / (b.end - b.start)) * 100)
+      : 0;
+  const ringLabel = five ? "USED" : "ELAPSED";
+  const resetsIn = five?.resetsAt != null ? five.resetsAt - now : b ? b.end - now : 0;
   const top = b?.bySession[0]?.tokens ?? 1;
   const modelTotal = b?.byModel.reduce((n, m) => n + m.tokens, 0) || 1;
   const byId = new Map(sessions.map((s) => [s.id, s]));
@@ -75,7 +114,11 @@ export function UsagePanel({
                 viewBox="0 0 120 120"
                 className="shrink-0"
                 role="img"
-                aria-label={`${elapsed} percent of the 5-hour block elapsed`}
+                aria-label={
+                  five
+                    ? `${ringPct} percent of the 5-hour limit used`
+                    : `${ringPct} percent of the 5-hour block elapsed`
+                }
               >
                 <circle
                   cx="60"
@@ -92,7 +135,7 @@ export function UsagePanel({
                   fill="none"
                   stroke={hud["neon-cyan"]}
                   strokeWidth="10"
-                  strokeDasharray={`${(elapsed / 100) * CIRC} ${CIRC}`}
+                  strokeDasharray={`${(Math.min(100, ringPct) / 100) * CIRC} ${CIRC}`}
                   transform="rotate(-90 60 60)"
                 />
                 <circle
@@ -112,7 +155,7 @@ export function UsagePanel({
                   fontSize="28"
                   fontWeight="700"
                 >
-                  {elapsed}%
+                  {ringPct}%
                 </text>
                 <text
                   x="60"
@@ -123,12 +166,12 @@ export function UsagePanel({
                   fontSize="9"
                   letterSpacing="1.5"
                 >
-                  ELAPSED
+                  {ringLabel}
                 </text>
               </svg>
               <dl className="m-0 grid grid-cols-[auto_auto] gap-x-3 gap-y-1.5 font-mono text-xs">
                 <dt className="text-hud-dim">RESETS</dt>
-                <dd className="m-0 text-right text-hud-ink">{duration(b.end - now)}</dd>
+                <dd className="m-0 text-right text-hud-ink">{duration(resetsIn)}</dd>
                 <dt className="text-hud-dim">TOKENS</dt>
                 <dd className="m-0 text-right text-hud-ink">{tokens(b.tokens)}</dd>
                 <dt className="text-hud-dim">CACHE RD</dt>
@@ -152,9 +195,16 @@ export function UsagePanel({
         )}
         <div className="flex flex-col gap-1.5">
           <span className="font-mono text-[11px] tracking-[.08em] text-hud-dim">PLAN LIMITS</span>
-          <span className="font-mono text-[11px] text-hud-faint">
-            Not reported yet. Hooks and transcripts carry tokens, not the share of your plan used.
-          </span>
+          {limits ? (
+            <>
+              <LimitRow label="5-hour" w={limits.fiveHour} now={now} />
+              <LimitRow label="Weekly" w={limits.sevenDay} now={now} />
+            </>
+          ) : (
+            <span className="font-mono text-[11px] text-hud-faint">
+              Not reported yet. Open the Claude app, or turn on the usage API poll in Settings.
+            </span>
+          )}
         </div>
       </Panel>
 

@@ -37,6 +37,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     port: 5777,
     token: "",
     openrouterKey: "",
+    usageApi: false,
   });
   writeSettingsFile({ roots: ["/a", "/b"], port: 5000, token: "t", openrouterKey: "k" }, dir);
   writeSettingsFile({ port: 5001 }, dir);
@@ -52,6 +53,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     port: 5001,
     token: "t",
     openrouterKey: "k",
+    usageApi: false,
   });
   expect(
     loadConfig(dir, { PROJECT_ROOTS: "/c", PORT: "6000", TOKEN: "e", OPENROUTER_API_KEY: "ek" }),
@@ -60,7 +62,11 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     port: 6000,
     token: "e",
     openrouterKey: "ek",
+    usageApi: false,
   });
+  writeSettingsFile({ usageApi: true }, dir);
+  expect(loadConfig(dir, {}).usageApi).toBe(true);
+  expect(loadConfig(dir, { DAS_USAGE_API: "0" }).usageApi).toBe(false);
 });
 
 test("config.yml: hand-written YAML with comments is read", () => {
@@ -74,6 +80,7 @@ test("config.yml: hand-written YAML with comments is read", () => {
     port: 5999,
     token: "abc",
     openrouterKey: "",
+    usageApi: false,
   });
   expect(loadConfig(dir, { PORT: "1234" }).port).toBe(1234);
 });

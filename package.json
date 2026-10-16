@@ -10,6 +10,7 @@
     "dev": "vp run -r --parallel dev:all",
     "daemon": "bun packages/cli/src/daemon.ts",
     "desktop": "bun run --cwd packages/desktop tauri dev",
+    "desktop:e2e": "bun run --cwd packages/desktop e2e",
     "device:setup": "node scripts/device.mjs setup",
     "device:deploy": "node scripts/device.mjs deploy",
     "device:restart": "node scripts/device.mjs restart",

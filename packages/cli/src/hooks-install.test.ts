@@ -11,10 +11,18 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EVENTS, hooksStatus, installHooks, MARKER, uninstallHooks } from "./hooks-install";
+import {
+  EVENTS,
+  hooksStatus,
+  installHooks,
+  MARKER,
+  uninstallHooks,
+} from "./hooks-install";
 
 const root = mkdtempSync(join(tmpdir(), "hooks-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
+const scripts = join(root, "das-config");
+process.env.DAS_CONFIG_DIR = scripts;
 
 const fresh = (settings?: object) => {
   const dir = mkdtempSync(join(root, "c-"));
@@ -142,4 +150,34 @@ test("atomic: no temp files left behind; invalid JSON is refused and untouched",
   expect(() => installHooks({ claudeDir: bad, port: 4321 })).toThrow();
   expect(readFileSync(join(bad, "settings.json"), "utf8")).toBe("{ not json");
   expect(readdirSync(bad)).toEqual(["settings.json"]);
+});
+
+test("install leaves no status line behind", () => {
+  const dir = fresh(base());
+  installHooks({ claudeDir: dir, port: 4321 });
+  expect(load(dir).statusLine).toBeUndefined();
+  expect(hooksStatus({ claudeDir: dir, port: 4321 }).events.StatusLine).toBeUndefined();
+});
+
+test("a status line relay from an earlier version is removed, restoring the user's own", () => {
+  const mine = {
+    type: "command",
+    command: "~/.claude/my status.sh 'x'",
+    padding: 1,
+    refreshInterval: 5,
+  };
+  const b64 = Buffer.from(mine.command).toString("base64");
+  const relay = (wrap: string) => ({
+    ...mine,
+    command: `${wrap}sh '/old/statusline.sh' 4321 ${MARKER}`,
+  });
+  const wrapped = fresh({ ...base(), statusLine: relay(`DAS_WRAP_B64=${b64} `) });
+  installHooks({ claudeDir: wrapped, port: 4321 });
+  expect(load(wrapped).statusLine).toEqual(mine);
+  const bare = fresh({ ...base(), statusLine: relay("") });
+  uninstallHooks({ claudeDir: bare });
+  expect(load(bare).statusLine).toBeUndefined();
+  const own = fresh({ ...base(), statusLine: mine });
+  installHooks({ claudeDir: own, port: 4321 });
+  expect(load(own).statusLine).toEqual(mine);
 });
