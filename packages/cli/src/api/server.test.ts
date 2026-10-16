@@ -91,6 +91,7 @@ test("status line relay: rate_limits show up in /v1/usage, the reply is the shor
   const reset7d = reset5h + 86_400;
   const res = await fetch(`http://${base}/statusline`, {
     method: "POST",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({
       session_id: "s1",
       rate_limits: {
@@ -105,7 +106,25 @@ test("status line relay: rate_limits show up in /v1/usage, the reply is the shor
   expect(u.limits.fiveHour).toEqual({ usedPercent: 23.5, resetsAt: reset5h * 1000 });
   expect(u.limits.sevenDay).toEqual({ usedPercent: 41.2, resetsAt: reset7d * 1000 });
   // a body without rate_limits, or not JSON, is fine
-  expect((await fetch(`http://${base}/statusline`, { method: "POST", body: "{" })).status).toBe(
+  const post = (init: RequestInit) =>
+    fetch(`http://${base}/statusline`, { method: "POST", ...init });
+  expect((await post({ headers: { "content-type": "application/json" }, body: "{" })).status).toBe(
     200,
   );
+  // a web page can send text/plain (no preflight) or carries an Origin: neither may feed limits
+  const forged = JSON.stringify({
+    rate_limits: { five_hour: { used_percentage: 100, resets_at: 99_999_999_999 } },
+  });
+  expect((await post({ body: forged })).status).toBe(403);
+  expect((await post({ headers: { "content-type": "text/plain" }, body: forged })).status).toBe(
+    403,
+  );
+  expect(
+    (
+      await post({
+        headers: { "content-type": "application/json", origin: "https://evil.example" },
+        body: forged,
+      })
+    ).status,
+  ).toBe(403);
 });

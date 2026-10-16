@@ -22,6 +22,9 @@ import {
 
 const root = mkdtempSync(join(tmpdir(), "hooks-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
+// installHooks copies statusline.sh into the das config dir; keep that out of the real one
+const scripts = join(root, "das-config");
+process.env.DAS_CONFIG_DIR = scripts;
 
 const fresh = (settings?: object) => {
   const dir = mkdtempSync(join(root, "c-"));
@@ -153,11 +156,16 @@ test("atomic: no temp files left behind; invalid JSON is refused and untouched",
 
 test("status line: added when absent, removed on uninstall", () => {
   const dir = fresh(base());
-  installHooks({ claudeDir: dir, port: 4321 });
+  installHooks({ claudeDir: dir, port: 4321, scriptDir: scripts });
   const sl = load(dir).statusLine;
   expect(sl.type).toBe("command");
-  expect(sl.command).toBe(`sh '${STATUSLINE_SCRIPT}' 4321 ${MARKER}`);
+  const script = join(scripts, "statusline.sh");
+  expect(sl.command).toBe(`sh '${script}' 4321 ${MARKER}`);
+  expect(readFileSync(script, "utf8")).toBe(readFileSync(STATUSLINE_SCRIPT, "utf8"));
   expect(hooksStatus({ claudeDir: dir, port: 4321 }).events.StatusLine).toBe("installed");
+  // the script going missing (moved checkout, cleaned worktree) is flagged, not "installed"
+  rmSync(script);
+  expect(hooksStatus({ claudeDir: dir, port: 4321 }).events.StatusLine).toBe("partial");
   uninstallHooks({ claudeDir: dir });
   expect(load(dir).statusLine).toBeUndefined();
   expect(load(dir)).toEqual(base());

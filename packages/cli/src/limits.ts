@@ -27,6 +27,9 @@ export type Limits = {
 export type LimitSource = "statusline" | "api";
 
 const KEYS = { fiveHour: "five_hour", sevenDay: "seven_day" } as const;
+const SPAN_MS = { fiveHour: 5 * 3_600_000, sevenDay: 7 * 86_400_000 } as const;
+/** Reports of one window can differ by rounding or jitter between sessions and sources. */
+const TOLERANCE_MS = { fiveHour: 60_000, sevenDay: 300_000 } as const;
 
 function parseWindow(v: unknown): LimitWindow | null {
   const w = v as { used_percentage?: unknown; resets_at?: unknown } | null;
@@ -34,7 +37,7 @@ function parseWindow(v: unknown): LimitWindow | null {
   const reset = w?.resets_at;
   if (typeof pct !== "number" || !Number.isFinite(pct)) return null;
   if (typeof reset !== "number" || !Number.isFinite(reset)) return null;
-  return { usedPercent: Math.max(0, pct), resetsAt: reset * 1000 };
+  return { usedPercent: Math.min(100, Math.max(0, pct)), resetsAt: reset * 1000 };
 }
 
 const short = (ms: number) => {
@@ -61,14 +64,19 @@ export class LimitsTracker {
     const rl = (payload as { rate_limits?: Record<string, unknown> } | null)?.rate_limits;
     if (!rl || typeof rl !== "object") return false;
     let seen = false;
+    const now = this.now();
     for (const key of ["fiveHour", "sevenDay"] as const) {
       const w = parseWindow(rl[KEYS[key]]);
-      if (!w) continue;
-      seen = true;
+      // A reset can't be in the past or further out than the window is long: a forged far-future one
+      // would otherwise pin the window, since a later reset time always replaces an earlier one.
+      if (!w || w.resetsAt <= now || w.resetsAt > now + SPAN_MS[key] + TOLERANCE_MS[key]) continue;
       const cur = this.windows[key];
-      if (!cur || w.resetsAt > cur.resetsAt) this.windows[key] = w;
-      else if (w.resetsAt === cur.resetsAt && w.usedPercent > cur.usedPercent)
-        cur.usedPercent = w.usedPercent;
+      const tol = TOLERANCE_MS[key];
+      if (!cur || w.resetsAt > cur.resetsAt + tol) this.windows[key] = w;
+      else if (w.resetsAt >= cur.resetsAt - tol) {
+        if (w.usedPercent > cur.usedPercent) cur.usedPercent = w.usedPercent;
+      } else continue; // an older window than the one we hold
+      seen = true;
     }
     if (seen) {
       this.updatedAt = this.now();

@@ -52,8 +52,10 @@ test("token: env first, then .credentials.json; an expired one is skipped", asyn
     );
   creds(T0 + M);
   expect(await readClaudeToken(dir, T0, {})).toBe("file-tok");
+  // cached until it expires, so the Keychain/file is not read again every poll
   creds(T0 - M);
-  expect(await readClaudeToken(dir, T0, {})).toBeNull();
+  expect(await readClaudeToken(dir, T0, {})).toBe("file-tok");
+  expect(await readClaudeToken(dir, T0 + 2 * M, {})).toBeNull();
 });
 
 const setup = (respond: () => Response) => {
@@ -119,7 +121,11 @@ test("poll: backs off on 429 (honouring retry-after) and on network errors, then
 
 test("keychain item is scoped by config dir unless it is ~/.claude", () => {
   expect(keychainServices("/h/.claude", "/h")).toEqual(["Claude Code-credentials"]);
-  const [scoped, base] = keychainServices("/h/.claude-work", "/h");
-  expect(scoped).toMatch(/^Claude Code-credentials-[0-9a-f]{8}$/);
-  expect(base).toBe("Claude Code-credentials");
+  // no unscoped fallback for another dir: that item is a different login's
+  const scoped = keychainServices("/h/.claude-work", "/h");
+  expect(scoped).toHaveLength(1);
+  expect(scoped[0]).toMatch(/^Claude Code-credentials-[0-9a-f]{8}$/);
+  // a trailing slash names the same dir
+  expect(keychainServices("/h/.claude-work/", "/h")).toEqual(scoped);
+  expect(keychainServices("/h/.claude/", "/h")).toEqual(["Claude Code-credentials"]);
 });

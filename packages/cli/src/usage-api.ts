@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import type { LimitsTracker } from "./limits";
 
 /**
@@ -11,8 +11,8 @@ import type { LimitsTracker } from "./limits";
  * the status line has gone quiet, backs off on errors, and never refreshes or writes the token.
  *
  * Token: $CLAUDE_CODE_OAUTH_TOKEN, else the macOS Keychain item "Claude Code-credentials" (with a
- * "-<sha256(dir)[:8]>" suffix when CLAUDE_CONFIG_DIR points elsewhere, as Claude Code names it), else
- * `<claude dir>/.credentials.json` (both hold `claudeAiOauth.{accessToken, expiresAt}`).
+ * "-<sha256(dir)[:8]>" suffix when CLAUDE_CONFIG_DIR points elsewhere, as Claude Code names it, no
+ * unscoped fallback then), else `<claude dir>/.credentials.json` (both hold `claudeAiOauth.{accessToken, expiresAt}`).
  */
 
 export const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
@@ -21,25 +21,51 @@ const MAX_BACKOFF_MS = 60 * 60_000;
 
 type Creds = { claudeAiOauth?: { accessToken?: unknown; expiresAt?: unknown } };
 
-function tokenFrom(text: string, now: number): string | null {
+function tokenFrom(text: string, now: number): { token: string; expiresAt: number } | null {
   try {
     const o = (JSON.parse(text) as Creds).claudeAiOauth;
     if (typeof o?.accessToken !== "string" || !o.accessToken) return null;
     // Claude Code refreshes its own token; an expired one is skipped until it has.
     if (typeof o.expiresAt === "number" && o.expiresAt <= now) return null;
-    return o.accessToken;
+    return {
+      token: o.accessToken,
+      expiresAt: typeof o.expiresAt === "number" ? o.expiresAt : Infinity,
+    };
   } catch {
     return null;
   }
 }
 
-/** Keychain service names to try: Claude Code scopes the item by config dir when it is not ~/.claude. */
+/**
+ * Keychain service names to try. Claude Code scopes the item by config dir when it is not ~/.claude; the
+ * unscoped item is only a fallback for the default dir, since otherwise it is another login's.
+ */
 export function keychainServices(claudeDir: string, home = homedir()): string[] {
   const base = "Claude Code-credentials";
-  if (claudeDir === join(home, ".claude")) return [base];
-  const hash = createHash("sha256").update(claudeDir).digest("hex").slice(0, 8);
-  return [`${base}-${hash}`, base];
+  const dir = resolve(claudeDir);
+  if (dir === join(home, ".claude")) return [base];
+  return [`${base}-${createHash("sha256").update(dir).digest("hex").slice(0, 8)}`];
 }
+
+/** `security` blocks on an unanswered Keychain prompt; give up so the poll loop keeps running. */
+const KEYCHAIN_TIMEOUT_MS = 5_000;
+
+async function keychainText(service: string): Promise<string | null> {
+  const p = Bun.spawn(["security", "find-generic-password", "-s", service, "-w"], {
+    stdout: "pipe",
+    stderr: "ignore",
+  });
+  const timer = setTimeout(() => p.kill(), KEYCHAIN_TIMEOUT_MS);
+  try {
+    const out = await new Response(p.stdout).text();
+    return (await p.exited) === 0 ? out.trim() : null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Keychain and file reads are cached until the token expires, so "Allow" (not "Always") prompts once. */
+const cache = new Map<string, { token: string; expiresAt: number }>();
 
 export async function readClaudeToken(
   claudeDir: string,
@@ -47,21 +73,25 @@ export async function readClaudeToken(
   env: Record<string, string | undefined> = process.env,
 ): Promise<string | null> {
   if (env.CLAUDE_CODE_OAUTH_TOKEN) return env.CLAUDE_CODE_OAUTH_TOKEN;
-  if (process.platform === "darwin") {
-    for (const service of keychainServices(claudeDir)) {
-      const p = Bun.spawn(["security", "find-generic-password", "-s", service, "-w"], {
-        stdout: "pipe",
-        stderr: "ignore",
-      });
-      const out = await new Response(p.stdout).text();
-      if ((await p.exited) === 0) {
-        const t = tokenFrom(out.trim(), now);
+  const key = resolve(claudeDir);
+  const hit = cache.get(key);
+  if (hit && hit.expiresAt > now) return hit.token;
+  cache.delete(key);
+  const found = async () => {
+    if (process.platform === "darwin") {
+      for (const service of keychainServices(claudeDir)) {
+        const out = await keychainText(service);
+        const t = out && tokenFrom(out, now);
         if (t) return t;
       }
     }
-  }
-  const file = await readFile(join(claudeDir, ".credentials.json"), "utf8").catch(() => null);
-  return file ? tokenFrom(file, now) : null;
+    const file = await readFile(join(claudeDir, ".credentials.json"), "utf8").catch(() => null);
+    return file ? tokenFrom(file, now) : null;
+  };
+  const t = await found();
+  if (!t) return null;
+  cache.set(key, t);
+  return t.token;
 }
 
 const epochSec = (v: unknown) => {

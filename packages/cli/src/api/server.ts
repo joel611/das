@@ -197,6 +197,10 @@ export function createServer({
   // when the user had no status line of their own.
   app.post("/statusline", async (c) => {
     if (!isLocal(c.env.srv.requestIP(c.req.raw)?.address)) return c.text("forbidden", 403);
+    // A web page can POST to loopback without a preflight (text/plain, no-cors). Requiring JSON forces a
+    // preflight that fails, and browsers always send Origin; statusline.sh (curl) sends neither oddity.
+    if (c.req.header("origin") || !c.req.header("content-type")?.startsWith("application/json"))
+      return c.text("forbidden", 403);
     limits.report(await c.req.json().catch(() => null));
     return c.text(limits.line());
   });
