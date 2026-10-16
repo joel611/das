@@ -6,7 +6,7 @@ import type { Limits } from "./limits";
 /**
  * Token usage read from the Claude Code transcripts that hook events point at (`transcript_path`).
  * Each transcript is read incrementally from where the last read stopped. Plan limits (percent of the
- * 5-hour or weekly allowance) are not in transcripts: they come from the status line (limits.ts), and the
+ * 5-hour or weekly allowance) are not in transcripts: they come from the Claude app file or the usage API (limits.ts), and the
  * server fills `limits` in.
  *
  * The path comes from a hook payload, which any local process can post, so it is only read when it

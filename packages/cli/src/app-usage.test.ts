@@ -84,9 +84,10 @@ test("pollOnce: a fresh reading shows percent with no reset time when nothing el
 
 test("pollOnce: borrows the reset time of a window already known, and only raises it", async () => {
   const limits = new LimitsTracker(() => T0);
-  limits.report({
-    rate_limits: { five_hour: { used_percentage: 30, resets_at: (T0 + 2 * H) / 1000 } },
-  });
+  limits.report(
+    { rate_limits: { five_hour: { used_percentage: 30, resets_at: (T0 + 2 * H) / 1000 } } },
+    "api",
+  );
   write(v2({ t: T0 + M, u: { fh: 45 } }));
   const now = T0 + 10 * M;
   expect(await pollOnce({ limits, claudeDir: claudeDir(), home, now: () => now })).toBe(true);
@@ -97,11 +98,12 @@ test("pollOnce: borrows the reset time of a window already known, and only raise
   });
 });
 
-test("pollOnce: stays out while the status line is alive, and ignores old or older-than-ours readings", async () => {
+test("pollOnce: ignores old or older-than-ours readings", async () => {
   const limits = new LimitsTracker(() => T0);
-  limits.report({
-    rate_limits: { five_hour: { used_percentage: 30, resets_at: (T0 + 2 * H) / 1000 } },
-  });
+  limits.report(
+    { rate_limits: { five_hour: { used_percentage: 30, resets_at: (T0 + 2 * H) / 1000 } } },
+    "api",
+  );
   write(v2({ t: T0 - M, u: { fh: 80 } }));
   expect(await pollOnce({ limits, claudeDir: claudeDir(), home, now: () => T0 + M })).toBe(false);
   const later = T0 + 10 * M;
@@ -118,10 +120,12 @@ test("pollOnce: stays out while the status line is alive, and ignores old or old
 test("a percent without a reset time is only accepted from the app file", () => {
   const t = new LimitsTracker(() => T0);
   const p = { rate_limits: { five_hour: { used_percentage: 40, resets_at: null } } };
-  expect(t.report(p)).toBe(false);
   expect(t.report(p, "api")).toBe(false);
   expect(t.report(p, "app")).toBe(true);
-  t.report({ rate_limits: { five_hour: { used_percentage: 41, resets_at: (T0 + H) / 1000 } } });
+  t.report(
+    { rate_limits: { five_hour: { used_percentage: 41, resets_at: (T0 + H) / 1000 } } },
+    "api",
+  );
   expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 41, resetsAt: T0 + H });
   expect(t.report(p, "app")).toBe(false);
 });

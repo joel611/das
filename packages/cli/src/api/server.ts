@@ -55,16 +55,6 @@ function cachedTrusted() {
 }
 
 const isLocal = (ip?: string) => ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
-const sameDir = (a: string, b: string) => {
-  const real = (p: string) => {
-    try {
-      return realpathSync(resolve(expandHome(p)));
-    } catch {
-      return resolve(expandHome(p));
-    }
-  };
-  return real(a) === real(b);
-};
 const expandHome = (p: string) => (p.startsWith("~") ? homedir() + p.slice(1) : p);
 const isDir = (p: string) => {
   try {
@@ -204,18 +194,6 @@ export function createServer({
     // Read the transcript after answering, so a large first read never delays the agent.
     setTimeout(() => usage.ingest(payload.session_id ?? "", payload.transcript_path), 0);
     return c.body(null, 204);
-  });
-
-  app.post("/statusline", async (c) => {
-    if (!isLocal(c.env.srv.requestIP(c.req.raw)?.address)) return c.text("forbidden", 403);
-    // A web page can POST to loopback without a preflight (text/plain, no-cors). Requiring JSON forces a
-    // preflight that fails, and browsers always send Origin; statusline.sh (curl) sends neither oddity.
-    if (c.req.header("origin") || !c.req.header("content-type")?.startsWith("application/json"))
-      return c.text("forbidden", 403);
-    const from = c.req.header("x-claude-config-dir");
-    if (!claudeDir || !from || sameDir(from, claudeDir))
-      limits.report(await c.req.json().catch(() => null));
-    return c.text(limits.line());
   });
 
   // Admin API: localhost only, plus the token when one is set. Secrets are write-only.

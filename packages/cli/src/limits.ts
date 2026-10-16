@@ -14,11 +14,11 @@ export type Limits = {
   sevenDay: LimitWindow | null;
   /** epoch ms of the newest `observedAt` */
   updatedAt: number;
-  /** source of that newest report: the status line, or the opt-in usage API poll (usage-api.ts) */
+  /** source of that newest report: the Claude app file (app-usage.ts), or the opt-in usage API poll (usage-api.ts) */
   source: LimitSource;
 };
 
-export type LimitSource = "statusline" | "api" | "app";
+export type LimitSource = "api" | "app";
 
 const KEYS = { fiveHour: "five_hour", sevenDay: "seven_day" } as const;
 const SPAN_MS = { fiveHour: 5 * 3_600_000, sevenDay: 7 * 86_400_000 } as const;
@@ -37,25 +37,17 @@ function parseWindow(v: unknown): Reported | null {
   return { usedPercent, resetsAt: reset * 1000 };
 }
 
-const short = (ms: number) => {
-  const m = Math.max(0, Math.round(ms / 60_000));
-  const d = Math.floor(m / 1440);
-  const h = Math.floor((m % 1440) / 60);
-  return d ? `${d}d${h}h` : h ? `${h}h${String(m % 60).padStart(2, "0")}m` : `${m}m`;
-};
-
 export class LimitsTracker {
   private windows: { fiveHour: LimitWindow | null; sevenDay: LimitWindow | null } = {
     fiveHour: null,
     sevenDay: null,
   };
   private updatedAt = 0;
-  private source: LimitSource = "statusline";
-  statusLineAt = 0;
+  private source: LimitSource = "api";
 
   constructor(private now: () => number = Date.now) {}
 
-  report(payload: unknown, source: LimitSource = "statusline"): boolean {
+  report(payload: unknown, source: LimitSource): boolean {
     const rl = (payload as { rate_limits?: Record<string, unknown> } | null)?.rate_limits;
     if (!rl || typeof rl !== "object") return false;
     let seen = false;
@@ -93,7 +85,6 @@ export class LimitsTracker {
     if (changed) {
       this.updatedAt = now;
       this.source = source;
-      if (source === "statusline") this.statusLineAt = now;
     }
     return seen;
   }
@@ -105,15 +96,5 @@ export class LimitsTracker {
     const sevenDay = live(this.windows.sevenDay);
     if (!fiveHour && !sevenDay) return null;
     return { fiveHour, sevenDay, updatedAt: this.updatedAt, source: this.source };
-  }
-
-  line(now = this.now()): string {
-    const l = this.summary(now);
-    if (!l) return "";
-    const part = (label: string, w: LimitWindow | null) =>
-      w
-        ? `${label} ${Math.round(w.usedPercent)}%${w.resetsAt === null ? "" : ` (${short(w.resetsAt - now)})`}`
-        : null;
-    return [part("5h", l.fiveHour), part("7d", l.sevenDay)].filter(Boolean).join(" · ");
   }
 }
