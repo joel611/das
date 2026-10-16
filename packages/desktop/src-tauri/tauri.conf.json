@@ -5,7 +5,7 @@
   "identifier": "dev.joelchan.stackchan",
   "build": {
     "beforeDevCommand": "bun run dev",
-    "devUrl": "http://localhost:3000",
+    "devUrl": "http://localhost:5776",
     "beforeBuildCommand": "bun run build",
     "frontendDist": "../dist"
   },

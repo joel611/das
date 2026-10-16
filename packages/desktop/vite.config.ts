@@ -22,7 +22,7 @@ export default defineConfig({
     setupFiles: ["./src/test-setup.ts"],
   },
   server: {
-    port: 3000,
+    port: 5776,
     strictPort: true,
     watch: {
       ignored: ["**/src-tauri/target/**"],
