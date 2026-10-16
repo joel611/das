@@ -55,4 +55,4 @@ Whether the robot's connection to the daemon is connecting, failed, or connected
 _Avoid_: connection status, network state
 
 **Session state**:
-One of running, waiting, done, error, idle. Priority when mixed: error > waiting > running > done > idle.
+One of running, waiting, done, error, idle. Priority when mixed: error > running > waiting > done > idle.
