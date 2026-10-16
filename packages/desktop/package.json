@@ -7,6 +7,7 @@
     "dev": "vp dev",
     "build": "vp build",
     "preview": "vp preview",
+    "test": "vp test run",
     "tauri": "tauri",
     "dev:all": "tauri dev",
     "e2e": "VITE_E2E=1 tauri build --debug --no-bundle --features e2e --config src-tauri/tauri.e2e.conf.json && wdio run e2e/wdio.conf.ts"
@@ -33,6 +34,8 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24",
     "@types/react": "^19",
@@ -46,6 +49,7 @@
     "@wdio/tauri-plugin": "^1.5.0",
     "@wdio/tauri-service": "^1.5.0",
     "expect-webdriverio": "^8.0.0",
+    "jsdom": "^30.1.3",
     "typescript": "^7.0.2",
     "vite-plus": "catalog:"
   }
