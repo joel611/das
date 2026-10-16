@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { createServer as createHttpServer } from "node:http";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -52,6 +53,18 @@ export async function startDaemon(): Promise<ChildProcess> {
   }
   child.kill();
   throw new Error("fixture daemon did not start");
+}
+
+/** Stand-in for the daemon: serves canned JSON per path on the sandbox port, 404 for the rest. Close it with the returned fn. */
+export async function startMockApi(routes: Record<string, unknown>): Promise<() => Promise<void>> {
+  const server = createHttpServer((req, res) => {
+    const path = (req.url ?? "").split("?")[0]!;
+    const hit = path in routes;
+    res.writeHead(hit ? 200 : 404, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(hit ? routes[path] : { error: "not mocked" }));
+  });
+  await new Promise<void>((ok) => server.listen(Number(process.env.PORT), "127.0.0.1", ok));
+  return () => new Promise((ok) => server.close(() => ok()));
 }
 
 export async function stopDaemon(child: ChildProcess) {

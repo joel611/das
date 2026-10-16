@@ -1,5 +1,14 @@
+import fuzzysort, { type Result } from "fuzzysort";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import { useVoice } from "@/lib/queries";
 import { hhmm } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -158,6 +167,19 @@ function RouteCard({ r }: { r: VoiceReply }) {
   );
 }
 
+function Highlight({ hit, text }: { hit?: Result; text: string }) {
+  if (!hit) return <span>{text}</span>;
+  return (
+    <span>
+      {hit.highlight((m, i) => (
+        <mark key={i} className="bg-transparent font-bold text-neon-cyan">
+          {m}
+        </mark>
+      ))}
+    </span>
+  );
+}
+
 const newDevice = () => "jev-" + Math.random().toString(36).slice(2, 8);
 
 export function JevPanel({ sessions, projects }: { sessions: Session[]; projects: Project[] }) {
@@ -170,7 +192,7 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
   const [device, setDevice] = useState(newDevice);
   const [style] = useJevStyle();
   const log = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
+  const [project, setProject] = useState<string | null>(null); // null = auto
 
   useEffect(() => {
     if (log.current) log.current.scrollTop = log.current.scrollHeight;
@@ -180,9 +202,13 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
     setMsgs((m) => [...m, { id: Date.now(), at: Date.now(), you: text }]);
     let reply: VoiceReply;
     try {
-      reply = await voice.mutateAsync({ text, device, dryRun: isDry });
+      const hinted = project ? `Start a session in ${project} to ${text}` : text;
+      reply = await voice.mutateAsync({ text: hinted, device, dryRun: isDry });
     } catch (e) {
-      reply = { status: "error", text: e instanceof Error ? e.message : String(e) };
+      reply = {
+        status: "error",
+        text: e instanceof Error ? e.message : String(e),
+      };
     }
     setMsgs((m) => [...m, { id: Date.now() + 1, at: Date.now(), reply, dry: isDry }]);
   }
@@ -208,9 +234,13 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
     void run(text, false);
   }
 
+  // typed filter only; the input shows the selected project when not typing
+  const [query, setQuery] = useState("");
+  const projectItems = projects.map((p) => p.name);
+  const hits = query.trim() ? fuzzysort.go(query.trim(), projectItems) : [];
+  const shown = query.trim() ? hits.map((h) => h.target) : projectItems;
   const running = sessions.filter((s) => s.state === "running").length;
   const needsYou = sessions.filter((s) => s.state === "waiting" || s.state === "error").length;
-  const chips = projects.slice(0, 3).map((p) => `Start a session in ${p.name} to `);
 
   return (
     <section
@@ -329,24 +359,31 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
             </span>
           </div>
         ) : null}
-        {chips.length ? (
-          <div className="flex flex-wrap gap-2">
-            {chips.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => {
-                  setDraft(c);
-                  setPendingReal(null); // the confirm box must not outlive the text it asked about
-                  input.current?.focus();
-                }}
-                className="min-h-8 cursor-pointer border border-hud-chip bg-transparent px-3 py-1.5 font-mono text-[11px] text-hud-soft hover:border-neon-cyan hover:text-hud-ink"
-              >
-                {c}…
-              </button>
-            ))}
-          </div>
-        ) : null}
+        <div className="flex items-center gap-2 font-mono text-[10px] tracking-[.1em] text-hud-faint">
+          PROJECT
+          <Combobox
+            items={projectItems}
+            filteredItems={shown}
+            onInputValueChange={(v, d) => setQuery(d.reason === "input-change" ? v : "")}
+            value={project}
+            onValueChange={(v) => {
+              setProject(v);
+              setPendingReal(null);
+            }}
+          >
+            <ComboboxInput className="w-44 font-mono text-[11px]" placeholder="auto" />
+            <ComboboxContent>
+              <ComboboxEmpty>No project</ComboboxEmpty>
+              <ComboboxList>
+                {(item: string) => (
+                  <ComboboxItem key={item} value={item}>
+                    <Highlight text={item} hit={hits.find((h) => h.target === item)} />
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
+        </div>
         <form
           onSubmit={send}
           className="flex items-center gap-2 border border-hud-edge bg-hud-surface py-1.5 pr-1.5 pl-4 focus-within:border-neon-cyan focus-within:shadow-[0_0_0_1px_var(--theme-neon-cyan),0_0_24px_color-mix(in_srgb,var(--theme-neon-cyan)_25%,transparent)]"
@@ -359,7 +396,6 @@ export function JevPanel({ sessions, projects }: { sessions: Session[]; projects
           </label>
           <input
             id="jev-cmd"
-            ref={input}
             type="text"
             autoComplete="off"
             autoFocus

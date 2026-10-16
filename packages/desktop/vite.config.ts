@@ -15,6 +15,12 @@ export default defineConfig({
       "@": resolve(import.meta.dirname, "./src"),
     },
   },
+  // Component tests (`vp test run`): jsdom + Tauri's `mockIPC`. The WebDriver specs in e2e/ are not Vitest.
+  test: {
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}"],
+    setupFiles: ["./src/test-setup.ts"],
+  },
   server: {
     port: 3000,
     strictPort: true,
