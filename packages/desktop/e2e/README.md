@@ -12,5 +12,9 @@ Builds a debug binary with `--features e2e` and `src-tauri/tauri.e2e.conf.json`,
 
 Specs: shell and nav, offline state, `api` relay (token injection, path allowlist), settings round trip, window
 hide-on-close, jev project picker. Specs that only need canned API data use `startMockApi(routes)` (a tiny HTTP
-server on the sandbox port) instead of the real daemon. `__TAURI_INTERNALS__.invoke` is read-only, so the relay
-can't be stubbed from the webview. Screenshots land in `e2e/*.png` (gitignored).
+server on the sandbox port) instead of the real daemon.
+
+Why not `browser.tauri.mock()` or Tauri's `mockIPC`: `__TAURI_INTERNALS__.invoke` is read-only in the real webview,
+and in binary mode the service's mocks only route calls made from `browser.tauri.execute()` scripts, not the app's own
+`invoke`. (On WebdriverIO 10 the service also logs `Cannot read properties of undefined (reading 'bind')` from
+`patchBrowserExecute`, because v10 dropped `browser.executeAsync`; harmless for the embedded provider.) Screenshots land in `e2e/*.png` (gitignored).
