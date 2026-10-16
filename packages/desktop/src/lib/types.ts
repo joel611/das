@@ -13,6 +13,7 @@ export type DaemonState = {
 
 export type Session = {
   id: string;
+  agent: "claude" | "omp";
   project: string | null;
   worktree: string | null;
   branch: string | null;

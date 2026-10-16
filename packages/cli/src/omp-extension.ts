@@ -25,7 +25,7 @@ export default function (pi) {
     let id;
     try { id = ctx?.sessionManager?.getSessionId?.(); } catch {}
     if (!id) return;
-    const body = { session_id: id, cwd: ctx?.cwd ?? process.cwd(), ...extra };
+    const body = { session_id: id, agent: "omp", cwd: ctx?.cwd ?? process.cwd(), ...extra };
     fetch(URL_ + event, { method: "POST", body: JSON.stringify(body), signal: AbortSignal.timeout(2000) }).catch(() => {});
   };
   pi.on("session_start", (_e, ctx) => send("SessionStart", ctx));

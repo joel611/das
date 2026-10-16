@@ -55,8 +55,8 @@ test("generated extension posts omp events as Claude hook events", async () => {
   await Bun.sleep(200);
   srv.stop(true);
   expect(seen).toEqual([
-    ["/hooks/UserPromptSubmit", { session_id: "s1", cwd: "/p" }],
-    ["/hooks/PreToolUse", { session_id: "s1", cwd: "/p", tool_name: "bash" }],
-    ["/hooks/Stop", { session_id: "s1", cwd: "/p" }],
+    ["/hooks/UserPromptSubmit", { session_id: "s1", agent: "omp", cwd: "/p" }],
+    ["/hooks/PreToolUse", { session_id: "s1", agent: "omp", cwd: "/p", tool_name: "bash" }],
+    ["/hooks/Stop", { session_id: "s1", agent: "omp", cwd: "/p" }],
   ]);
 });

@@ -81,6 +81,9 @@ export function ProjectsPanel({
                         )}
                       >
                         <span className={cn("size-1.5 shrink-0", STATE_COLOR[s.state].bg)} />
+                        <span className="shrink-0 border border-hud-chip-dim px-1 text-[10px] text-hud-dim">
+                          {s.agent === "omp" ? "omp" : "claude"}
+                        </span>
                         <span className="min-w-0 flex-1 truncate">{s.detail ?? s.state}</span>
                         <span className={cn("uppercase", STATE_COLOR[s.state].text)}>{s.state}</span>
                       </button>
