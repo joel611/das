@@ -40,7 +40,7 @@ function LimitRow({ label, w, now }: { label: string; w: LimitWindow | null; now
               ? "No window running"
               : "Reset time unknown"
             : `Resets in ${duration(w.resetsAt - now)}`}
-        {stale && ` · as of ${duration(age)} ago${SOURCE_NOTE[w.source]}`}
+        {w && stale && ` · as of ${duration(age)} ago${SOURCE_NOTE[w.source]}`}
       </span>
     </div>
   );
