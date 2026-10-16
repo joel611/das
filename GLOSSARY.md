@@ -47,6 +47,9 @@ The desktop app view that shows the Log stream, with pause, clear, and filters b
 **Display**:
 What the robot shows for the whole fleet of sessions: an expression, a headline, a count and a light. Derived from the highest-priority session state.
 
+**Signal**:
+A direct one-off command from the desktop app to a single connected device (`POST /v1/devices/:id/signal`): show a state's Display and/or beep. Not tied to session state; the next delta replaces it. Bypasses the notification sound setting.
+
 **Light**:
 The LED effect part of a Display: rainbow, solid colour, or blink. Server decides the colour; the robot only renders it.
 

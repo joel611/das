@@ -65,6 +65,9 @@ export type Project = {
   worktrees: { path: string; branch: string | null }[];
 };
 
+/** Direct command to one device: show what `state` would show, and/or beep. */
+export type DeviceSignal = { state?: SessionState; sound?: { hz: number; ms: number } };
+
 export type Device = { id: string; device: string; capabilities: string[]; connectedAt: number };
 
 export type Settings = {

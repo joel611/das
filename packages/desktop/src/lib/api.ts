@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   DaemonState,
   Device,
+  DeviceSignal,
   HookStatus,
   OmpStatus,
   LogEntry,
@@ -60,6 +61,8 @@ export const api = {
   logs: (after = 0) => call<LogEntry[]>("GET", `/v1/logs?after=${after}`),
   usage: () => call<Usage>("GET", "/v1/usage"),
   devices: () => call<Device[]>("GET", "/v1/devices"),
+  signalDevice: (id: string, signal: DeviceSignal) =>
+    call<{ ok: true }>("POST", `/v1/devices/${id}/signal`, signal),
   settings: () => call<Settings>("GET", "/admin/settings"),
   saveSettings: (patch: SettingsPatch) => call<Settings>("PUT", "/admin/settings", patch),
   hooks: () => call<HookStatus>("GET", "/admin/hooks"),
