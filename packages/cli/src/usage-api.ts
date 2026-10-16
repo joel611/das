@@ -87,7 +87,7 @@ const epochSec = (v: unknown) => {
 };
 
 /**
- * The API response as a status line `rate_limits` object, so LimitsTracker treats both sources alike.
+ * The API response as a `rate_limits` object ({five_hour, seven_day} of {used_percentage, resets_at}), the shape LimitsTracker.report reads.
  * Reads `five_hour` / `seven_day` ({utilization 0-100, resets_at ISO}), or a `limits` array of
  * {kind: "session" | "weekly_all", percent, resets_at} where an account gets that shape instead.
  */
@@ -136,7 +136,6 @@ export async function pollOnce(
   const interval = o.intervalMs ?? POLL_MS;
   const now = o.now?.() ?? Date.now();
   if (!o.enabled()) return interval;
-  if (now - o.limits.statusLineAt < interval) return interval;
   const backoff = () => Math.min(MAX_BACKOFF_MS, interval * 2 ** ++failures.n);
   const token = await (o.readToken ?? (() => readClaudeToken(o.claudeDir)))();
   if (!token) {

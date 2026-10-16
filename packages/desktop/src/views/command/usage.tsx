@@ -17,7 +17,7 @@ const CIRC = 2 * Math.PI * R;
 
 const STALE_MS = 30 * 60_000;
 
-const SOURCE_NOTE = { statusline: "", api: " (usage API)", app: " (Claude app)" } as const;
+const SOURCE_NOTE = { api: " (usage API)", app: " (Claude app)" } as const;
 
 const limitColor = (pct: number) =>
   pct >= 95 ? "bg-neon-magenta" : pct >= 80 ? "bg-neon-amber" : "bg-neon-cyan";
@@ -40,7 +40,7 @@ function LimitRow({ label, w, now }: { label: string; w: LimitWindow | null; now
               ? "No window running"
               : "Reset time unknown"
             : `Resets in ${duration(w.resetsAt - now)}`}
-        {stale && ` · as of ${duration(age)} ago${SOURCE_NOTE[w?.source ?? "statusline"]}`}
+        {stale && ` · as of ${duration(age)} ago${SOURCE_NOTE[w.source]}`}
       </span>
     </div>
   );
@@ -202,8 +202,7 @@ export function UsagePanel({
             </>
           ) : (
             <span className="font-mono text-[11px] text-hud-faint">
-              Not reported yet. Claude Code sends them to the das status line after its next
-              response (Pro and Max plans only).
+              Not reported yet. Open the Claude app, or turn on the usage API poll in Settings.
             </span>
           )}
         </div>

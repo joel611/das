@@ -94,17 +94,10 @@ test("poll: reports limits with source api, sends the token and beta header", as
   expect(limits.summary()).toMatchObject({ fiveHour: { usedPercent: 33 }, source: "api" });
 });
 
-test("poll: skipped while off or while the status line is fresh", async () => {
-  const { o, limits, calls, failures, advance } = setup(ok);
+test("poll: skipped while off", async () => {
+  const { o, calls, failures } = setup(ok);
   await pollOnce({ ...o, enabled: () => false }, failures);
   expect(calls).toHaveLength(0);
-  limits.report({
-    rate_limits: { five_hour: { used_percentage: 10, resets_at: (T0 + 60 * M) / 1000 } },
-  });
-  advance(4 * M);
-  await pollOnce(o, failures);
-  expect(calls).toHaveLength(0);
-  advance(2 * M);
   await pollOnce(o, failures);
   expect(calls).toHaveLength(1);
 });

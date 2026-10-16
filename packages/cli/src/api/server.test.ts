@@ -89,72 +89,11 @@ test("health answers without a token", async () => {
   expect(await res.json()).toEqual({ status: "ok" });
 });
 
-test("status line relay: rate_limits show up in /v1/usage, the reply is the short line", async () => {
-  const reset5h = Math.round(Date.now() / 1000) + 3600;
-  const reset7d = reset5h + 86_400;
+test("the status line relay endpoint is gone", async () => {
   const res = await fetch(`http://${base}/statusline`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      session_id: "s1",
-      rate_limits: {
-        five_hour: { used_percentage: 23.5, resets_at: reset5h },
-        seven_day: { used_percentage: 41.2, resets_at: reset7d },
-      },
-    }),
+    body: JSON.stringify({ rate_limits: { five_hour: { used_percentage: 5, resets_at: 1 } } }),
   });
-  expect(res.status).toBe(200);
-  expect(await res.text()).toMatch(/^5h 24% \(\d+h\d+m\) · 7d 41% \(1d\dh\)$/);
-  const u: any = await (await fetch(`http://${base}/v1/usage?token=secret`)).json();
-  expect(u.limits.fiveHour).toMatchObject({ usedPercent: 23.5, resetsAt: reset5h * 1000 });
-  expect(u.limits.sevenDay).toMatchObject({ usedPercent: 41.2, resetsAt: reset7d * 1000 });
-  const post = (init: RequestInit) =>
-    fetch(`http://${base}/statusline`, { method: "POST", ...init });
-  expect((await post({ headers: { "content-type": "application/json" }, body: "{" })).status).toBe(
-    200,
-  );
-  const forged = JSON.stringify({
-    rate_limits: { five_hour: { used_percentage: 100, resets_at: 99_999_999_999 } },
-  });
-  expect((await post({ body: forged })).status).toBe(403);
-  expect((await post({ headers: { "content-type": "text/plain" }, body: forged })).status).toBe(
-    403,
-  );
-  expect(
-    (
-      await post({
-        headers: { "content-type": "application/json", origin: "https://evil.example" },
-        body: forged,
-      })
-    ).status,
-  ).toBe(403);
-});
-
-test("status line relay ignores sessions of another Claude config dir", async () => {
-  const claudeDir = mkdtempSync(join(tmpdir(), "claude-"));
-  const srv = createServer({ port: 0, token: "secret", getProjects: () => [], claudeDir });
-  try {
-    const reset = Math.round(Date.now() / 1000) + 3600;
-    const send = (dir?: string) =>
-      fetch(`http://localhost:${srv.port}/statusline`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          ...(dir ? { "x-claude-config-dir": dir } : {}),
-        },
-        body: JSON.stringify({
-          rate_limits: { five_hour: { used_percentage: 77, resets_at: reset } },
-        }),
-      });
-    const limits = async () =>
-      ((await (await fetch(`http://localhost:${srv.port}/v1/usage?token=secret`)).json()) as any)
-        .limits;
-    expect((await send("/somewhere/else")).status).toBe(200);
-    expect(await limits()).toBeNull();
-    await send(claudeDir + "/");
-    expect((await limits()).fiveHour.usedPercent).toBe(77);
-  } finally {
-    await srv.stop(true);
-    rmSync(claudeDir, { recursive: true, force: true });
-  }
+  expect(res.status).toBe(404);
 });

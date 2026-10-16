@@ -6,7 +6,6 @@ import type { LimitsTracker } from "./limits";
 export const FRESH_MS = 30 * 60_000;
 export const POLL_MS = 60_000;
 const MAX_BYTES = 4 << 20;
-const STATUSLINE_QUIET_MS = 5 * 60_000;
 
 export const historyFile = (home = homedir()) =>
   join(home, "Library", "Application Support", "Claude", "plan-usage-history.json");
@@ -85,7 +84,6 @@ type PollOpts = {
 
 export async function pollOnce(o: PollOpts): Promise<boolean> {
   const now = o.now?.() ?? Date.now();
-  if (now - o.limits.statusLineAt < STATUSLINE_QUIET_MS) return false;
   const home = o.home ?? homedir();
   const text = await readFile(historyFile(home), "utf8").catch(() => null);
   if (!text) return false;

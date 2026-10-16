@@ -39,7 +39,7 @@ export type Usage = {
     byModel: { model: string; tokens: number }[];
     bySession: { session: string; tokens: number }[];
   } | null;
-  /** Plan limits as Claude Code reports them to its status line (packages/cli/src/limits.ts); null until one has. */
+  /** Plan limits as read from the Claude app file or the opt-in usage API (packages/cli/src/limits.ts); null until one has. */
   limits: {
     fiveHour: LimitWindow | null;
     sevenDay: LimitWindow | null;
@@ -54,7 +54,7 @@ export type LimitWindow = {
   resetsAt: number | null;
   /** epoch ms of the last report that raised or replaced this window */
   observedAt: number;
-  source: "statusline" | "api" | "app";
+  source: "api" | "app";
 };
 
 export type Project = {
