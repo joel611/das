@@ -1,5 +1,7 @@
 import { resolve } from "node:path";
 
+import { createSandbox } from "./fixture.ts";
+
 export const config: WebdriverIO.Config = {
   runner: "local",
   specs: ["./*.e2e.ts"],
@@ -17,4 +19,8 @@ export const config: WebdriverIO.Config = {
     ],
   ],
   capabilities: [{ browserName: "tauri" }],
+  // Workers and the app binary inherit this env, so nothing touches the real ~/.config/das or ~/.claude.
+  onPrepare: async () => {
+    await createSandbox();
+  },
 };
