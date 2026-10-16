@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { computeDisplay } from "./display";
+import { computeDisplay, soundFor } from "./display";
 
 const s = (...states: any[]) => states.map((state) => ({ state }));
 
@@ -43,4 +43,11 @@ test("light per state", () => {
     rgb: [255, 140, 0],
   });
   expect(computeDisplay(s("done")).light).toEqual({ mode: "solid", rgb: [0, 255, 0] });
+});
+
+test("soundFor beeps only when entering waiting, done or error", () => {
+  expect(soundFor(undefined, "done")).toEqual({ hz: 880, ms: 150 });
+  expect(soundFor("running", "error")).toEqual({ hz: 220, ms: 400 });
+  expect(soundFor("done", "done")).toBeNull();
+  expect(soundFor("done", "running")).toBeNull();
 });

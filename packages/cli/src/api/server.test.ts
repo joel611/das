@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "./server";
 
-const server = createServer({ port: 0, token: "secret", getProjects: () => [] });
+const server = createServer({
+  port: 0,
+  token: "secret",
+  getProjects: () => [],
+  soundEnabled: () => true,
+});
 afterAll(() => server.stop(true));
 const base = `localhost:${server.port}`;
 
@@ -81,6 +86,48 @@ test("a hook body that is not an object is ignored, not fatal", async () => {
   }
   await Bun.sleep(10); // the deferred transcript read must not throw either
   expect((await fetch(`http://${base}/v1/usage?token=secret`)).status).toBe(200);
+});
+
+test("entering done publishes a sound frame once", async () => {
+  const ws = new WebSocket(`ws://${base}/v1/ws?token=secret`);
+  await opened(ws);
+  const frames: any[] = [];
+  ws.addEventListener("message", (e) => frames.push(JSON.parse(String(e.data))));
+  const post = (event: string) =>
+    fetch(`http://${base}/hooks/${event}`, {
+      method: "POST",
+      body: JSON.stringify({ session_id: "snd", cwd: "/x" }),
+    });
+  await post("UserPromptSubmit");
+  await post("Stop");
+  await post("Stop");
+  await Bun.sleep(100);
+  ws.close();
+  expect(frames.filter((f) => f.type === "sound")).toEqual([{ type: "sound", hz: 880, ms: 150 }]);
+});
+
+test("no sound frame by default (notification sound off)", async () => {
+  const quiet = createServer({
+    port: 0,
+    token: "secret",
+    getProjects: () => [],
+  });
+  const ws = new WebSocket(`ws://localhost:${quiet.port}/v1/ws?token=secret`);
+  await opened(ws);
+  const frames: any[] = [];
+  ws.addEventListener("message", (e) => frames.push(JSON.parse(String(e.data))));
+  const post = (event: string) =>
+    fetch(`http://localhost:${quiet.port}/hooks/${event}`, {
+      method: "POST",
+      body: JSON.stringify({ session_id: "q", cwd: "/x" }),
+    });
+  await post("UserPromptSubmit");
+  await post("Stop");
+  await Bun.sleep(100);
+  ws.close();
+  quiet.stop(true);
+  expect(frames.some((f) => f.type === "delta")).toBe(true);
+  expect(frames.some((f) => f.type === "sound")).toBe(false);
 });
 
 test("health answers without a token", async () => {

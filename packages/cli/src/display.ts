@@ -40,3 +40,16 @@ export function computeDisplay(sessions: Pick<Session, "state">[]): Display {
     light: LIGHT[state],
   };
 }
+
+// Beep played when a session enters a state; the mod renders it with audio.tone.
+export type Sound = { hz: number; ms: number };
+const SOUND: Partial<Record<SessionState, Sound>> = {
+  waiting: { hz: 660, ms: 200 },
+  done: { hz: 880, ms: 150 },
+  error: { hz: 220, ms: 400 },
+};
+
+/** The sound for a session moving from `prev` (undefined if new) to `next`; none if the state is unchanged. */
+export function soundFor(prev: SessionState | undefined, next: SessionState): Sound | null {
+  return prev === next ? null : (SOUND[next] ?? null);
+}

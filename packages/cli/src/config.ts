@@ -8,6 +8,8 @@ export type Config = {
   token: string;
   openrouterKey: string;
   usageApi: boolean;
+  /** Stack-chan beeps when a session enters waiting, done or error. */
+  notificationSound: boolean;
 };
 
 const expand = (p: string) => (p.startsWith("~") ? homedir() + p.slice(1) : p);
@@ -71,6 +73,7 @@ export function loadConfig(
     token: env.TOKEN ?? f.token ?? "",
     openrouterKey: env.OPENROUTER_API_KEY || f.openrouterKey || "",
     usageApi: env.DAS_USAGE_API ? env.DAS_USAGE_API === "1" : f.usageApi === true,
+    notificationSound: f.notificationSound === true,
   };
 }
 

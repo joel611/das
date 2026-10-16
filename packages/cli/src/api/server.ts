@@ -4,13 +4,13 @@ import { realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { envOverrides, loadConfig, writeSettingsFile, type Config } from "../config";
-import { computeDisplay } from "../display";
+import { computeDisplay, soundFor } from "../display";
 import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
 import { installOmp, ompStatus, uninstallOmp } from "../omp-extension";
 import type { Project } from "../scanner";
 import { emit, LogHub, type Logs } from "../logs";
 import { jevDecider, type Decider } from "../router";
-import { SessionTracker, type HookPayload } from "../sessions";
+import { SessionTracker, type HookPayload, type SessionState } from "../sessions";
 import { claudeSpawner, type Spawner } from "../spawner";
 import { isTrusted, trustAdvice, trustedPaths } from "../trust";
 import { LimitsTracker } from "../limits";
@@ -40,6 +40,8 @@ type Opts = {
   /** oh-my-pi agent dir. The das extension lives in its `extensions/` dir. Without it the `/admin/omp` endpoints answer 501. */
   ompDir?: string;
   usageApi?: () => boolean;
+  /** Live switch for Stack-chan notification sounds (the daemon's config). Defaults to off. */
+  soundEnabled?: () => boolean;
   /** Called with the new effective config after a settings save. */
   onSettings?: (c: Config) => void;
   /** Log sinks for api.log / ws.log. Omitted sinks log nothing (tests stay off the real log dir). */
@@ -84,6 +86,11 @@ function parseSettings(b: any): { patch: Partial<Config> } | { error: string } {
     if (typeof b.usageApi !== "boolean") return { error: "usageApi must be a boolean" };
     patch.usageApi = b.usageApi;
   }
+  if (b?.notificationSound !== undefined) {
+    if (typeof b.notificationSound !== "boolean")
+      return { error: "notificationSound must be a boolean" };
+    patch.notificationSound = b.notificationSound;
+  }
   for (const k of ["token", "openrouterKey"] as const) {
     if (b?.[k] === undefined) continue;
     if (typeof b[k] !== "string") return { error: `${k} must be a string` };
@@ -104,6 +111,7 @@ export function createServer({
   claudeDir,
   ompDir,
   usageApi,
+  soundEnabled = () => false,
   onSettings,
   logs: sinks = {},
   trusted = cachedTrusted,
@@ -159,6 +167,7 @@ export function createServer({
       hasToken: !!c.token,
       hasOpenrouterKey: !!c.openrouterKey,
       usageApi: c.usageApi,
+      notificationSound: c.notificationSound,
       envOverrides: envOverrides(),
       trustAdvice: trustAdvice(c.roots, getProjects(), trusted()),
     };
@@ -373,12 +382,23 @@ export function createServer({
   });
 
   boundPort = server.port ?? port;
+  const lastState = new Map<string, SessionState>();
   tracker.onChange((e) => {
     server.publish(
       TOPIC,
       JSON.stringify({ type: "delta", ...e, display: computeDisplay(tracker.list()) }),
     );
     wsLog("message", { dir: "out", type: "delta", subscribers: server.subscriberCount(TOPIC) });
+    if ("removed" in e) {
+      lastState.delete(e.removed);
+      return;
+    }
+    const sound = soundFor(lastState.get(e.session.id), e.session.state);
+    lastState.set(e.session.id, e.session.state);
+    if (sound && soundEnabled()) {
+      server.publish(TOPIC, JSON.stringify({ type: "sound", ...sound }));
+      wsLog("message", { dir: "out", type: "sound", subscribers: server.subscriberCount(TOPIC) });
+    }
   });
 
   return server;
