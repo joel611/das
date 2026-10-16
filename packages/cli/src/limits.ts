@@ -11,7 +11,7 @@
 export type LimitWindow = {
   /** 0-100 */
   usedPercent: number;
-  /** epoch ms; null when the usage API reports an idle account (0% used, no window running) */
+  /** epoch ms; null when the source gives no reset time (idle account at 0%, or the Claude app's percentages) */
   resetsAt: number | null;
   /** epoch ms when a report last raised or replaced this window; repeats of the same value don't count */
   observedAt: number;
@@ -28,7 +28,7 @@ export type Limits = {
   source: LimitSource;
 };
 
-export type LimitSource = "statusline" | "api";
+export type LimitSource = "statusline" | "api" | "app";
 
 const KEYS = { fiveHour: "five_hour", sevenDay: "seven_day" } as const;
 const SPAN_MS = { fiveHour: 5 * 3_600_000, sevenDay: 7 * 86_400_000 } as const;
@@ -43,8 +43,7 @@ function parseWindow(v: unknown): Reported | null {
   const reset = w?.resets_at;
   if (typeof pct !== "number" || !Number.isFinite(pct)) return null;
   const usedPercent = Math.min(100, Math.max(0, pct));
-  // An idle account has no window to reset; only 0% can say so.
-  if (reset === null && usedPercent === 0) return { usedPercent, resetsAt: null };
+  if (reset === null) return { usedPercent, resetsAt: null };
   if (typeof reset !== "number" || !Number.isFinite(reset)) return null;
   return { usedPercent, resetsAt: reset * 1000 };
 }
@@ -80,6 +79,8 @@ export class LimitsTracker {
       // A reset can't be in the past or further out than the window is long: a forged far-future one
       // would otherwise pin the window, since a later reset time always replaces an earlier one.
       if (!w) continue;
+      // Without a reset time only an idle account (0%) or the Claude app file (percent only) makes sense.
+      if (w.resetsAt === null && w.usedPercent > 0 && source !== "app") continue;
       if (
         w.resetsAt !== null &&
         (w.resetsAt <= now || w.resetsAt > now + SPAN_MS[key] + TOLERANCE_MS[key])
@@ -92,9 +93,9 @@ export class LimitsTracker {
         changed = true;
       };
       if (w.resetsAt === null) {
-        // Idle account: never replaces a window that is still running.
+        // No reset time: never replaces a window that is still running.
         if (cur && cur.resetsAt !== null && cur.resetsAt > now) continue;
-        if (!cur || cur.resetsAt !== null || cur.usedPercent !== 0) take();
+        if (!cur || cur.resetsAt !== null || cur.usedPercent !== w.usedPercent) take();
       } else if (!cur || cur.resetsAt === null || w.resetsAt > cur.resetsAt + tol) take();
       else if (w.resetsAt >= cur.resetsAt - tol) {
         if (w.usedPercent > cur.usedPercent) {

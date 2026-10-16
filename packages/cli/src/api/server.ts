@@ -14,6 +14,7 @@ import { SessionTracker, type HookPayload } from "../sessions";
 import { claudeSpawner, type Spawner } from "../spawner";
 import { isTrusted, trustAdvice, trustedPaths } from "../trust";
 import { LimitsTracker } from "../limits";
+import { startAppPoll } from "../app-usage";
 import { startUsagePoll } from "../usage-api";
 import { UsageTracker } from "../usage";
 import { handleTranscript, type VoiceDeps } from "../voice";
@@ -140,7 +141,10 @@ export function createServer({
       log: (msg) => emit(logs.api, { event: "usage-api", msg }),
     });
   // Only when the Claude dir is configured (the daemon does): tests and bare servers stay off the real one.
-  if (claudeDir) void usage.backfill();
+  if (claudeDir) {
+    void usage.backfill();
+    startAppPoll({ limits, claudeDir, log: (msg) => emit(logs.api, { event: "app-usage", msg }) });
+  }
 
   let boundPort = port;
   const devices = new Map<string, Device>();

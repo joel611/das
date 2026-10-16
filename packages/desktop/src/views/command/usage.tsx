@@ -18,6 +18,8 @@ const CIRC = 2 * Math.PI * R;
 /** A reading older than this is shown with its age. */
 const STALE_MS = 30 * 60_000;
 
+const SOURCE_NOTE = { statusline: "", api: " (usage API)", app: " (Claude app)" } as const;
+
 const limitColor = (pct: number) =>
   pct >= 95 ? "bg-neon-magenta" : pct >= 80 ? "bg-neon-amber" : "bg-neon-cyan";
 
@@ -37,9 +39,11 @@ function LimitRow({ label, w, now }: { label: string; w: LimitWindow | null; now
         {!w
           ? "Not reported since the last reset"
           : w.resetsAt === null
-            ? "No window running"
+            ? w.usedPercent === 0
+              ? "No window running"
+              : "Reset time unknown"
             : `Resets in ${duration(w.resetsAt - now)}`}
-        {stale && ` · as of ${duration(age)} ago${w?.source === "api" ? " (usage API)" : ""}`}
+        {stale && ` · as of ${duration(age)} ago${SOURCE_NOTE[w?.source ?? "statusline"]}`}
       </span>
     </div>
   );

@@ -50,11 +50,11 @@ export type Usage = {
 /** Percent of a plan window used (0-100), when it resets (epoch ms), and how old that reading is. */
 export type LimitWindow = {
   usedPercent: number;
-  /** null: the account is idle (usage API reported 0% with no window running) */
+  /** null: no reset time known (idle account at 0%, or read from the Claude app, which keeps percentages only) */
   resetsAt: number | null;
   /** epoch ms of the last report that raised or replaced this window */
   observedAt: number;
-  source: "statusline" | "api";
+  source: "statusline" | "api" | "app";
 };
 
 export type Project = {
