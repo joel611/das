@@ -194,10 +194,12 @@ test("status line: a user's own is wrapped, kept across reinstalls, and restored
 
 test("statusline.sh forwards stdin to the daemon and prints the wrapped status line", async () => {
   const got: string[] = [];
+  const dirs: string[] = [];
   const srv = Bun.serve({
     port: 0,
     fetch: async (r) => {
       got.push(`${new URL(r.url).pathname} ${await r.text()}`);
+      dirs.push(r.headers.get("x-claude-config-dir") ?? "");
       return new Response("5h 1% (1m)");
     },
   });
@@ -205,7 +207,8 @@ test("statusline.sh forwards stdin to the daemon and prints the wrapped status l
     const p = Bun.spawn(["sh", STATUSLINE_SCRIPT, String(srv.port)], {
       stdin: new Blob(['{"rate_limits":{}}']),
       stdout: "pipe",
-      env: { ...process.env, SHELL: "/bin/sh", ...env },
+      // SHELL is not what runs the wrapped command: a POSIX command must survive a fish/nu login shell
+      env: { ...process.env, SHELL: "/nonexistent/fish", CLAUDE_CONFIG_DIR: "/c/dir", ...env },
     });
     const out = await new Response(p.stdout).text();
     expect(await p.exited).toBe(0);
@@ -216,5 +219,6 @@ test("statusline.sh forwards stdin to the daemon and prints the wrapped status l
   expect(await run({ DAS_WRAP_B64: wrap })).toBe('{"rate_limits":{}} mine');
   await Bun.sleep(200); // the wrapped run posts in the background
   expect(got).toEqual(['/statusline {"rate_limits":{}}', '/statusline {"rate_limits":{}}']);
+  expect(dirs).toEqual(["/c/dir", "/c/dir"]);
   await srv.stop(true);
 });

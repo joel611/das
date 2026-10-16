@@ -1,8 +1,8 @@
 import type { Server } from "bun";
 import { Hono, type Context } from "hono";
-import { statSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { envOverrides, loadConfig, writeSettingsFile, type Config } from "../config";
 import { computeDisplay } from "../display";
 import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
@@ -55,6 +55,16 @@ function cachedTrusted() {
 }
 
 const isLocal = (ip?: string) => ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+const sameDir = (a: string, b: string) => {
+  const real = (p: string) => {
+    try {
+      return realpathSync(resolve(expandHome(p)));
+    } catch {
+      return resolve(expandHome(p));
+    }
+  };
+  return real(a) === real(b);
+};
 const expandHome = (p: string) => (p.startsWith("~") ? homedir() + p.slice(1) : p);
 const isDir = (p: string) => {
   try {
@@ -201,7 +211,10 @@ export function createServer({
     // preflight that fails, and browsers always send Origin; statusline.sh (curl) sends neither oddity.
     if (c.req.header("origin") || !c.req.header("content-type")?.startsWith("application/json"))
       return c.text("forbidden", 403);
-    limits.report(await c.req.json().catch(() => null));
+    // Limits are per login: ignore sessions of another Claude config dir than the one we serve.
+    const from = c.req.header("x-claude-config-dir");
+    if (!claudeDir || !from || sameDir(from, claudeDir))
+      limits.report(await c.req.json().catch(() => null));
     return c.text(limits.line());
   });
 

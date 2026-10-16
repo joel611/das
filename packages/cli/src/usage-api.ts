@@ -108,8 +108,13 @@ export function toRateLimits(body: unknown): Record<string, unknown> | null {
   const b = body as Record<string, any> | null;
   if (!b || typeof b !== "object") return null;
   const win = (pct: unknown, reset: unknown) => {
+    if (typeof pct !== "number") return undefined;
     const resets_at = epochSec(reset);
-    return typeof pct === "number" && resets_at ? { used_percentage: pct, resets_at } : undefined;
+    if (resets_at) return { used_percentage: pct, resets_at };
+    // An idle account reports 0% with no reset time.
+    return pct === 0 && (reset === null || reset === undefined)
+      ? { used_percentage: 0, resets_at: null }
+      : undefined;
   };
   const out: Record<string, unknown> = {};
   const five = win(b.five_hour?.utilization, b.five_hour?.resets_at);
@@ -139,7 +144,10 @@ type PollOpts = {
 };
 
 /** One poll; returns the delay before the next. Exported for tests. */
-export async function pollOnce(o: PollOpts, failures: { n: number }): Promise<number> {
+export async function pollOnce(
+  o: PollOpts,
+  failures: { n: number; noToken?: boolean },
+): Promise<number> {
   const interval = o.intervalMs ?? POLL_MS;
   const now = o.now?.() ?? Date.now();
   if (!o.enabled()) return interval;
@@ -148,9 +156,13 @@ export async function pollOnce(o: PollOpts, failures: { n: number }): Promise<nu
   const backoff = () => Math.min(MAX_BACKOFF_MS, interval * 2 ** ++failures.n);
   const token = await (o.readToken ?? (() => readClaudeToken(o.claudeDir)))();
   if (!token) {
-    o.log?.("usage api: no Claude Code login token found (or it has expired)");
+    // Tokens expire hours after the last Claude Code session; say so once, not every poll.
+    if (!failures.noToken)
+      o.log?.("usage api: no Claude Code login token found (or it has expired)");
+    failures.noToken = true;
     return interval;
   }
+  failures.noToken = false;
   try {
     const res = await (o.fetch ?? fetch)(USAGE_URL, {
       headers: {
@@ -177,7 +189,7 @@ export async function pollOnce(o: PollOpts, failures: { n: number }): Promise<nu
 
 /** Start polling; returns a stop function. */
 export function startUsagePoll(o: PollOpts): () => void {
-  const failures = { n: 0 };
+  const failures: { n: number; noToken?: boolean } = { n: 0 };
   let timer: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   const tick = async () => {

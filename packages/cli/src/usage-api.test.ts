@@ -22,6 +22,13 @@ test("toRateLimits reads five_hour / seven_day (utilization 0-100, ISO resets_at
   });
 });
 
+test("toRateLimits: an idle account (0%, resets_at null) is reported; other null resets are not", () => {
+  expect(toRateLimits({ five_hour: { utilization: 0, resets_at: null } })).toEqual({
+    five_hour: { used_percentage: 0, resets_at: null },
+  });
+  expect(toRateLimits({ five_hour: { utilization: 12, resets_at: null } })).toBeNull();
+});
+
 test("toRateLimits also reads a limits array, and nothing usable is null", () => {
   expect(
     toRateLimits({
@@ -128,4 +135,17 @@ test("keychain item is scoped by config dir unless it is ~/.claude", () => {
   // a trailing slash names the same dir
   expect(keychainServices("/h/.claude-work/", "/h")).toEqual(scoped);
   expect(keychainServices("/h/.claude/", "/h")).toEqual(["Claude Code-credentials"]);
+});
+
+test("poll: no token is logged once, not every poll", async () => {
+  const s = setup(ok);
+  const logs: string[] = [];
+  const o = { ...s.o, readToken: async () => null, log: (m: string) => logs.push(m) };
+  await pollOnce(o, s.failures);
+  await pollOnce(o, s.failures);
+  expect(logs).toHaveLength(1);
+  // once a token turns up again, a later loss is worth saying again
+  await pollOnce({ ...o, readToken: async () => "tok" }, s.failures);
+  await pollOnce(o, s.failures);
+  expect(logs).toHaveLength(2);
 });

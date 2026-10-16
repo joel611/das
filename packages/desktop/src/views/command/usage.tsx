@@ -15,11 +15,17 @@ const MODEL_COLOR = [
 const R = 50;
 const CIRC = 2 * Math.PI * R;
 
+/** A reading older than this is shown with its age. */
+const STALE_MS = 30 * 60_000;
+
 const limitColor = (pct: number) =>
   pct >= 95 ? "bg-neon-magenta" : pct >= 80 ? "bg-neon-amber" : "bg-neon-cyan";
 
 /** One plan window: percent used and time to reset. */
 function LimitRow({ label, w, now }: { label: string; w: LimitWindow | null; now: number }) {
+  // An idle session's copy is only as fresh as its last response; say how old the reading is.
+  const age = w ? now - w.observedAt : 0;
+  const stale = age > STALE_MS;
   return (
     <div className="flex flex-col gap-1.25">
       <span className="flex justify-between font-mono text-xs">
@@ -28,7 +34,12 @@ function LimitRow({ label, w, now }: { label: string; w: LimitWindow | null; now
       </span>
       <Bar pct={w?.usedPercent ?? 0} h="h-1.5" className={limitColor(w?.usedPercent ?? 0)} />
       <span className="font-mono text-[10px] text-hud-faint">
-        {w ? `Resets in ${duration(w.resetsAt - now)}` : "Not reported since the last reset"}
+        {!w
+          ? "Not reported since the last reset"
+          : w.resetsAt === null
+            ? "No window running"
+            : `Resets in ${duration(w.resetsAt - now)}`}
+        {stale && ` · as of ${duration(age)} ago${w?.source === "api" ? " (usage API)" : ""}`}
       </span>
     </div>
   );
@@ -82,7 +93,7 @@ export function UsagePanel({
       ? Math.round(((now - b.start) / (b.end - b.start)) * 100)
       : 0;
   const ringLabel = five ? "USED" : "ELAPSED";
-  const resetsIn = five ? five.resetsAt - now : b ? b.end - now : 0;
+  const resetsIn = five?.resetsAt != null ? five.resetsAt - now : b ? b.end - now : 0;
   const top = b?.bySession[0]?.tokens ?? 1;
   const modelTotal = b?.byModel.reduce((n, m) => n + m.tokens, 0) || 1;
   const byId = new Map(sessions.map((s) => [s.id, s]));

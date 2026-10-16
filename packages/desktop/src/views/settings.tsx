@@ -258,9 +258,9 @@ export function Settings() {
               <Label htmlFor="usage-api">Poll the Claude usage API for plan limits</Label>
               <p className="text-xs text-muted-foreground">
                 Fills in the 5-hour and weekly limits while no Claude session is running, using your
-                Claude Code login. The endpoint is undocumented and rate limited, so it is checked
-                at most every 5 minutes. On macOS the first read of the login may ask for Keychain
-                access.
+                Claude Code login (which only stays valid for a few hours after your last session).
+                The endpoint is undocumented and rate limited, so it is checked at most every 5
+                minutes. On macOS the first read of the login may ask for Keychain access.
               </p>
             </div>
           </div>

@@ -17,8 +17,8 @@ test("reads both windows from a status line payload; resets_at seconds become ms
   expect(t.summary()).toBeNull();
   expect(t.report(payload([23.5, T0 + 2 * H], [41.2, T0 + 72 * H]))).toBe(true);
   expect(t.summary()).toEqual({
-    fiveHour: { usedPercent: 23.5, resetsAt: T0 + 2 * H },
-    sevenDay: { usedPercent: 41.2, resetsAt: T0 + 72 * H },
+    fiveHour: { usedPercent: 23.5, resetsAt: T0 + 2 * H, observedAt: T0, source: "statusline" },
+    sevenDay: { usedPercent: 41.2, resetsAt: T0 + 72 * H, observedAt: T0, source: "statusline" },
     updatedAt: T0,
     source: "statusline",
   });
@@ -48,7 +48,7 @@ test("an idle session's older, lower copy never lowers the percent; a new window
   expect(t.summary()?.fiveHour?.usedPercent).toBe(45);
   now = T0 + 2 * H; // the first block is over
   t.report(payload([2, T0 + 6 * H])); // next block
-  expect(t.summary()?.fiveHour).toEqual({ usedPercent: 2, resetsAt: T0 + 6 * H });
+  expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 2, resetsAt: T0 + 6 * H });
   t.report(payload([90, T0 + H])); // late report for the old block
   expect(t.summary()?.fiveHour?.usedPercent).toBe(2);
 });
@@ -62,7 +62,7 @@ test("a window past its reset is unknown; a missing window keeps the last value"
   now = T0 + 2 * H;
   expect(t.summary()).toEqual({
     fiveHour: null,
-    sevenDay: { usedPercent: 11, resetsAt: T0 + 48 * H },
+    sevenDay: { usedPercent: 11, resetsAt: T0 + 48 * H, observedAt: T0, source: "statusline" },
     updatedAt: T0,
     source: "statusline",
   });
@@ -76,11 +76,11 @@ test("a window is the same one within a small reset-time tolerance (rounding, ji
   t.report(payload([20, T0 + 2 * H]));
   // 1s later reset (API rounding) is the same window, not a lock-out: higher percent still lands
   expect(t.report(payload([30, T0 + 2 * H + 1000]))).toBe(true);
-  expect(t.summary()?.fiveHour).toEqual({ usedPercent: 30, resetsAt: T0 + 2 * H });
+  expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 30, resetsAt: T0 + 2 * H });
   // a real next window replaces it
   now = T0 + 3 * H;
   t.report(payload([5, T0 + 7 * H]));
-  expect(t.summary()?.fiveHour).toEqual({ usedPercent: 5, resetsAt: T0 + 7 * H });
+  expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 5, resetsAt: T0 + 7 * H });
 });
 
 test("an older window is rejected without refreshing updatedAt", () => {
@@ -100,4 +100,34 @@ test("implausible reports (reset past, beyond the window length) and out-of-rang
   expect(t.summary()).toBeNull();
   t.report(payload([250, T0 + H]));
   expect(t.summary()?.fiveHour?.usedPercent).toBe(100);
+});
+
+test("a repeat of the same value doesn't count as fresh: observedAt and statusLineAt stay", () => {
+  let now = T0;
+  const t = new LimitsTracker(() => now);
+  t.report(payload([40, T0 + H]));
+  now = T0 + 10 * 60_000;
+  expect(t.report(payload([40, T0 + H]))).toBe(true);
+  expect(t.statusLineAt).toBe(T0);
+  expect(t.summary()?.fiveHour?.observedAt).toBe(T0);
+  t.report(payload([41, T0 + H]));
+  expect(t.statusLineAt).toBe(now);
+  expect(t.summary()?.fiveHour?.observedAt).toBe(now);
+});
+
+test("an idle account (0%, no reset) shows as 0% until a real window replaces it; it never replaces a live one", () => {
+  let now = T0;
+  const t = new LimitsTracker(() => now);
+  const idle = { rate_limits: { five_hour: { used_percentage: 0, resets_at: null } } };
+  expect(t.report(idle, "api")).toBe(true);
+  expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 0, resetsAt: null, source: "api" });
+  expect(t.line()).toBe("5h 0%");
+  t.report(payload([3, T0 + 4 * H]));
+  expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 3, resetsAt: T0 + 4 * H });
+  expect(t.report(idle, "api")).toBe(false);
+  expect(t.summary()?.fiveHour?.usedPercent).toBe(3);
+  // a non-zero percent without a reset time is not an idle report
+  expect(t.report({ rate_limits: { seven_day: { used_percentage: 50, resets_at: null } } })).toBe(
+    false,
+  );
 });

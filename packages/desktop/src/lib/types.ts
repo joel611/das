@@ -47,8 +47,15 @@ export type Usage = {
   } | null;
 };
 
-/** Percent of a plan window used (0-100) and when it resets (epoch ms). */
-export type LimitWindow = { usedPercent: number; resetsAt: number };
+/** Percent of a plan window used (0-100), when it resets (epoch ms), and how old that reading is. */
+export type LimitWindow = {
+  usedPercent: number;
+  /** null: the account is idle (usage API reported 0% with no window running) */
+  resetsAt: number | null;
+  /** epoch ms of the last report that raised or replaced this window */
+  observedAt: number;
+  source: "statusline" | "api";
+};
 
 export type Project = {
   id: string;
