@@ -39,7 +39,6 @@ type Opts = {
   claudeDir?: string;
   /** oh-my-pi agent dir. The das extension lives in its `extensions/` dir. Without it the `/admin/omp` endpoints answer 501. */
   ompDir?: string;
-  /** Whether the opt-in usage API poll is on (read on every poll); without it the poll never starts. */
   usageApi?: () => boolean;
   /** Called with the new effective config after a settings save. */
   onSettings?: (c: Config) => void;
@@ -207,15 +206,12 @@ export function createServer({
     return c.body(null, 204);
   });
 
-  // Status line relay (statusline.sh): plan limits from `rate_limits`. Answers the short line it prints
-  // when the user had no status line of their own.
   app.post("/statusline", async (c) => {
     if (!isLocal(c.env.srv.requestIP(c.req.raw)?.address)) return c.text("forbidden", 403);
     // A web page can POST to loopback without a preflight (text/plain, no-cors). Requiring JSON forces a
     // preflight that fails, and browsers always send Origin; statusline.sh (curl) sends neither oddity.
     if (c.req.header("origin") || !c.req.header("content-type")?.startsWith("application/json"))
       return c.text("forbidden", 403);
-    // Limits are per login: ignore sessions of another Claude config dir than the one we serve.
     const from = c.req.header("x-claude-config-dir");
     if (!claudeDir || !from || sameDir(from, claudeDir))
       limits.report(await c.req.json().catch(() => null));

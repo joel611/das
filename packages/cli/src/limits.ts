@@ -1,13 +1,3 @@
-/**
- * Plan limits (percent of the 5-hour and weekly allowance used), as Claude Code reports them to its
- * status line command in `rate_limits`. These are the numbers `/usage` shows; transcripts and hooks
- * do not carry them. statusline.sh forwards each status line payload here.
- *
- * Every session reports the same account-wide windows, but an idle session's copy is only as fresh as
- * its last API response. So within one window (same reset time) the percent only goes up, and a later
- * reset time replaces the window.
- */
-
 export type LimitWindow = {
   /** 0-100 */
   usedPercent: number;
@@ -32,7 +22,6 @@ export type LimitSource = "statusline" | "api" | "app";
 
 const KEYS = { fiveHour: "five_hour", sevenDay: "seven_day" } as const;
 const SPAN_MS = { fiveHour: 5 * 3_600_000, sevenDay: 7 * 86_400_000 } as const;
-/** Reports of one window can differ by rounding or jitter between sessions and sources. */
 const TOLERANCE_MS = { fiveHour: 60_000, sevenDay: 300_000 } as const;
 
 type Reported = { usedPercent: number; resetsAt: number | null };
@@ -62,12 +51,10 @@ export class LimitsTracker {
   };
   private updatedAt = 0;
   private source: LimitSource = "statusline";
-  /** epoch ms of the last status line report that raised or replaced a window */
   statusLineAt = 0;
 
   constructor(private now: () => number = Date.now) {}
 
-  /** Take a status line payload; returns whether it carried any usable limit. */
   report(payload: unknown, source: LimitSource = "statusline"): boolean {
     const rl = (payload as { rate_limits?: Record<string, unknown> } | null)?.rate_limits;
     if (!rl || typeof rl !== "object") return false;
@@ -76,10 +63,7 @@ export class LimitsTracker {
     const now = this.now();
     for (const key of ["fiveHour", "sevenDay"] as const) {
       const w = parseWindow(rl[KEYS[key]]);
-      // A reset can't be in the past or further out than the window is long: a forged far-future one
-      // would otherwise pin the window, since a later reset time always replaces an earlier one.
       if (!w) continue;
-      // Without a reset time only an idle account (0%) or the Claude app file (percent only) makes sense.
       if (w.resetsAt === null && w.usedPercent > 0 && source !== "app") continue;
       if (
         w.resetsAt !== null &&
@@ -93,7 +77,6 @@ export class LimitsTracker {
         changed = true;
       };
       if (w.resetsAt === null) {
-        // No reset time: never replaces a window that is still running.
         if (cur && cur.resetsAt !== null && cur.resetsAt > now) continue;
         if (!cur || cur.resetsAt !== null || cur.usedPercent !== w.usedPercent) take();
       } else if (!cur || cur.resetsAt === null || w.resetsAt > cur.resetsAt + tol) take();
@@ -104,19 +87,17 @@ export class LimitsTracker {
           cur.source = source;
           changed = true;
         }
-      } else continue; // an older window than the one we hold
+      } else continue;
       seen = true;
     }
     if (changed) {
       this.updatedAt = now;
       this.source = source;
-      // Only a change counts as the status line being alive: an idle session repeats its last values.
       if (source === "statusline") this.statusLineAt = now;
     }
     return seen;
   }
 
-  /** Current limits; a window whose reset time has passed is unknown again (null). */
   summary(now = this.now()): Limits | null {
     const live = (w: LimitWindow | null) =>
       w && (w.resetsAt === null || w.resetsAt > now) ? { ...w } : null;
@@ -126,7 +107,6 @@ export class LimitsTracker {
     return { fiveHour, sevenDay, updatedAt: this.updatedAt, source: this.source };
   }
 
-  /** One short line for the status line when the user had none of their own: "5h 23% (2h14m) · 7d 41% (3d4h)". */
   line(now = this.now()): string {
     const l = this.summary(now);
     if (!l) return "";

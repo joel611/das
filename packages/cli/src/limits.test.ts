@@ -42,14 +42,14 @@ test("an idle session's older, lower copy never lowers the percent; a new window
   let now = T0;
   const t = new LimitsTracker(() => now);
   t.report(payload([40, T0 + H]));
-  t.report(payload([30, T0 + H])); // stale report from another session
+  t.report(payload([30, T0 + H]));
   expect(t.summary()?.fiveHour?.usedPercent).toBe(40);
   t.report(payload([45, T0 + H]));
   expect(t.summary()?.fiveHour?.usedPercent).toBe(45);
-  now = T0 + 2 * H; // the first block is over
-  t.report(payload([2, T0 + 6 * H])); // next block
+  now = T0 + 2 * H;
+  t.report(payload([2, T0 + 6 * H]));
   expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 2, resetsAt: T0 + 6 * H });
-  t.report(payload([90, T0 + H])); // late report for the old block
+  t.report(payload([90, T0 + H]));
   expect(t.summary()?.fiveHour?.usedPercent).toBe(2);
 });
 
@@ -74,10 +74,8 @@ test("a window is the same one within a small reset-time tolerance (rounding, ji
   let now = T0;
   const t = new LimitsTracker(() => now);
   t.report(payload([20, T0 + 2 * H]));
-  // 1s later reset (API rounding) is the same window, not a lock-out: higher percent still lands
   expect(t.report(payload([30, T0 + 2 * H + 1000]))).toBe(true);
   expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 30, resetsAt: T0 + 2 * H });
-  // a real next window replaces it
   now = T0 + 3 * H;
   t.report(payload([5, T0 + 7 * H]));
   expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 5, resetsAt: T0 + 7 * H });
@@ -126,7 +124,6 @@ test("an idle account (0%, no reset) shows as 0% until a real window replaces it
   expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 3, resetsAt: T0 + 4 * H });
   expect(t.report(idle, "api")).toBe(false);
   expect(t.summary()?.fiveHour?.usedPercent).toBe(3);
-  // a non-zero percent without a reset time is not an idle report
   expect(t.report({ rate_limits: { seven_day: { used_percentage: 50, resets_at: null } } })).toBe(
     false,
   );

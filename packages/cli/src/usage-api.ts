@@ -4,17 +4,6 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import type { LimitsTracker } from "./limits";
 
-/**
- * Opt-in fallback for plan limits while no Claude session is running (so no status line reports them):
- * poll the endpoint Claude Code's own /usage reads, `GET api.anthropic.com/api/oauth/usage`, with the
- * Claude Code login token. Undocumented and rate limited, so it runs at most every few minutes, only when
- * the status line has gone quiet, backs off on errors, and never refreshes or writes the token.
- *
- * Token: $CLAUDE_CODE_OAUTH_TOKEN, else the macOS Keychain item "Claude Code-credentials" (with a
- * "-<sha256(dir)[:8]>" suffix when CLAUDE_CONFIG_DIR points elsewhere, as Claude Code names it, no
- * unscoped fallback then), else `<claude dir>/.credentials.json` (both hold `claudeAiOauth.{accessToken, expiresAt}`).
- */
-
 export const USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 export const POLL_MS = 5 * 60_000;
 const MAX_BACKOFF_MS = 60 * 60_000;
@@ -25,7 +14,6 @@ function tokenFrom(text: string, now: number): { token: string; expiresAt: numbe
   try {
     const o = (JSON.parse(text) as Creds).claudeAiOauth;
     if (typeof o?.accessToken !== "string" || !o.accessToken) return null;
-    // Claude Code refreshes its own token; an expired one is skipped until it has.
     if (typeof o.expiresAt === "number" && o.expiresAt <= now) return null;
     return {
       token: o.accessToken,
@@ -64,7 +52,6 @@ async function keychainText(service: string): Promise<string | null> {
   }
 }
 
-/** Keychain and file reads are cached until the token expires, so "Allow" (not "Always") prompts once. */
 const cache = new Map<string, { token: string; expiresAt: number }>();
 
 export async function readClaudeToken(
@@ -111,7 +98,6 @@ export function toRateLimits(body: unknown): Record<string, unknown> | null {
     if (typeof pct !== "number") return undefined;
     const resets_at = epochSec(reset);
     if (resets_at) return { used_percentage: pct, resets_at };
-    // An idle account reports 0% with no reset time.
     return pct === 0 && (reset === null || reset === undefined)
       ? { used_percentage: 0, resets_at: null }
       : undefined;
@@ -143,7 +129,6 @@ type PollOpts = {
   log?: (msg: string) => void;
 };
 
-/** One poll; returns the delay before the next. Exported for tests. */
 export async function pollOnce(
   o: PollOpts,
   failures: { n: number; noToken?: boolean },
@@ -151,12 +136,10 @@ export async function pollOnce(
   const interval = o.intervalMs ?? POLL_MS;
   const now = o.now?.() ?? Date.now();
   if (!o.enabled()) return interval;
-  // A status line report within the interval is fresher than this would be.
   if (now - o.limits.statusLineAt < interval) return interval;
   const backoff = () => Math.min(MAX_BACKOFF_MS, interval * 2 ** ++failures.n);
   const token = await (o.readToken ?? (() => readClaudeToken(o.claudeDir)))();
   if (!token) {
-    // Tokens expire hours after the last Claude Code session; say so once, not every poll.
     if (!failures.noToken)
       o.log?.("usage api: no Claude Code login token found (or it has expired)");
     failures.noToken = true;
@@ -187,7 +170,6 @@ export async function pollOnce(
   }
 }
 
-/** Start polling; returns a stop function. */
 export function startUsagePoll(o: PollOpts): () => void {
   const failures: { n: number; noToken?: boolean } = { n: 0 };
   let timer: ReturnType<typeof setTimeout> | undefined;

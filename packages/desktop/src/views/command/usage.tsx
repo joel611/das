@@ -15,7 +15,6 @@ const MODEL_COLOR = [
 const R = 50;
 const CIRC = 2 * Math.PI * R;
 
-/** A reading older than this is shown with its age. */
 const STALE_MS = 30 * 60_000;
 
 const SOURCE_NOTE = { statusline: "", api: " (usage API)", app: " (Claude app)" } as const;
@@ -23,9 +22,7 @@ const SOURCE_NOTE = { statusline: "", api: " (usage API)", app: " (Claude app)" 
 const limitColor = (pct: number) =>
   pct >= 95 ? "bg-neon-magenta" : pct >= 80 ? "bg-neon-amber" : "bg-neon-cyan";
 
-/** One plan window: percent used and time to reset. */
 function LimitRow({ label, w, now }: { label: string; w: LimitWindow | null; now: number }) {
-  // An idle session's copy is only as fresh as its last response; say how old the reading is.
   const age = w ? now - w.observedAt : 0;
   const stale = age > STALE_MS;
   return (
@@ -90,7 +87,6 @@ export function UsagePanel({
   const b = usage?.block ?? null;
   const limits = usage?.limits ?? null;
   const five = limits?.fiveHour ?? null;
-  // The ring shows the real share of the 5-hour limit when Claude Code has reported it, else block time elapsed.
   const ringPct = five
     ? Math.round(five.usedPercent)
     : b

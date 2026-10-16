@@ -108,13 +108,11 @@ test("status line relay: rate_limits show up in /v1/usage, the reply is the shor
   const u: any = await (await fetch(`http://${base}/v1/usage?token=secret`)).json();
   expect(u.limits.fiveHour).toMatchObject({ usedPercent: 23.5, resetsAt: reset5h * 1000 });
   expect(u.limits.sevenDay).toMatchObject({ usedPercent: 41.2, resetsAt: reset7d * 1000 });
-  // a body without rate_limits, or not JSON, is fine
   const post = (init: RequestInit) =>
     fetch(`http://${base}/statusline`, { method: "POST", ...init });
   expect((await post({ headers: { "content-type": "application/json" }, body: "{" })).status).toBe(
     200,
   );
-  // a web page can send text/plain (no preflight) or carries an Origin: neither may feed limits
   const forged = JSON.stringify({
     rate_limits: { five_hour: { used_percentage: 100, resets_at: 99_999_999_999 } },
   });

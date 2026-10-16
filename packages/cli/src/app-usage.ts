@@ -3,21 +3,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { LimitsTracker } from "./limits";
 
-/**
- * Plan limits from the Claude desktop app, which checks them itself every few minutes while its menu bar
- * icon is on and keeps a month of readings in `plan-usage-history.json`. A local read of another app's
- * private file: no sign-in, no network, nothing written. The format is the app's own, so a version or entry
- * this does not know is skipped rather than guessed.
- *
- * It holds percentages only, no reset times. A reset time is borrowed from a window the status line or the
- * usage API already reported; with none the percent shows without one. Readings older than 30 minutes have
- * missed a check and are not used.
- */
-
 export const FRESH_MS = 30 * 60_000;
 export const POLL_MS = 60_000;
 const MAX_BYTES = 4 << 20;
-/** The status line (or the API) is the better source while it is alive. */
 const STATUSLINE_QUIET_MS = 5 * 60_000;
 
 export const historyFile = (home = homedir()) =>
@@ -53,7 +41,6 @@ export function parseHistory(text: string, organization?: string): AppReading | 
   return best && (best.fiveHour !== undefined || best.sevenDay !== undefined) ? best : null;
 }
 
-/** Claude Code's organization, from `.claude.json` (inside a non-default config dir, else in the home dir). */
 export async function accountOrganization(
   claudeDir: string,
   home = homedir(),
@@ -70,7 +57,6 @@ export async function accountOrganization(
   }
 }
 
-/** The reading as a status line `rate_limits` object, or null when it adds nothing to what is known. */
 export function toRateLimits(reading: AppReading, limits: LimitsTracker, now: number) {
   if (now - reading.at >= FRESH_MS || reading.at > now + 5 * 60_000) return null;
   const known = limits.summary(now);
@@ -80,7 +66,6 @@ export function toRateLimits(reading: AppReading, limits: LimitsTracker, now: nu
     ["seven_day", reading.sevenDay, known?.sevenDay],
   ] as const) {
     if (used === undefined) continue;
-    // Something we hold that is newer than the app's check is better than it.
     if (w && w.observedAt >= reading.at) continue;
     out[key] = {
       used_percentage: used,
@@ -98,7 +83,6 @@ type PollOpts = {
   log?: (msg: string) => void;
 };
 
-/** One look at the app's file; returns whether it reported anything. */
 export async function pollOnce(o: PollOpts): Promise<boolean> {
   const now = o.now?.() ?? Date.now();
   if (now - o.limits.statusLineAt < STATUSLINE_QUIET_MS) return false;
@@ -110,12 +94,11 @@ export async function pollOnce(o: PollOpts): Promise<boolean> {
   return rl ? o.limits.report({ rate_limits: rl }, "app") : false;
 }
 
-/** Start polling; returns a stop function. */
 export function startAppPoll(o: PollOpts): () => void {
   const timer = setInterval(
     () => void pollOnce(o).catch((e) => o.log?.(`app usage: ${e}`)),
     POLL_MS,
   );
-  timer.unref(); // never keeps the daemon (or a test) alive
+  timer.unref();
   return () => clearInterval(timer);
 }

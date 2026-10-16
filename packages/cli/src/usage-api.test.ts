@@ -50,7 +50,7 @@ test("toRateLimits also reads a limits array, and nothing usable is null", () =>
 test("token: env first, then .credentials.json; an expired one is skipped", async () => {
   const dir = mkdtempSync(join(tmpdir(), "creds-"));
   expect(await readClaudeToken(dir, T0, { CLAUDE_CODE_OAUTH_TOKEN: "env-tok" })).toBe("env-tok");
-  if (process.platform === "darwin") return; // the Keychain is consulted before the file there
+  if (process.platform === "darwin") return;
   expect(await readClaudeToken(dir, T0, {})).toBeNull();
   const creds = (expiresAt: number) =>
     writeFileSync(
@@ -59,7 +59,6 @@ test("token: env first, then .credentials.json; an expired one is skipped", asyn
     );
   creds(T0 + M);
   expect(await readClaudeToken(dir, T0, {})).toBe("file-tok");
-  // cached until it expires, so the Keychain/file is not read again every poll
   creds(T0 - M);
   expect(await readClaudeToken(dir, T0, {})).toBe("file-tok");
   expect(await readClaudeToken(dir, T0 + 2 * M, {})).toBeNull();
@@ -128,11 +127,9 @@ test("poll: backs off on 429 (honouring retry-after) and on network errors, then
 
 test("keychain item is scoped by config dir unless it is ~/.claude", () => {
   expect(keychainServices("/h/.claude", "/h")).toEqual(["Claude Code-credentials"]);
-  // no unscoped fallback for another dir: that item is a different login's
   const scoped = keychainServices("/h/.claude-work", "/h");
   expect(scoped).toHaveLength(1);
   expect(scoped[0]).toMatch(/^Claude Code-credentials-[0-9a-f]{8}$/);
-  // a trailing slash names the same dir
   expect(keychainServices("/h/.claude-work/", "/h")).toEqual(scoped);
   expect(keychainServices("/h/.claude/", "/h")).toEqual(["Claude Code-credentials"]);
 });
@@ -144,7 +141,6 @@ test("poll: no token is logged once, not every poll", async () => {
   await pollOnce(o, s.failures);
   await pollOnce(o, s.failures);
   expect(logs).toHaveLength(1);
-  // once a token turns up again, a later loss is worth saying again
   await pollOnce({ ...o, readToken: async () => "tok" }, s.failures);
   await pollOnce(o, s.failures);
   expect(logs).toHaveLength(2);

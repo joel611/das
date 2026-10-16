@@ -44,7 +44,7 @@ test("parseHistory: readings of another organization are skipped", () => {
     { t: 2, org: "other", u: { fh: 90 } },
     { t: 3, u: { fh: 20 } },
   );
-  expect(parseHistory(text, "mine")?.fiveHour).toBe(20); // a reading without an org is no one's
+  expect(parseHistory(text, "mine")?.fiveHour).toBe(20);
   expect(parseHistory(v2({ t: 2, org: "other", u: { fh: 90 } }), "mine")).toBeNull();
   expect(parseHistory(v2({ t: 2, org: "other", u: { fh: 90 } }))?.fiveHour).toBe(90);
 });
@@ -88,7 +88,7 @@ test("pollOnce: borrows the reset time of a window already known, and only raise
     rate_limits: { five_hour: { used_percentage: 30, resets_at: (T0 + 2 * H) / 1000 } },
   });
   write(v2({ t: T0 + M, u: { fh: 45 } }));
-  const now = T0 + 10 * M; // the status line has been quiet longer than 5 minutes
+  const now = T0 + 10 * M;
   expect(await pollOnce({ limits, claudeDir: claudeDir(), home, now: () => now })).toBe(true);
   expect(limits.summary(now)?.fiveHour).toMatchObject({
     usedPercent: 45,
@@ -103,16 +103,16 @@ test("pollOnce: stays out while the status line is alive, and ignores old or old
     rate_limits: { five_hour: { used_percentage: 30, resets_at: (T0 + 2 * H) / 1000 } },
   });
   write(v2({ t: T0 - M, u: { fh: 80 } }));
-  expect(await pollOnce({ limits, claudeDir: claudeDir(), home, now: () => T0 + M })).toBe(false); // status line fresh
+  expect(await pollOnce({ limits, claudeDir: claudeDir(), home, now: () => T0 + M })).toBe(false);
   const later = T0 + 10 * M;
-  expect(await pollOnce({ limits, claudeDir: claudeDir(), home, now: () => later })).toBe(false); // our reading is newer
+  expect(await pollOnce({ limits, claudeDir: claudeDir(), home, now: () => later })).toBe(false);
   expect(limits.summary(later)?.fiveHour?.usedPercent).toBe(30);
   const bare = new LimitsTracker(() => T0 + FRESH_MS + M);
   expect(
     await pollOnce({ limits: bare, claudeDir: claudeDir(), home, now: () => T0 + FRESH_MS + M }),
-  ).toBe(false); // missed a check
+  ).toBe(false);
   rmSync(historyFile(home));
-  expect(await pollOnce({ limits: bare, claudeDir: claudeDir(), home, now: () => T0 })).toBe(false); // no app, no file
+  expect(await pollOnce({ limits: bare, claudeDir: claudeDir(), home, now: () => T0 })).toBe(false);
 });
 
 test("a percent without a reset time is only accepted from the app file", () => {
@@ -121,8 +121,7 @@ test("a percent without a reset time is only accepted from the app file", () => 
   expect(t.report(p)).toBe(false);
   expect(t.report(p, "api")).toBe(false);
   expect(t.report(p, "app")).toBe(true);
-  // a real window with an exact reset replaces it
   t.report({ rate_limits: { five_hour: { used_percentage: 41, resets_at: (T0 + H) / 1000 } } });
   expect(t.summary()?.fiveHour).toMatchObject({ usedPercent: 41, resetsAt: T0 + H });
-  expect(t.report(p, "app")).toBe(false); // and the app can't push it back
+  expect(t.report(p, "app")).toBe(false);
 });

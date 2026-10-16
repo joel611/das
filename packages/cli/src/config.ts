@@ -7,7 +7,6 @@ export type Config = {
   port: number;
   token: string;
   openrouterKey: string;
-  /** Opt-in: poll the Claude usage API for plan limits while no session reports them (usage-api.ts). */
   usageApi: boolean;
 };
 

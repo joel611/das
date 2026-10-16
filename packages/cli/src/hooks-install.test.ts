@@ -22,7 +22,6 @@ import {
 
 const root = mkdtempSync(join(tmpdir(), "hooks-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
-// installHooks copies statusline.sh into the das config dir; keep that out of the real one
 const scripts = join(root, "das-config");
 process.env.DAS_CONFIG_DIR = scripts;
 
@@ -163,7 +162,6 @@ test("status line: added when absent, removed on uninstall", () => {
   expect(sl.command).toBe(`sh '${script}' 4321 ${MARKER}`);
   expect(readFileSync(script, "utf8")).toBe(readFileSync(STATUSLINE_SCRIPT, "utf8"));
   expect(hooksStatus({ claudeDir: dir, port: 4321 }).events.StatusLine).toBe("installed");
-  // the script going missing (moved checkout, cleaned worktree) is flagged, not "installed"
   rmSync(script);
   expect(hooksStatus({ claudeDir: dir, port: 4321 }).events.StatusLine).toBe("partial");
   uninstallHooks({ claudeDir: dir });
@@ -217,7 +215,7 @@ test("statusline.sh forwards stdin to the daemon and prints the wrapped status l
   expect(await run({})).toBe("5h 1% (1m)");
   const wrap = Buffer.from(`cat; printf ' mine'`).toString("base64");
   expect(await run({ DAS_WRAP_B64: wrap })).toBe('{"rate_limits":{}} mine');
-  await Bun.sleep(200); // the wrapped run posts in the background
+  await Bun.sleep(200);
   expect(got).toEqual(['/statusline {"rate_limits":{}}', '/statusline {"rate_limits":{}}']);
   expect(dirs).toEqual(["/c/dir", "/c/dir"]);
   await srv.stop(true);

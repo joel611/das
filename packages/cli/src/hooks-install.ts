@@ -12,16 +12,6 @@ import {
 import { dirname, join } from "node:path";
 import { configDir } from "./config";
 
-/**
- * Edits Claude Code's user settings (`<claudeDir>/settings.json`, keys `hooks` and `statusLine`).
- * Callers always pass claudeDir explicitly.
- *
- * The status line is how plan limits reach the daemon: Claude Code gives the status line command
- * `rate_limits` (5-hour and weekly percent used, reset times), which hooks never see. A status line the
- * user already had is kept: ours runs its command (base64 in DAS_WRAP_B64), keeps its other fields
- * (padding, refreshInterval), and uninstall puts it back.
- */
-
 export const EVENTS = [
   "SessionStart",
   "UserPromptSubmit",
@@ -41,17 +31,11 @@ type Settings = { hooks?: Record<string, Group[]>; statusLine?: StatusLine; [k: 
 export const hookCommand = (event: string, port: number) =>
   `curl -s -m 2 -X POST -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:${port}/hooks/${event} >/dev/null 2>&1 || true ${MARKER}`;
 
-/** The relay script that ships next to this package's src/. */
 export const STATUSLINE_SCRIPT = join(import.meta.dir, "..", "statusline.sh");
 const sq = (v: string) => `'${v.replaceAll("'", `'\\''`)}'`;
 
-/**
- * Where settings.json points: a copy in the das config dir, not the checkout (which may be a worktree or
- * move), since a missing script would also take down the user's wrapped status line.
- */
 export const installedScript = (scriptDir = configDir()) => join(scriptDir, "statusline.sh");
 
-/** Our status line command; `wrapped` is the command of the user's previous status line, if any. */
 export const statusLineCommand = (port: number, wrapped?: string, script = installedScript()) =>
   `${wrapped ? `DAS_WRAP_B64=${Buffer.from(wrapped).toString("base64")} ` : ""}sh ${sq(script)} ${port} ${MARKER}`;
 
@@ -142,7 +126,6 @@ export function installHooks({
       groups.push({ hooks: [{ type: "command", command: cmd }] });
     }
   }
-  // Wrap a status line the user has (keeping its padding and refreshInterval); re-install keeps what we wrapped.
   const prev = s.statusLine;
   const wrapped = prev && isOurStatusLine(prev) ? wrappedOf(prev) : prev?.command;
   const script = installedScript(scriptDir);
