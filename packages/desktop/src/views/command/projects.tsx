@@ -18,7 +18,9 @@ function groupByProject(projects: Project[], sessions: Session[]): ProjectGroup[
   for (const s of sessions) {
     const owner = projects.find(
       (p) =>
-        p.name === s.project || within(s.cwd, p.path) || p.worktrees.some((w) => within(s.cwd, w.path)),
+        p.name === s.project ||
+        within(s.cwd, p.path) ||
+        p.worktrees.some((w) => within(s.cwd, w.path)),
     );
     const key = owner?.name ?? "other";
     let group = groups.get(key);
@@ -83,8 +85,12 @@ export function ProjectsPanel({
                         <span className="shrink-0 border border-hud-chip-dim px-1 text-[10px] text-hud-dim">
                           {s.agent === "omp" ? "omp" : "claude"}
                         </span>
-                        <span className="min-w-0 flex-1 truncate">{s.branch ?? w.branch ?? w.path.split("/").pop()}</span>
-                        <span className={cn("uppercase", STATE_COLOR[s.state].text)}>{s.state}</span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {s.branch ?? w.branch ?? w.path.split("/").pop()}
+                        </span>
+                        <span className={cn("uppercase", STATE_COLOR[s.state].text)}>
+                          {s.state}
+                        </span>
                       </button>
                     ))}
                   </li>
