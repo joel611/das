@@ -11,7 +11,8 @@ const ignorePatterns = [
 ];
 
 export default defineConfig({
-  fmt: { ignorePatterns },
+  // Agent skills (.claude/skills) are hand-written markdown and shell, not formatted by us.
+  fmt: { ignorePatterns: [...ignorePatterns, ".claude/**"] },
   lint: {
     // The mod is Moddable runtime JS and sim-spike is a throwaway Bun script: neither type-checks as a normal package.
     ignorePatterns: [...ignorePatterns, "packages/stackchan-mod/**"],
