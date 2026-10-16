@@ -203,7 +203,10 @@ fn open_dashboard(app: &AppHandle) {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    #[cfg(feature = "e2e")]
+    let builder = builder.plugin(tauri_plugin_wdio::init()).plugin(tauri_plugin_wdio_webdriver::init());
+    builder
         .manage(Serial::default())
         .invoke_handler(tauri::generate_handler![api, serial_start, serial_stop])
         // Closing the dashboard hides it; the menu bar app keeps running.

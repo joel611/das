@@ -10,6 +10,9 @@ import { Toaster } from "@/components/ui/sonner.tsx";
 
 applyTheme();
 
+// WebdriverIO bridge; only in the e2e build (`bun run e2e`).
+if (import.meta.env.VITE_E2E) await import("@wdio/tauri-plugin");
+
 // Polling keeps data fresh; a failed poll must not retry-storm a daemon that is down.
 const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 
