@@ -67,7 +67,6 @@ export function ProjectsPanel({
                   <li key={w.path} className="flex flex-col gap-0.5">
                     <span className="truncate font-mono text-[11px] text-hud-dim">
                       {w.path.split("/").pop()}
-                      {w.branch ? ` · ${w.branch}` : ""}
                     </span>
                     {w.agents.map((s) => (
                       <button
@@ -84,7 +83,7 @@ export function ProjectsPanel({
                         <span className="shrink-0 border border-hud-chip-dim px-1 text-[10px] text-hud-dim">
                           {s.agent === "omp" ? "omp" : "claude"}
                         </span>
-                        <span className="min-w-0 flex-1 truncate">{s.detail ?? s.state}</span>
+                        <span className="min-w-0 flex-1 truncate">{s.branch ?? w.branch ?? w.path.split("/").pop()}</span>
                         <span className={cn("uppercase", STATE_COLOR[s.state].text)}>{s.state}</span>
                       </button>
                     ))}
