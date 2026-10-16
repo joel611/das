@@ -25,10 +25,10 @@ test("running counts running sessions", () => {
   });
 });
 
-test("priority error > waiting > running > done > idle", () => {
+test("priority error > running > waiting > done > idle", () => {
   expect(computeDisplay(s("idle", "done")).expression).toBe("happy");
   expect(computeDisplay(s("done", "running")).expression).toBe("focused");
-  expect(computeDisplay(s("running", "waiting")).expression).toBe("worried");
+  expect(computeDisplay(s("running", "waiting")).expression).toBe("focused");
   expect(computeDisplay(s("waiting", "error", "running"))).toEqual({
     expression: "sad",
     headline: "1 error",
@@ -38,7 +38,7 @@ test("priority error > waiting > running > done > idle", () => {
 });
 
 test("light per state", () => {
-  expect(computeDisplay(s("waiting", "running")).light).toEqual({
+  expect(computeDisplay(s("waiting", "done")).light).toEqual({
     mode: "solid",
     rgb: [255, 140, 0],
   });

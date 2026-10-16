@@ -76,7 +76,7 @@ Claude Code sessions ──hooks──▶ ┌───────── Bun dae
 - Handle background agents: sessions spawned by the server are tagged so they are not double-counted.
 
 ### 3. State aggregator
-- Per-project and global rollup. Priority: `error > waiting > running > done > idle`.
+- Per-project and global rollup. Priority: `error > running > waiting > done > idle`.
 - Server decides presentation, devices stay dumb: emits a `display` hint (`expression`, `headline`, `count`) alongside raw state.
 - "Done" decays to idle after N minutes.
 

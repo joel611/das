@@ -10,7 +10,7 @@ export type Light =
 export type Display = { expression: Expression; headline: string; count: number; light: Light };
 
 // Highest priority first.
-const PRIORITY: SessionState[] = ["error", "waiting", "running", "done"];
+const PRIORITY: SessionState[] = ["error", "running", "waiting", "done"];
 
 const EXPRESSION: Record<SessionState, Expression> = {
   running: "focused",
