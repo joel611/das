@@ -99,7 +99,7 @@ function JevStyleCard() {
 }
 
 /** Saves on toggle: the daemon applies it at once, no Save button. */
-function StackchanCard({ enabled, pinned }: { enabled: boolean; pinned: boolean }) {
+function StackchanCard({ enabled }: { enabled: boolean }) {
   const saveSettings = useSaveSettings();
   async function toggle(next: boolean) {
     try {
@@ -118,14 +118,13 @@ function StackchanCard({ enabled, pinned }: { enabled: boolean; pinned: boolean 
         <Switch
           id="notification-sound"
           checked={enabled}
-          disabled={pinned || saveSettings.isPending}
+          disabled={saveSettings.isPending}
           onCheckedChange={toggle}
         />
         <div className="flex flex-col gap-1">
           <Label htmlFor="notification-sound">Notification sound</Label>
           <p className="text-xs text-muted-foreground">
             Beep when a session starts waiting, finishes or fails.
-            {pinned ? " Pinned by the DAS_SOUND environment variable." : ""}
           </p>
         </div>
       </CardContent>
@@ -395,10 +394,7 @@ export function Settings() {
         </CardFooter>
       </Card>
       {s ? (
-        <StackchanCard
-          enabled={s.notificationSound}
-          pinned={s.envOverrides.includes("notificationSound")}
-        />
+        <StackchanCard enabled={s.notificationSound} />
       ) : null}
       <JevStyleCard />
     </div>

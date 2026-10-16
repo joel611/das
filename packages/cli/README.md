@@ -15,7 +15,7 @@ The daemon does not need the desktop app. The desktop app does not own the daemo
 
 ## Settings
 
-`config.yml` (YAML, mode 0600): keys `roots`, `port`, `token`, `openrouterKey`, `usageApi` (opt-in plan limit poll, default `false`), `notificationSound` (Stack-chan beeps, default `true`). Precedence: env (`PROJECT_ROOTS`, `PORT`, `TOKEN`, `OPENROUTER_API_KEY`, `DAS_USAGE_API=1|0`, `DAS_SOUND=1|0`) over the file over defaults. Token and OpenRouter key are write-only in the API (`hasToken`, `hasOpenrouterKey`). A root change rescans at once; a token change applies at once; a port change replies `restartRequired: true` and needs `daemon --stop` then `--bg`.
+`config.yml` (YAML, mode 0600): keys `roots`, `port`, `token`, `openrouterKey`, `usageApi` (opt-in plan limit poll, default `false`), `notificationSound` (Stack-chan beeps, default `false`). Precedence: env (`PROJECT_ROOTS`, `PORT`, `TOKEN`, `OPENROUTER_API_KEY`, `DAS_USAGE_API=1|0`) over the file over defaults. Token and OpenRouter key are write-only in the API (`hasToken`, `hasOpenrouterKey`). A root change rescans at once; a token change applies at once; a port change replies `restartRequired: true` and needs `daemon --stop` then `--bg`.
 
 A missing `config.yml` means defaults. A `config.yml` that exists but is malformed stops startup with an error that names the file. The old `config.json` is ignored. Saving settings from the dashboard rewrites `config.yml` and drops any comments in it.
 

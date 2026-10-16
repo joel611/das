@@ -40,7 +40,7 @@ type Opts = {
   /** oh-my-pi agent dir. The das extension lives in its `extensions/` dir. Without it the `/admin/omp` endpoints answer 501. */
   ompDir?: string;
   usageApi?: () => boolean;
-  /** Live switch for Stack-chan notification sounds (the daemon's config). Defaults to on. */
+  /** Live switch for Stack-chan notification sounds (the daemon's config). Defaults to off. */
   soundEnabled?: () => boolean;
   /** Called with the new effective config after a settings save. */
   onSettings?: (c: Config) => void;
@@ -111,7 +111,7 @@ export function createServer({
   claudeDir,
   ompDir,
   usageApi,
-  soundEnabled = () => true,
+  soundEnabled = () => false,
   onSettings,
   logs: sinks = {},
   trusted = cachedTrusted,

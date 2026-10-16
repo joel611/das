@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "./server";
 
-const server = createServer({ port: 0, token: "secret", getProjects: () => [] });
+const server = createServer({
+  port: 0,
+  token: "secret",
+  getProjects: () => [],
+  soundEnabled: () => true,
+});
 afterAll(() => server.stop(true));
 const base = `localhost:${server.port}`;
 
@@ -101,12 +106,11 @@ test("entering done publishes a sound frame once", async () => {
   expect(frames.filter((f) => f.type === "sound")).toEqual([{ type: "sound", hz: 880, ms: 150 }]);
 });
 
-test("no sound frame when notification sound is off", async () => {
+test("no sound frame by default (notification sound off)", async () => {
   const quiet = createServer({
     port: 0,
     token: "secret",
     getProjects: () => [],
-    soundEnabled: () => false,
   });
   const ws = new WebSocket(`ws://localhost:${quiet.port}/v1/ws?token=secret`);
   await opened(ws);
