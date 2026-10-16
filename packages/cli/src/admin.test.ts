@@ -38,6 +38,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     token: "",
     openrouterKey: "",
     usageApi: false,
+    notificationSound: true,
   });
   writeSettingsFile({ roots: ["/a", "/b"], port: 5000, token: "t", openrouterKey: "k" }, dir);
   writeSettingsFile({ port: 5001 }, dir);
@@ -54,6 +55,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     token: "t",
     openrouterKey: "k",
     usageApi: false,
+    notificationSound: true,
   });
   expect(
     loadConfig(dir, { PROJECT_ROOTS: "/c", PORT: "6000", TOKEN: "e", OPENROUTER_API_KEY: "ek" }),
@@ -63,10 +65,14 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     token: "e",
     openrouterKey: "ek",
     usageApi: false,
+    notificationSound: true,
   });
   writeSettingsFile({ usageApi: true }, dir);
   expect(loadConfig(dir, {}).usageApi).toBe(true);
   expect(loadConfig(dir, { DAS_USAGE_API: "0" }).usageApi).toBe(false);
+  writeSettingsFile({ notificationSound: false }, dir);
+  expect(loadConfig(dir, {}).notificationSound).toBe(false);
+  expect(loadConfig(dir, { DAS_SOUND: "1" }).notificationSound).toBe(true);
 });
 
 test("config.yml: hand-written YAML with comments is read", () => {
@@ -81,6 +87,7 @@ test("config.yml: hand-written YAML with comments is read", () => {
     token: "abc",
     openrouterKey: "",
     usageApi: false,
+    notificationSound: true,
   });
   expect(loadConfig(dir, { PORT: "1234" }).port).toBe(1234);
 });
@@ -174,6 +181,7 @@ test("settings API: validation, secrets write-only, restartRequired, onSettings"
     { port: 70000 },
     { port: 1.5 },
     { token: 5 },
+    { notificationSound: "off" },
   ]) {
     r = await fetch(`${base}/admin/settings`, json("PUT", bad));
     expect(r.status).toBe(400);
@@ -210,6 +218,14 @@ test("settings API: validation, secrets write-only, restartRequired, onSettings"
     json("PUT", { port: server.port }, { authorization: "Bearer tok-9x7" }),
   );
   expect(((await r.json()) as any).restartRequired).toBe(false);
+
+  expect(j.notificationSound).toBe(true);
+  r = await fetch(
+    `${base}/admin/settings`,
+    json("PUT", { notificationSound: false }, { authorization: "Bearer tok-9x7" }),
+  );
+  expect(((await r.json()) as any).notificationSound).toBe(false);
+  expect(changed.at(-1)?.notificationSound).toBe(false);
   server.stop(true);
 });
 

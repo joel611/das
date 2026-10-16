@@ -73,6 +73,7 @@ export type Settings = {
   hasToken: boolean;
   hasOpenrouterKey: boolean;
   usageApi: boolean;
+  notificationSound: boolean;
   envOverrides: string[];
   trustAdvice: string | null;
   restartRequired?: boolean;
@@ -84,6 +85,7 @@ export type SettingsPatch = Partial<{
   token: string;
   openrouterKey: string;
   usageApi: boolean;
+  notificationSound: boolean;
 }>;
 
 export type HookStatus = {

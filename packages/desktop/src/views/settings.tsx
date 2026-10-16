@@ -98,6 +98,41 @@ function JevStyleCard() {
   );
 }
 
+/** Saves on toggle: the daemon applies it at once, no Save button. */
+function StackchanCard({ enabled, pinned }: { enabled: boolean; pinned: boolean }) {
+  const saveSettings = useSaveSettings();
+  async function toggle(next: boolean) {
+    try {
+      await saveSettings.mutateAsync({ notificationSound: next });
+    } catch (e) {
+      toast.error(msg(e));
+    }
+  }
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Stack-chan</CardTitle>
+        <CardDescription>Settings for the stack-chan device.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-start gap-3">
+        <Switch
+          id="notification-sound"
+          checked={enabled}
+          disabled={pinned || saveSettings.isPending}
+          onCheckedChange={toggle}
+        />
+        <div className="flex flex-col gap-1">
+          <Label htmlFor="notification-sound">Notification sound</Label>
+          <p className="text-xs text-muted-foreground">
+            Beep when a session starts waiting, finishes or fails.
+            {pinned ? " Pinned by the DAS_SOUND environment variable." : ""}
+          </p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function Settings() {
   const settings = useSettings(60_000);
   const hooks = useHooks();
@@ -359,6 +394,12 @@ export function Settings() {
           </Button>
         </CardFooter>
       </Card>
+      {s ? (
+        <StackchanCard
+          enabled={s.notificationSound}
+          pinned={s.envOverrides.includes("notificationSound")}
+        />
+      ) : null}
       <JevStyleCard />
     </div>
   );

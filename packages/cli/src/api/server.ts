@@ -40,6 +40,8 @@ type Opts = {
   /** oh-my-pi agent dir. The das extension lives in its `extensions/` dir. Without it the `/admin/omp` endpoints answer 501. */
   ompDir?: string;
   usageApi?: () => boolean;
+  /** Live switch for Stack-chan notification sounds (the daemon's config). Defaults to on. */
+  soundEnabled?: () => boolean;
   /** Called with the new effective config after a settings save. */
   onSettings?: (c: Config) => void;
   /** Log sinks for api.log / ws.log. Omitted sinks log nothing (tests stay off the real log dir). */
@@ -84,6 +86,11 @@ function parseSettings(b: any): { patch: Partial<Config> } | { error: string } {
     if (typeof b.usageApi !== "boolean") return { error: "usageApi must be a boolean" };
     patch.usageApi = b.usageApi;
   }
+  if (b?.notificationSound !== undefined) {
+    if (typeof b.notificationSound !== "boolean")
+      return { error: "notificationSound must be a boolean" };
+    patch.notificationSound = b.notificationSound;
+  }
   for (const k of ["token", "openrouterKey"] as const) {
     if (b?.[k] === undefined) continue;
     if (typeof b[k] !== "string") return { error: `${k} must be a string` };
@@ -104,6 +111,7 @@ export function createServer({
   claudeDir,
   ompDir,
   usageApi,
+  soundEnabled = () => true,
   onSettings,
   logs: sinks = {},
   trusted = cachedTrusted,
@@ -159,6 +167,7 @@ export function createServer({
       hasToken: !!c.token,
       hasOpenrouterKey: !!c.openrouterKey,
       usageApi: c.usageApi,
+      notificationSound: c.notificationSound,
       envOverrides: envOverrides(),
       trustAdvice: trustAdvice(c.roots, getProjects(), trusted()),
     };
@@ -386,7 +395,7 @@ export function createServer({
     }
     const sound = soundFor(lastState.get(e.session.id), e.session.state);
     lastState.set(e.session.id, e.session.state);
-    if (sound) {
+    if (sound && soundEnabled()) {
       server.publish(TOPIC, JSON.stringify({ type: "sound", ...sound }));
       wsLog("message", { dir: "out", type: "sound", subscribers: server.subscriberCount(TOPIC) });
     }

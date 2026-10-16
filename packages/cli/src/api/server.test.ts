@@ -101,6 +101,31 @@ test("entering done publishes a sound frame once", async () => {
   expect(frames.filter((f) => f.type === "sound")).toEqual([{ type: "sound", hz: 880, ms: 150 }]);
 });
 
+test("no sound frame when notification sound is off", async () => {
+  const quiet = createServer({
+    port: 0,
+    token: "secret",
+    getProjects: () => [],
+    soundEnabled: () => false,
+  });
+  const ws = new WebSocket(`ws://localhost:${quiet.port}/v1/ws?token=secret`);
+  await opened(ws);
+  const frames: any[] = [];
+  ws.addEventListener("message", (e) => frames.push(JSON.parse(String(e.data))));
+  const post = (event: string) =>
+    fetch(`http://localhost:${quiet.port}/hooks/${event}`, {
+      method: "POST",
+      body: JSON.stringify({ session_id: "q", cwd: "/x" }),
+    });
+  await post("UserPromptSubmit");
+  await post("Stop");
+  await Bun.sleep(100);
+  ws.close();
+  quiet.stop(true);
+  expect(frames.some((f) => f.type === "delta")).toBe(true);
+  expect(frames.some((f) => f.type === "sound")).toBe(false);
+});
+
 test("health answers without a token", async () => {
   const res = await fetch(`http://${base}/health`);
   expect(res.status).toBe(200);
