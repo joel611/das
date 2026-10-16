@@ -15,6 +15,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { JEV_STYLES, useJevStyle } from "@/lib/jev-style";
 import {
@@ -111,6 +112,7 @@ export function Settings() {
   const [clearToken, setClearToken] = useState(false);
   const [key, setKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
+  const [usageApi, setUsageApi] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const saving = saveSettings.isPending;
 
@@ -119,6 +121,7 @@ export function Settings() {
     if (s && !loaded) {
       setRoots(s.roots.join("\n"));
       setPort(String(s.port));
+      setUsageApi(s.usageApi);
       setLoaded(true);
     }
   }, [s, loaded]);
@@ -130,6 +133,7 @@ export function Settings() {
         .map((r) => r.trim())
         .filter(Boolean),
       port: Number(port),
+      usageApi,
     };
     if (clearToken) patch.token = "";
     else if (token) patch.token = token;
@@ -248,6 +252,18 @@ export function Settings() {
             onValue={setKey}
             onClear={setClearKey}
           />
+          <div className="flex items-start gap-3">
+            <Switch id="usage-api" checked={usageApi} onCheckedChange={setUsageApi} />
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="usage-api">Poll the Claude usage API for plan limits</Label>
+              <p className="text-xs text-muted-foreground">
+                Fills in the 5-hour and weekly limits while no Claude session is running, using your
+                Claude Code login (which only stays valid for a few hours after your last session).
+                The endpoint is undocumented and rate limited, so it is checked at most every 5
+                minutes. On macOS the first read of the login may ask for Keychain access.
+              </p>
+            </div>
+          </div>
         </CardContent>
         <CardFooter>
           <Button onClick={save} disabled={saving || !loaded}>

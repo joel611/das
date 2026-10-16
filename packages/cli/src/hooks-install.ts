@@ -10,8 +10,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-
-/** Edits Claude Code's user settings (`<claudeDir>/settings.json`, key `hooks`). Callers always pass claudeDir explicitly. */
+import { configDir } from "./config";
 
 export const EVENTS = [
   "SessionStart",
@@ -25,11 +24,30 @@ export const MARKER = "# stack-chan-server";
 
 type Hook = { type?: string; command?: string; [k: string]: unknown };
 type Group = { matcher?: string; hooks?: Hook[]; [k: string]: unknown };
-type Settings = { hooks?: Record<string, Group[]>; [k: string]: unknown };
+type StatusLine = { type?: string; command?: string; [k: string]: unknown };
+type Settings = { hooks?: Record<string, Group[]>; statusLine?: StatusLine; [k: string]: unknown };
 
 /** Fire-and-forget: stdin JSON -> local server, no output, always exit 0. */
 export const hookCommand = (event: string, port: number) =>
   `curl -s -m 2 -X POST -H 'Content-Type: application/json' --data-binary @- http://127.0.0.1:${port}/hooks/${event} >/dev/null 2>&1 || true ${MARKER}`;
+
+export const STATUSLINE_SCRIPT = join(import.meta.dir, "..", "statusline.sh");
+const sq = (v: string) => `'${v.replaceAll("'", `'\\''`)}'`;
+
+export const installedScript = (scriptDir = configDir()) => join(scriptDir, "statusline.sh");
+
+export const statusLineCommand = (port: number, wrapped?: string, script = installedScript()) =>
+  `${wrapped ? `DAS_WRAP_B64=${Buffer.from(wrapped).toString("base64")} ` : ""}sh ${sq(script)} ${port} ${MARKER}`;
+
+const isOurStatusLine = (sl: StatusLine | undefined): boolean =>
+  typeof sl?.command === "string" && sl.command.includes(MARKER);
+const wrappedOf = (sl: StatusLine): string | undefined => {
+  const b64 = sl.command?.match(/DAS_WRAP_B64=([A-Za-z0-9+/=]+)/)?.[1];
+  return b64 ? Buffer.from(b64, "base64").toString("utf8") : undefined;
+};
+const statusLineScript = (sl: StatusLine) => sl.command?.match(/sh '([^']*)' \d+ /)?.[1];
+const statusLinePort = (sl: StatusLine) =>
+  Number(sl.command?.match(/statusline\.sh'? (\d+) /)?.[1]) || null;
 
 const isOurs = (h: Hook) =>
   h?.type === "command" && typeof h.command === "string" && h.command.includes(MARKER);
@@ -84,7 +102,15 @@ function strip(hooks: Record<string, Group[]>, event: string, keep?: Hook): bool
   return changed;
 }
 
-export function installHooks({ claudeDir, port }: { claudeDir: string; port: number }) {
+export function installHooks({
+  claudeDir,
+  port,
+  scriptDir,
+}: {
+  claudeDir: string;
+  port: number;
+  scriptDir?: string;
+}) {
   const file = target(claudeDir);
   const s = read(file);
   const before = JSON.stringify(s);
@@ -100,6 +126,12 @@ export function installHooks({ claudeDir, port }: { claudeDir: string; port: num
       groups.push({ hooks: [{ type: "command", command: cmd }] });
     }
   }
+  const prev = s.statusLine;
+  const wrapped = prev && isOurStatusLine(prev) ? wrappedOf(prev) : prev?.command;
+  const script = installedScript(scriptDir);
+  mkdirSync(dirname(script), { recursive: true });
+  copyFileSync(STATUSLINE_SCRIPT, script);
+  s.statusLine = { ...prev, type: "command", command: statusLineCommand(port, wrapped, script) };
   if (JSON.stringify(s) !== before) write(file, s);
   return hooksStatus({ claudeDir, port });
 }
@@ -107,14 +139,18 @@ export function installHooks({ claudeDir, port }: { claudeDir: string; port: num
 export function uninstallHooks({ claudeDir }: { claudeDir: string }) {
   const file = target(claudeDir);
   const s = read(file);
+  let changed = false;
   if (s.hooks) {
-    let changed = false;
     for (const ev of Object.keys(s.hooks)) changed = strip(s.hooks, ev) || changed;
-    if (changed) {
-      if (!Object.keys(s.hooks).length) delete s.hooks;
-      write(file, s);
-    }
+    if (changed && !Object.keys(s.hooks).length) delete s.hooks;
   }
+  if (s.statusLine && isOurStatusLine(s.statusLine)) {
+    const wrapped = wrappedOf(s.statusLine);
+    if (wrapped) s.statusLine = { ...s.statusLine, command: wrapped };
+    else delete s.statusLine;
+    changed = true;
+  }
+  if (changed) write(file, s);
   return hooksStatus({ claudeDir, port: 0 });
 }
 
@@ -141,6 +177,12 @@ export function hooksStatus({ claudeDir, port }: { claudeDir: string; port: numb
         ? "partial"
         : "installed";
   }
+  if (s.statusLine && isOurStatusLine(s.statusLine)) {
+    const p = statusLinePort(s.statusLine);
+    ports.add(p);
+    const script = statusLineScript(s.statusLine);
+    events.StatusLine = p === port && script && existsSync(script) ? "installed" : "partial";
+  } else events.StatusLine = "missing";
   const vals = Object.values(events);
   const state = vals.every((v) => v === "missing")
     ? "missing"

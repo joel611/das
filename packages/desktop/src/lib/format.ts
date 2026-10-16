@@ -14,9 +14,10 @@ export function tokens(n: number): string {
   return `${+(n / 1_000_000).toFixed(2)}M`;
 }
 
-/** Milliseconds as "2h 14m" or "9m". */
+/** Milliseconds as "3d 4h", "2h 14m" or "9m". */
 export function duration(ms: number): string {
   const m = Math.max(0, Math.round(ms / 60_000));
+  if (m >= 1440) return `${Math.floor(m / 1440)}d ${Math.floor((m % 1440) / 60)}h`;
   return m >= 60 ? `${Math.floor(m / 60)}h ${m % 60}m` : `${m}m`;
 }
 

@@ -11,10 +11,19 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EVENTS, hooksStatus, installHooks, MARKER, uninstallHooks } from "./hooks-install";
+import {
+  EVENTS,
+  hooksStatus,
+  installHooks,
+  MARKER,
+  STATUSLINE_SCRIPT,
+  uninstallHooks,
+} from "./hooks-install";
 
 const root = mkdtempSync(join(tmpdir(), "hooks-"));
 afterAll(() => rmSync(root, { recursive: true, force: true }));
+const scripts = join(root, "das-config");
+process.env.DAS_CONFIG_DIR = scripts;
 
 const fresh = (settings?: object) => {
   const dir = mkdtempSync(join(root, "c-"));
@@ -142,4 +151,72 @@ test("atomic: no temp files left behind; invalid JSON is refused and untouched",
   expect(() => installHooks({ claudeDir: bad, port: 4321 })).toThrow();
   expect(readFileSync(join(bad, "settings.json"), "utf8")).toBe("{ not json");
   expect(readdirSync(bad)).toEqual(["settings.json"]);
+});
+
+test("status line: added when absent, removed on uninstall", () => {
+  const dir = fresh(base());
+  installHooks({ claudeDir: dir, port: 4321, scriptDir: scripts });
+  const sl = load(dir).statusLine;
+  expect(sl.type).toBe("command");
+  const script = join(scripts, "statusline.sh");
+  expect(sl.command).toBe(`sh '${script}' 4321 ${MARKER}`);
+  expect(readFileSync(script, "utf8")).toBe(readFileSync(STATUSLINE_SCRIPT, "utf8"));
+  expect(hooksStatus({ claudeDir: dir, port: 4321 }).events.StatusLine).toBe("installed");
+  rmSync(script);
+  expect(hooksStatus({ claudeDir: dir, port: 4321 }).events.StatusLine).toBe("partial");
+  uninstallHooks({ claudeDir: dir });
+  expect(load(dir).statusLine).toBeUndefined();
+  expect(load(dir)).toEqual(base());
+});
+
+test("status line: a user's own is wrapped, kept across reinstalls, and restored exactly", () => {
+  const mine = {
+    type: "command",
+    command: "~/.claude/my status.sh 'x'",
+    padding: 1,
+    refreshInterval: 5,
+  };
+  const dir = fresh({ ...base(), statusLine: mine });
+  installHooks({ claudeDir: dir, port: 4321 });
+  installHooks({ claudeDir: dir, port: 5000 });
+  const sl = load(dir).statusLine;
+  expect(sl.padding).toBe(1);
+  expect(sl.refreshInterval).toBe(5);
+  const b64 = sl.command.match(/DAS_WRAP_B64=(\S+) /)[1];
+  expect(Buffer.from(b64, "base64").toString()).toBe(mine.command);
+  expect(sl.command).toContain(`' 5000 ${MARKER}`);
+  expect(hooksStatus({ claudeDir: dir, port: 4321 }).events.StatusLine).toBe("partial");
+  uninstallHooks({ claudeDir: dir });
+  expect(load(dir).statusLine).toEqual(mine);
+});
+
+test("statusline.sh forwards stdin to the daemon and prints the wrapped status line", async () => {
+  const got: string[] = [];
+  const dirs: string[] = [];
+  const srv = Bun.serve({
+    port: 0,
+    fetch: async (r) => {
+      got.push(`${new URL(r.url).pathname} ${await r.text()}`);
+      dirs.push(r.headers.get("x-claude-config-dir") ?? "");
+      return new Response("5h 1% (1m)");
+    },
+  });
+  const run = async (env: Record<string, string>) => {
+    const p = Bun.spawn(["sh", STATUSLINE_SCRIPT, String(srv.port)], {
+      stdin: new Blob(['{"rate_limits":{}}']),
+      stdout: "pipe",
+      // SHELL is not what runs the wrapped command: a POSIX command must survive a fish/nu login shell
+      env: { ...process.env, SHELL: "/nonexistent/fish", CLAUDE_CONFIG_DIR: "/c/dir", ...env },
+    });
+    const out = await new Response(p.stdout).text();
+    expect(await p.exited).toBe(0);
+    return out;
+  };
+  expect(await run({})).toBe("5h 1% (1m)");
+  const wrap = Buffer.from(`cat; printf ' mine'`).toString("base64");
+  expect(await run({ DAS_WRAP_B64: wrap })).toBe('{"rate_limits":{}} mine');
+  await Bun.sleep(200);
+  expect(got).toEqual(['/statusline {"rate_limits":{}}', '/statusline {"rate_limits":{}}']);
+  expect(dirs).toEqual(["/c/dir", "/c/dir"]);
+  await srv.stop(true);
 });

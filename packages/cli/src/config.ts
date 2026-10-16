@@ -2,7 +2,13 @@ import { chmodSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "n
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export type Config = { roots: string[]; port: number; token: string; openrouterKey: string };
+export type Config = {
+  roots: string[];
+  port: number;
+  token: string;
+  openrouterKey: string;
+  usageApi: boolean;
+};
 
 const expand = (p: string) => (p.startsWith("~") ? homedir() + p.slice(1) : p);
 
@@ -64,6 +70,7 @@ export function loadConfig(
     port: Number(env.PORT || f.port || 5777),
     token: env.TOKEN ?? f.token ?? "",
     openrouterKey: env.OPENROUTER_API_KEY || f.openrouterKey || "",
+    usageApi: env.DAS_USAGE_API ? env.DAS_USAGE_API === "1" : f.usageApi === true,
   };
 }
 
@@ -97,6 +104,7 @@ export const envOverrides = (env: Record<string, string | undefined> = process.e
       ["port", "PORT"],
       ["token", "TOKEN"],
       ["openrouterKey", "OPENROUTER_API_KEY"],
+      ["usageApi", "DAS_USAGE_API"],
     ] as const
   ).flatMap(([k, e]) => (env[e] ? [k] : []));
 
