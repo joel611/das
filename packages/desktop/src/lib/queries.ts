@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "./api";
-import type { SettingsPatch } from "./types";
+import type { DeviceSignal, SettingsPatch } from "./types";
 
 // Every daemon read polls; `ms` is the refetch interval.
 export const useDaemonState = (ms = 2000) =>
@@ -45,6 +45,12 @@ export function useOmpAction() {
     mutationFn: (kind: "install" | "uninstall") =>
       kind === "install" ? api.installOmp() : api.uninstallOmp(),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["omp"] }),
+  });
+}
+
+export function useSignalDevice() {
+  return useMutation({
+    mutationFn: (v: { id: string; signal: DeviceSignal }) => api.signalDevice(v.id, v.signal),
   });
 }
 

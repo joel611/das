@@ -21,7 +21,7 @@ export default defineConfig({
     options: { typeAware: true, typeCheck: true },
   },
   // Pre-commit hook (.vite-hooks/pre-commit) runs `vp staged`; installed via the `prepare` script.
-  staged: { "*.{js,mjs,ts,tsx,json}": "vp check --fix" },
+  staged: { "*.{js,mjs,ts,tsx,json,md}": "vp check --fix" },
   run: {
     cache: true,
   },

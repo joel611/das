@@ -181,7 +181,12 @@ function onContextCreated(robot, _option) {
       try {
         const msg = JSON.parse(event.data);
         if (msg.type === "snapshot" || msg.type === "delta") apply(msg.display);
-        else if (msg.type === "sound" && link === "connected")
+        else if (msg.type === "signal" && link === "connected") {
+          // Direct one-off command from the desktop app; the next delta overrides the display.
+          apply(msg.display);
+          if (msg.sound)
+            robot.audio.tone(msg.sound.hz, msg.sound.ms).catch((e) => trace(`tone failed: ${e}\n`));
+        } else if (msg.type === "sound" && link === "connected")
           robot.audio.tone(msg.hz, msg.ms).catch((e) => trace(`tone failed: ${e}\n`));
       } catch (e) {
         trace(`ws bad message: ${e}\n`);

@@ -393,9 +393,7 @@ export function Settings() {
           </Button>
         </CardFooter>
       </Card>
-      {s ? (
-        <StackchanCard enabled={s.notificationSound} />
-      ) : null}
+      {s ? <StackchanCard enabled={s.notificationSound} /> : null}
       <JevStyleCard />
     </div>
   );

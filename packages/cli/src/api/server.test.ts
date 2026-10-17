@@ -22,6 +22,43 @@ const opened = (ws: WebSocket) =>
     (r, j) => ((ws.onopen = () => r()), (ws.onerror = () => j(new Error("ws error")))),
   );
 
+test("POST /v1/devices/:id/signal reaches only that device", async () => {
+  const connect = async (device: string) => {
+    const ws = new WebSocket(`ws://${base}/v1/ws?token=secret`);
+    const frames: any[] = [];
+    ws.addEventListener("message", (e) => frames.push(JSON.parse(String(e.data))));
+    await opened(ws);
+    ws.send(JSON.stringify({ type: "hello", device, capabilities: ["screen"] }));
+    return { ws, frames };
+  };
+  const a = await connect("sig-a");
+  const b = await connect("sig-b");
+  await Bun.sleep(100);
+  const devices: { id: string; device: string }[] = await (
+    await fetch(`http://${base}/v1/devices?token=secret`)
+  ).json();
+  const idA = devices.find((d) => d.device === "sig-a")!.id;
+  const post = (id: string, body: unknown) =>
+    fetch(`http://${base}/v1/devices/${id}/signal?token=secret`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+
+  expect((await post(idA, { state: "error", sound: { hz: 440, ms: 100 } })).status).toBe(200);
+  expect((await post(idA, { state: "bogus" })).status).toBe(400);
+  expect((await post(idA, { sound: { hz: 1, ms: 100 } })).status).toBe(400);
+  expect((await post("nope", { state: "done" })).status).toBe(404);
+  await Bun.sleep(100);
+  a.ws.close();
+  b.ws.close();
+
+  expect(b.frames.some((f) => f.type === "signal")).toBe(false);
+  const signals = a.frames.filter((f) => f.type === "signal");
+  expect(signals).toHaveLength(1);
+  expect(signals[0].display.expression).toBe("sad");
+  expect(signals[0].sound).toEqual({ hz: 440, ms: 100 });
+});
+
 test("rejects missing or wrong token", async () => {
   expect((await fetch(`http://${base}/v1/ws`)).status).toBe(401);
   expect((await fetch(`http://${base}/v1/ws?token=nope`)).status).toBe(401);
