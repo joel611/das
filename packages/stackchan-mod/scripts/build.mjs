@@ -33,7 +33,8 @@ if (!url) {
 }
 if (!url) {
   console.error(
-    "usage: mod:build --server-url <ws://host:port/v1/ws> (or set DAEMON_HOST in .env) [--install] [extra mod:build args]",
+    "DAEMON_HOST is not set: copy .env.example to .env (in packages/stackchan-mod) and set it, or pass --server-url.\n" +
+      "usage: mod:build --server-url <ws://host:port/v1/ws> [--install] [extra mod:build args]",
   );
   process.exit(1);
 }
