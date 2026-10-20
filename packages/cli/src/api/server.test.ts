@@ -181,3 +181,43 @@ test("the status line relay endpoint is gone", async () => {
   });
   expect(res.status).toBe(404);
 });
+
+test("binary camera frames are pushed to SSE viewers; last viewer leaving switches the camera off", async () => {
+  const ws = new WebSocket(`ws://${base}/v1/ws?token=secret`);
+  const got: any[] = [];
+  ws.addEventListener("message", (e) => got.push(JSON.parse(String(e.data))));
+  await opened(ws);
+  ws.send(JSON.stringify({ type: "hello", device: "cam-dev", capabilities: ["camera"] }));
+  await Bun.sleep(100);
+  const devices: { id: string; device: string }[] = await (
+    await fetch(`http://${base}/v1/devices?token=secret`)
+  ).json();
+  const id = devices.find((d) => d.device === "cam-dev")!.id;
+
+  const ctl = new AbortController();
+  const res = await fetch(`http://${base}/v1/devices/${id}/camera/stream?token=secret`, {
+    signal: ctl.signal,
+  });
+  expect(res.headers.get("content-type")).toContain("text/event-stream");
+  const reader = res.body!.getReader();
+  const read = async () => new TextDecoder().decode((await reader.read()).value);
+
+  expect(await read()).toContain(": connected");
+  // 2x1 image: header [w=2][h=1] + two RGB332 pixels.
+  const px = new Uint8Array([2, 0, 1, 0, 0xe0, 0x1c]);
+  ws.send(px);
+  const evt = (await read()).replace(/^data: /, "");
+  expect(JSON.parse(evt)).toMatchObject({
+    w: 2,
+    h: 1,
+    rgb332: Buffer.from(px.subarray(4)).toString("base64"),
+  });
+  ws.send(new Uint8Array([2, 0, 1, 0, 0, 0, 0])); // wrong length: dropped
+  ws.send(px);
+  expect(JSON.parse((await read()).replace(/^data: /, ""))).toMatchObject({ w: 2, h: 1 });
+
+  ctl.abort();
+  await Bun.sleep(200);
+  expect(got.some((f) => f.type === "signal" && f.camera === false)).toBe(true);
+  ws.close();
+});

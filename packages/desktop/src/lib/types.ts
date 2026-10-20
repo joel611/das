@@ -83,7 +83,8 @@ export type DeviceSignal = {
 };
 
 /** Latest camera frame pushed by the device, base64 JPEG. Null until one arrives. */
-export type CameraFrame = { jpeg: string; at: number } | null;
+/** RGB332 pixels (base64) of `w`x`h`. */
+export type CameraFrame = { w: number; h: number; rgb332: string; at: number } | null;
 
 export type Device = { id: string; device: string; capabilities: string[]; connectedAt: number };
 

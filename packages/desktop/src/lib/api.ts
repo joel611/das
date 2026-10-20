@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 
 import type {
   DaemonState,
-  CameraFrame,
   Device,
   DeviceSignal,
   HookStatus,
@@ -64,7 +63,6 @@ export const api = {
   devices: () => call<Device[]>("GET", "/v1/devices"),
   signalDevice: (id: string, signal: DeviceSignal) =>
     call<{ ok: true }>("POST", `/v1/devices/${id}/signal`, signal),
-  deviceCamera: (id: string) => call<CameraFrame>("GET", `/v1/devices/${id}/camera`),
   settings: () => call<Settings>("GET", "/admin/settings"),
   saveSettings: (patch: SettingsPatch) => call<Settings>("PUT", "/admin/settings", patch),
   hooks: () => call<HookStatus>("GET", "/admin/hooks"),

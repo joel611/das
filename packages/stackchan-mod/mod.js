@@ -90,30 +90,48 @@ function onContextCreated(robot, _option) {
       .catch((e) => trace(`tilt failed: ${e}\n`));
   }
 
-  // Camera preview: capture a small JPEG a couple of times a second and push it to the server.
+  // Camera preview: the CoreS3 sensor (GC0308) has no hardware JPEG, so capture small RGB565 frames, squeeze
+  // them to 8-bit RGB332 (the device socket only moves ~20 KB/s, so 96x96 gives ~2 frames a second)
+  // and push them as bare binary messages: [width u16le][height u16le][RGB332 pixels] (no base64/JSON on the link).
+  // One capture at a time, and a tick is skipped while more than one frame is still unsent, so the rate
+  // follows what the camera and the link can carry instead of queueing frames in device memory.
+  const CAM_W = 96;
+  const CAM_H = 96;
   let camTimer;
+  let camBusy = false;
   let openWs; // the connected socket, for pushing camera frames
   function setCamera(on) {
     if (camTimer !== undefined) {
       Timer.clear(camTimer);
       camTimer = undefined;
     }
+    trace(`camera ${on ? "on" : "off"}\n`);
     if (!on) return;
     camTimer = Timer.repeat(() => {
-      if (!openWs) return;
+      if (!openWs || camBusy || openWs.bufferedAmount > CAM_W * CAM_H) return; // allow ~1 frame queued
+      camBusy = true;
       robot.camera
-        .capture({ width: 320, height: 240, imageType: "jpeg" })
+        .capture({ width: CAM_W, height: CAM_H, imageType: "rgb565le" })
         .then((frame) => {
           if (!frame) return;
-          const bytes = new Uint8Array(frame.buffer);
+          // The frame buffer is a host buffer, not a plain ArrayBuffer (WebSocket.send ignores it): copy out.
+          const px = new Uint16Array(frame.buffer);
+          const n = frame.width * frame.height;
+          const out = new Uint8Array(4 + n);
+          out[0] = frame.width & 255;
+          out[1] = frame.width >> 8;
+          out[2] = frame.height & 255;
+          out[3] = frame.height >> 8;
+          for (let i = 0; i < n; i++) {
+            const p = px[i]; // RGB565LE -> RRRGGGBB
+            out[4 + i] = ((p >> 8) & 0xe0) | ((p >> 6) & 0x1c) | ((p >> 3) & 3);
+          }
           frame.close?.();
-          let bin = "";
-          for (let i = 0; i < bytes.length; i += 4096)
-            bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 4096));
-          openWs?.send(JSON.stringify({ type: "camera.frame", jpeg: btoa(bin) }));
+          openWs?.send(out.buffer);
         })
-        .catch((e) => trace(`camera failed: ${e}\n`));
-    }, 500);
+        .catch((e) => trace(`camera failed: ${e}\n`))
+        .then(() => (camBusy = false));
+    }, 250);
   }
 
   // Link state overrides the Display until connected. Stale Display is dropped.
