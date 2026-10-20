@@ -32,12 +32,13 @@ test("build.mjs without a url exits non-zero with usage", () => {
   expect(r.stderr).toContain("usage: mod:build --server-url");
 });
 
-test("serverUrlFromHost builds the wss URL", () => {
-  expect(serverUrlFromHost("h.ts.net")).toBe("wss://h.ts.net/v1/ws");
-  expect(serverUrlFromHost("192.168.1.10:5777")).toBe("ws://192.168.1.10:5777/v1/ws");
-  expect(serverUrlFromHost("localhost:5777")).toBe("ws://localhost:5777/v1/ws");
+test("serverUrlFromHost appends /v1/ws and keeps the scheme", () => {
+  expect(serverUrlFromHost("wss://h.ts.net")).toBe("wss://h.ts.net/v1/ws");
+  expect(serverUrlFromHost("ws://192.168.1.10:5777/")).toBe("ws://192.168.1.10:5777/v1/ws");
   expect(serverUrlFromHost("")).toBeUndefined();
   expect(serverUrlFromHost(undefined)).toBeUndefined();
+  expect(() => serverUrlFromHost("192.168.1.10:5777")).toThrow("DAEMON_HOST must look like");
+  expect(() => serverUrlFromHost("http://h")).toThrow("DAEMON_HOST must look like");
 });
 
 test("copied archive path matches the fixed-name staging dir", () => {
