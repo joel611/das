@@ -44,7 +44,7 @@ bun run device:deploy    # flash the vendored host firmware to the connected dev
 bun run mod:install      # build the MOD and flash it
 ```
 
-To override the server URL without editing `mod.js`, use the package script (it always uses `vendor/`). It is named `mod:build`, not `build`, so `vp run -r build` / `bun run ready` do not need Moddable:
+The default URL is `wss://$DAEMON_HOST/v1/ws`; copy `.env.example` to `.env` and set `DAEMON_HOST`. To override the server URL without editing `mod.js`, use the package script (it always uses `vendor/`). It is named `mod:build`, not `build`, so `vp run -r build` / `bun run ready` do not need Moddable:
 
 ```sh
 bun run mod:build -- --server-url ws://192.168.1.10:5777/v1/ws   # -> dist/stackchan-mod.xsa (gitignored)

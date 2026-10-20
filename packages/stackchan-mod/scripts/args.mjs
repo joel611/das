@@ -20,3 +20,8 @@ export function parseArgs(args) {
   }
   return { url, install: args.includes("--install"), rest };
 }
+
+// Daemon WebSocket URL for a bare host (Tailscale Funnel serves wss on 443).
+export function serverUrlFromHost(host) {
+  return host ? `wss://${host}/v1/ws` : undefined;
+}

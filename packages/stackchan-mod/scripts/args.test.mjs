@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
 import { basename, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { MOD_NAME, parseArgs, xsaPath } from "./args.mjs";
+import { MOD_NAME, parseArgs, serverUrlFromHost, xsaPath } from "./args.mjs";
 
 test("--server-url X and --server-url=X, last one wins", () => {
   expect(parseArgs(["--server-url", "ws://a"]).url).toBe("ws://a");
@@ -24,9 +24,18 @@ test("missing url yields undefined", () => {
 
 test("build.mjs without a url exits non-zero with usage", () => {
   const script = `${dirname(fileURLToPath(import.meta.url))}/build.mjs`;
-  const r = spawnSync("node", [script, "--install"], { encoding: "utf8" });
+  const r = spawnSync("node", [script, "--install"], {
+    encoding: "utf8",
+    env: { ...process.env, DAEMON_HOST: "" },
+  });
   expect(r.status).not.toBe(0);
   expect(r.stderr).toContain("usage: mod:build --server-url");
+});
+
+test("serverUrlFromHost builds the wss URL", () => {
+  expect(serverUrlFromHost("h.ts.net")).toBe("wss://h.ts.net/v1/ws");
+  expect(serverUrlFromHost("")).toBeUndefined();
+  expect(serverUrlFromHost(undefined)).toBeUndefined();
 });
 
 test("copied archive path matches the fixed-name staging dir", () => {
