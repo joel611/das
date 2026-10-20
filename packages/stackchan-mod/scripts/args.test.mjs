@@ -34,6 +34,8 @@ test("build.mjs without a url exits non-zero with usage", () => {
 
 test("serverUrlFromHost builds the wss URL", () => {
   expect(serverUrlFromHost("h.ts.net")).toBe("wss://h.ts.net/v1/ws");
+  expect(serverUrlFromHost("192.168.1.10:5777")).toBe("ws://192.168.1.10:5777/v1/ws");
+  expect(serverUrlFromHost("localhost:5777")).toBe("ws://localhost:5777/v1/ws");
   expect(serverUrlFromHost("")).toBeUndefined();
   expect(serverUrlFromHost(undefined)).toBeUndefined();
 });

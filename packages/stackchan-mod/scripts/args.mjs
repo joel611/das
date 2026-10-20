@@ -21,7 +21,10 @@ export function parseArgs(args) {
   return { url, install: args.includes("--install"), rest };
 }
 
-// Daemon WebSocket URL for a bare host (Tailscale Funnel serves wss on 443).
+// Daemon WebSocket URL for DAEMON_HOST (host or host:port). LAN IPs and localhost speak plain ws;
+// anything else is assumed to be the Tailscale Funnel, which serves wss on 443.
 export function serverUrlFromHost(host) {
-  return host ? `wss://${host}/v1/ws` : undefined;
+  if (!host) return undefined;
+  const local = /^(localhost|\d{1,3}(\.\d{1,3}){3})(:\d+)?$/.test(host);
+  return `${local ? "ws" : "wss"}://${host}/v1/ws`;
 }

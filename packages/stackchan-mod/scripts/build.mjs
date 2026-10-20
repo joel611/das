@@ -1,5 +1,5 @@
 // Build the MOD with an overridden server URL.
-// Without --server-url, the URL is wss://$DAEMON_HOST/v1/ws, with DAEMON_HOST read from packages/stackchan-mod/.env (see .env.example).
+// Without --server-url, the URL is built from DAEMON_HOST (ws:// for LAN IP/localhost, else wss://), read from packages/stackchan-mod/.env (see .env.example).
 // Usage: bun run mod:build -- --server-url ws://192.168.1.10:5777/v1/ws [--install [--port /dev/cu.usbmodemXXXX]]
 // --install flashes the built MOD to the connected device (the host on it must be built with the same SDK).
 // Uses the toolchain under <repo>/vendor (Moddable, ESP-IDF, stack-chan), installed on first run by scripts/toolchain.mjs.
