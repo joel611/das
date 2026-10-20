@@ -64,6 +64,8 @@ export type Signal = {
   light?: Light;
   servo?: Servo;
   camera?: boolean;
+  /** Text for the device to speak through its TTS. */
+  say?: string;
 };
 
 const STATES: SessionState[] = ["running", "waiting", "done", "error", "idle"];
@@ -96,6 +98,7 @@ export function parseSignal(body: unknown): Signal | null {
     light?: unknown;
     servo?: { yaw?: unknown; pitch?: unknown };
     camera?: unknown;
+    say?: unknown;
   };
   const signal: Signal = {};
   if (b.state !== undefined) {
@@ -122,6 +125,12 @@ export function parseSignal(body: unknown): Signal | null {
   if (b.camera !== undefined) {
     if (typeof b.camera !== "boolean") return null;
     signal.camera = b.camera;
+  }
+  if (b.say !== undefined) {
+    if (typeof b.say !== "string") return null;
+    const say = b.say.trim();
+    if (!say || say.length > 200) return null;
+    signal.say = say;
   }
   return Object.keys(signal).length ? signal : null;
 }

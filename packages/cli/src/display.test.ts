@@ -67,3 +67,10 @@ test("parseSignal accepts light, servo and camera and rejects out-of-range value
   expect(parseSignal({ camera: "yes" })).toBeNull();
   expect(parseSignal({})).toBeNull();
 });
+
+test("parseSignal validates say", () => {
+  expect(parseSignal({ say: " hello " })?.say).toBe("hello");
+  expect(parseSignal({ say: "" })).toBeNull();
+  expect(parseSignal({ say: "x".repeat(201) })).toBeNull();
+  expect(parseSignal({ say: 5 })).toBeNull();
+});

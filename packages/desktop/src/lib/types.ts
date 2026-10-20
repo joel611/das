@@ -78,6 +78,8 @@ export type DeviceSignal = {
   /** Degrees. yaw positive = left, pitch positive = up. */
   servo?: { yaw: number; pitch: number };
   camera?: boolean;
+  /** Text the device speaks. */
+  say?: string;
 };
 
 /** Latest camera frame pushed by the device, base64 JPEG. Null until one arrives. */

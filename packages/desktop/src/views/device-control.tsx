@@ -5,6 +5,7 @@ import { StateBadge } from "@/components/state-badge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -158,8 +159,31 @@ function AudioSection({ d }: { d: Device }) {
   const send = useSend(d);
   const [hz, setHz] = useState(660);
   const [ms, setMs] = useState(200);
+  const [text, setText] = useState("");
+  const say = () => {
+    if (!text.trim()) return;
+    send({ say: text });
+  };
   return (
-    <Section title="Audio" description="Play a tone on the speaker.">
+    <Section title="Audio" description="Speak text or play a tone on the speaker.">
+      <form
+        className="flex gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          say();
+        }}
+      >
+        <Input
+          value={text}
+          maxLength={200}
+          placeholder="Text to say"
+          aria-label="Text to say"
+          onChange={(e) => setText(e.target.value)}
+        />
+        <Button type="submit" size="sm" disabled={!text.trim()}>
+          Say
+        </Button>
+      </form>
       <SliderRow
         label="Pitch"
         value={hz}

@@ -229,6 +229,10 @@ function onContextCreated(robot, _option) {
               .catch((e) => trace(`servo failed: ${e}\n`));
           }
           if (msg.camera !== undefined) setCamera(msg.camera);
+          if (msg.say)
+            robot.audio.say(msg.say).then((r) => {
+              if (!r.success) trace(`say failed: ${r.reason}\n`);
+            });
           if (msg.sound)
             robot.audio.tone(msg.sound.hz, msg.sound.ms).catch((e) => trace(`tone failed: ${e}\n`));
         } else if (msg.type === "sound" && link === "connected")

@@ -20,6 +20,7 @@ export const deviceRoutes = (
       const id = c.req.param("id");
       if (!devices.has(id)) return c.json({ error: "no such device" }, 404);
       const signal = parseSignal(await c.req.json().catch(() => null));
-      if (!signal) return c.json({ error: "expected { state, sound, light, servo, camera }" }, 400);
+      if (!signal)
+        return c.json({ error: "expected { state, sound, light, servo, camera, say }" }, 400);
       return send(id, signal) ? c.json({ ok: true }) : c.json({ error: "no such device" }, 404);
     });
