@@ -4,7 +4,14 @@
 // --install flashes the built MOD to the connected device (the host on it must be built with the same SDK).
 // Uses the toolchain under <repo>/vendor (Moddable, ESP-IDF, stack-chan), installed on first run by scripts/toolchain.mjs.
 // --install picks the only /dev/cu.usbmodem* port when --port is omitted.
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

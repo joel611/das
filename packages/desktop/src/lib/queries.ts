@@ -14,6 +14,13 @@ export const useUsage = (ms = 10_000) =>
   useQuery({ queryKey: ["usage"], queryFn: api.usage, refetchInterval: ms });
 export const useDevices = (ms = 3000) =>
   useQuery({ queryKey: ["devices"], queryFn: api.devices, refetchInterval: ms });
+export const useDeviceCamera = (id: string | undefined, enabled: boolean, ms = 500) =>
+  useQuery({
+    queryKey: ["device-camera", id],
+    queryFn: () => api.deviceCamera(id!),
+    refetchInterval: ms,
+    enabled: enabled && !!id,
+  });
 export const useSettings = (ms = 10_000) =>
   useQuery({ queryKey: ["settings"], queryFn: api.settings, refetchInterval: ms });
 export const useHooks = (ms = 5000) =>

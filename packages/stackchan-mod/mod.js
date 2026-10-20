@@ -90,6 +90,32 @@ function onContextCreated(robot, _option) {
       .catch((e) => trace(`tilt failed: ${e}\n`));
   }
 
+  // Camera preview: capture a small JPEG a couple of times a second and push it to the server.
+  let camTimer;
+  let openWs; // the connected socket, for pushing camera frames
+  function setCamera(on) {
+    if (camTimer !== undefined) {
+      Timer.clear(camTimer);
+      camTimer = undefined;
+    }
+    if (!on) return;
+    camTimer = Timer.repeat(() => {
+      if (!openWs) return;
+      robot.camera
+        .capture({ width: 320, height: 240, imageType: "jpeg" })
+        .then((frame) => {
+          if (!frame) return;
+          const bytes = new Uint8Array(frame.buffer);
+          frame.close?.();
+          let bin = "";
+          for (let i = 0; i < bytes.length; i += 4096)
+            bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 4096));
+          openWs?.send(JSON.stringify({ type: "camera.frame", jpeg: btoa(bin) }));
+        })
+        .catch((e) => trace(`camera failed: ${e}\n`));
+    }, 500);
+  }
+
   // Link state overrides the Display until connected. Stale Display is dropped.
   // Connected has no light/emotion: the server Display supplies them.
   function setLink(next) {
@@ -148,6 +174,10 @@ function onContextCreated(robot, _option) {
     }, CONNECT_TIMEOUT_MS);
     function end() {
       if (phase === "dead") return;
+      if (openWs === ws) {
+        openWs = undefined;
+        setCamera(false);
+      }
       const wasOpen = phase === "open";
       phase = "dead";
       Timer.clear(timeout);
@@ -166,6 +196,7 @@ function onContextCreated(robot, _option) {
       trace("ws open\n");
       if (phase !== "pending") return;
       phase = "open";
+      openWs = ws;
       Timer.clear(timeout);
       failures = 0;
       setLink("connected");
@@ -173,7 +204,7 @@ function onContextCreated(robot, _option) {
         JSON.stringify({
           type: "hello",
           device: "stack-chan",
-          capabilities: ["screen", "speaker", "buttons"],
+          capabilities: ["screen", "speaker", "buttons", "light", "servo", "camera"],
         }),
       );
     });
@@ -184,6 +215,24 @@ function onContextCreated(robot, _option) {
         else if (msg.type === "signal" && link === "connected") {
           // Direct one-off command from the desktop app; the next delta overrides the display.
           apply(msg.display);
+          if (msg.light) setLight(msg.light);
+          if (msg.servo) {
+            const d = Math.PI / 180;
+            robot.motion
+              .setTorque(true)
+              .then(() =>
+                robot.motion.setPose(
+                  { rotation: { y: msg.servo.yaw * d, p: -msg.servo.pitch * d, r: 0 } },
+                  0.8,
+                ),
+              )
+              .catch((e) => trace(`servo failed: ${e}\n`));
+          }
+          if (msg.camera !== undefined) setCamera(msg.camera);
+          if (msg.say)
+            robot.audio.say(msg.say).then((r) => {
+              if (!r.success) trace(`say failed: ${r.reason}\n`);
+            });
           if (msg.sound)
             robot.audio.tone(msg.sound.hz, msg.sound.ms).catch((e) => trace(`tone failed: ${e}\n`));
         } else if (msg.type === "sound" && link === "connected")

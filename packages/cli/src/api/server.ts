@@ -300,13 +300,15 @@ export function createServer({
     });
   });
   v1.route("/projects", projectRoutes(getProjects));
+  /** Latest camera frame per device (base64 JPEG), pushed by the mod while the camera is on. */
+  const frames = new Map<string, { jpeg: string; at: number }>();
   const signalDevice = (id: string, signal: Signal) => {
     if (!devices.has(id)) return false;
     server.publish(connTopic(id), JSON.stringify({ type: "signal", ...signal }));
     wsLog("message", { dir: "out", conn: id, type: "signal" });
     return true;
   };
-  v1.route("/devices", deviceRoutes(devices, signalDevice));
+  v1.route("/devices", deviceRoutes(devices, signalDevice, frames));
   app.route("/v1", v1);
 
   // ws.log: lifecycle plus frame `type` in both directions, never payloads.
@@ -348,6 +350,7 @@ export function createServer({
       close(ws, code) {
         wsLog("close", { conn: ws.data.id, device: devices.get(ws.data.id)?.device, code });
         devices.delete(ws.data.id);
+        frames.delete(ws.data.id);
       },
       message(ws, raw) {
         let msg: any;
@@ -364,6 +367,10 @@ export function createServer({
           device: devices.get(ws.data.id)?.device,
         });
         // button is a reserved no-op; unknown types ignored.
+        if (msg?.type === "camera.frame" && typeof msg.jpeg === "string") {
+          frames.set(ws.data.id, { jpeg: msg.jpeg, at: Date.now() });
+          return;
+        }
         if (msg?.type === "voice.transcript") {
           handleTranscript(voice, `ws:${ws.data.id}`, String(msg.text ?? "")).then((r) =>
             send(ws, { type: "voice.reply", ...r }),

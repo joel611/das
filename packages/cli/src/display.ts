@@ -54,14 +54,52 @@ export function soundFor(prev: SessionState | undefined, next: SessionState): So
   return prev === next ? null : (SOUND[next] ?? null);
 }
 
+/** Neck pose in degrees: yaw ±128 (positive = left), pitch 5 to 85 up (the servo cannot look down). */
+export type Servo = { yaw: number; pitch: number };
+
 /** A direct, one-off command to a single device, from the desktop app. */
-export type Signal = { display?: Display; sound?: Sound };
+export type Signal = {
+  display?: Display;
+  sound?: Sound;
+  light?: Light;
+  servo?: Servo;
+  camera?: boolean;
+  /** Text for the device to speak through its TTS. */
+  say?: string;
+};
 
 const STATES: SessionState[] = ["running", "waiting", "done", "error", "idle"];
 
-/** Validate a signal request body: `state` renders as the Display that state would show; `sound` is bounded. Null if invalid or empty. */
+const isRgb = (v: unknown): v is Rgb =>
+  Array.isArray(v) &&
+  v.length === 3 &&
+  v.every((n) => typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 255);
+
+function parseLight(v: unknown): Light | null {
+  const l = (v ?? {}) as { mode?: unknown; rgb?: unknown; periodMs?: unknown };
+  if (l.mode === "rainbow") return { mode: "rainbow" };
+  if (l.mode === "solid" && isRgb(l.rgb)) return { mode: "solid", rgb: l.rgb };
+  if (
+    l.mode === "blink" &&
+    isRgb(l.rgb) &&
+    typeof l.periodMs === "number" &&
+    l.periodMs >= 100 &&
+    l.periodMs <= 5000
+  )
+    return { mode: "blink", rgb: l.rgb, periodMs: l.periodMs };
+  return null;
+}
+
+/** Validate a signal request body: `state` renders as the Display that state would show; the rest are bounded. Null if invalid or empty. */
 export function parseSignal(body: unknown): Signal | null {
-  const b = (body ?? {}) as { state?: unknown; sound?: { hz?: unknown; ms?: unknown } };
+  const b = (body ?? {}) as {
+    state?: unknown;
+    sound?: { hz?: unknown; ms?: unknown };
+    light?: unknown;
+    servo?: { yaw?: unknown; pitch?: unknown };
+    camera?: unknown;
+    say?: unknown;
+  };
   const signal: Signal = {};
   if (b.state !== undefined) {
     if (!STATES.includes(b.state as SessionState)) return null;
@@ -73,5 +111,26 @@ export function parseSignal(body: unknown): Signal | null {
     if (hz < 100 || hz > 5000 || ms < 1 || ms > 2000) return null;
     signal.sound = { hz, ms };
   }
-  return signal.display || signal.sound ? signal : null;
+  if (b.light !== undefined) {
+    const light = parseLight(b.light);
+    if (!light) return null;
+    signal.light = light;
+  }
+  if (b.servo !== undefined) {
+    const { yaw, pitch } = b.servo ?? {};
+    if (typeof yaw !== "number" || typeof pitch !== "number") return null;
+    if (yaw < -128 || yaw > 128 || pitch < 5 || pitch > 85) return null;
+    signal.servo = { yaw, pitch };
+  }
+  if (b.camera !== undefined) {
+    if (typeof b.camera !== "boolean") return null;
+    signal.camera = b.camera;
+  }
+  if (b.say !== undefined) {
+    if (typeof b.say !== "string") return null;
+    const say = b.say.trim();
+    if (!say || say.length > 200) return null;
+    signal.say = say;
+  }
+  return Object.keys(signal).length ? signal : null;
 }
