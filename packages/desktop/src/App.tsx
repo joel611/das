@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { Command } from "@/views/command";
 import { Console } from "@/views/console";
 import { Debug } from "@/views/debug";
+import { DeviceControl } from "@/views/device-control";
 import { DeviceConsole } from "@/views/device-console";
 import { Overview } from "@/views/overview";
 import { Settings } from "@/views/settings";
@@ -21,19 +22,31 @@ const TABS = [
   { id: "settings", label: "Settings" },
 ] as const;
 
-type Tab = (typeof TABS)[number]["id"];
+/** Reached from the header chip, not the nav: there is only one device. */
+type Tab = (typeof TABS)[number]["id"] | "device";
 
 function StatusChip({
   tone,
   children,
+  onClick,
+  active,
 }: {
   tone: "ok" | "bad" | "info";
   children: React.ReactNode;
+  onClick?: () => void;
+  active?: boolean;
 }) {
+  const Tag = onClick ? "button" : "span";
   return (
-    <span
+    <Tag
+      type={onClick ? "button" : undefined}
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "flex items-center gap-2 border px-2.5 py-1.5",
+        "flex items-center gap-2 border px-2.5 py-1.5 font-mono text-[11px] tracking-[.08em] uppercase",
+        onClick &&
+          "cursor-pointer hover:text-hud-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neon-amber",
+        active && "border-neon-cyan bg-neon-cyan/12",
         tone === "ok" && "border-hud-ok-line text-neon-green",
         tone === "bad" && "border-hud-bad-line text-neon-pink",
         tone === "info" && "border-hud-chip text-hud-soft",
@@ -48,7 +61,7 @@ function StatusChip({
         )}
       />
       {children}
-    </span>
+    </Tag>
   );
 }
 
@@ -106,7 +119,11 @@ export default function App() {
             <StatusChip tone="bad">daemon not running</StatusChip>
           )}
           {s ? (
-            <StatusChip tone="info">
+            <StatusChip
+              tone="info"
+              onClick={s.devices ? () => setTab("device") : undefined}
+              active={tab === "device"}
+            >
               {s.devices
                 ? `stack-chan linked${s.devices > 1 ? ` ×${s.devices}` : ""}`
                 : "no device"}
@@ -127,6 +144,9 @@ export default function App() {
         </div>
         <div hidden={tab !== "overview"} className="mx-auto max-w-5xl font-sans">
           <Overview />
+        </div>
+        <div hidden={tab !== "device"} className="mx-auto max-w-5xl font-sans">
+          <DeviceControl />
         </div>
         <div hidden={tab !== "console"} className="mx-auto max-w-5xl font-sans">
           <Console />

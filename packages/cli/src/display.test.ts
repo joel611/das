@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { computeDisplay, soundFor } from "./display";
+import { computeDisplay, parseSignal, soundFor } from "./display";
 
 const s = (...states: any[]) => states.map((state) => ({ state }));
 
@@ -50,4 +50,20 @@ test("soundFor beeps only when entering waiting, done or error", () => {
   expect(soundFor("running", "error")).toEqual({ hz: 220, ms: 400 });
   expect(soundFor("done", "done")).toBeNull();
   expect(soundFor("done", "running")).toBeNull();
+});
+
+test("parseSignal accepts light, servo and camera and rejects out-of-range values", () => {
+  expect(parseSignal({ light: { mode: "solid", rgb: [1, 2, 3] } })?.light).toEqual({
+    mode: "solid",
+    rgb: [1, 2, 3],
+  });
+  expect(parseSignal({ servo: { yaw: 10, pitch: -5 }, camera: true })).toEqual({
+    servo: { yaw: 10, pitch: -5 },
+    camera: true,
+  });
+  expect(parseSignal({ light: { mode: "solid", rgb: [1, 2, 300] } })).toBeNull();
+  expect(parseSignal({ light: { mode: "blink", rgb: [0, 0, 0], periodMs: 5 } })).toBeNull();
+  expect(parseSignal({ servo: { yaw: 100, pitch: 0 } })).toBeNull();
+  expect(parseSignal({ camera: "yes" })).toBeNull();
+  expect(parseSignal({})).toBeNull();
 });

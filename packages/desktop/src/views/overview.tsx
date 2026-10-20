@@ -1,63 +1,13 @@
-import { useState } from "react";
-import { toast } from "sonner";
-
 import { StateBadge } from "@/components/state-badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ago } from "@/lib/format";
-import {
-  useDaemonState,
-  useDevices,
-  useProjects,
-  useSessions,
-  useSignalDevice,
-} from "@/lib/queries";
-import type { Device, DeviceSignal, SessionState } from "@/lib/types";
+import { useDaemonState, useProjects, useSessions } from "@/lib/queries";
+import type { SessionState } from "@/lib/types";
 
-const BEEP = { hz: 660, ms: 200 };
 const ORDER: SessionState[] = ["error", "waiting", "running", "done", "idle"];
-
-/** Click a device to open direct controls. Which ones show follows its declared capabilities. */
-function DeviceRow({ d }: { d: Device }) {
-  const [open, setOpen] = useState(false);
-  const signal = useSignalDevice();
-  const send = (s: DeviceSignal) =>
-    signal.mutate({ id: d.id, signal: s }, { onError: (e) => toast.error(e.message) });
-  return (
-    <li className="py-2">
-      <button
-        type="button"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className="w-full cursor-pointer text-left"
-      >
-        <div className="text-sm font-medium">{d.device}</div>
-        <div className="text-xs text-muted-foreground">
-          {d.capabilities.join(", ") || "no capabilities"} · connected {ago(d.connectedAt)}
-        </div>
-      </button>
-      {open ? (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {d.capabilities.includes("screen")
-            ? ORDER.map((s) => (
-                <Button key={s} size="sm" variant="outline" onClick={() => send({ state: s })}>
-                  {s}
-                </Button>
-              ))
-            : null}
-          {d.capabilities.includes("speaker") ? (
-            <Button size="sm" variant="outline" onClick={() => send({ sound: BEEP })}>
-              beep
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-    </li>
-  );
-}
 
 function Stat({ label, value, hint }: { label: string; value: string | number; hint?: string }) {
   return (
@@ -75,7 +25,6 @@ export function Overview() {
   const state = useDaemonState();
   const sessions = useSessions();
   const projects = useProjects();
-  const devices = useDevices();
 
   if (state.error && !state.data) {
     return (
@@ -177,24 +126,6 @@ export function Overview() {
                 ) : null}
               </ul>
             </ScrollArea>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Devices</CardTitle>
-            <CardDescription>Connected over WebSocket</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {(devices.data ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No device connected.</p>
-            ) : (
-              <ul className="flex flex-col divide-y">
-                {(devices.data ?? []).map((d) => (
-                  <DeviceRow key={d.id} d={d} />
-                ))}
-              </ul>
-            )}
           </CardContent>
         </Card>
       </div>

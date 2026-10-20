@@ -65,8 +65,23 @@ export type Project = {
   worktrees: { path: string; branch: string | null }[];
 };
 
-/** Direct command to one device: show what `state` would show, and/or beep. */
-export type DeviceSignal = { state?: SessionState; sound?: { hz: number; ms: number } };
+export type LightSpec =
+  | { mode: "rainbow" }
+  | { mode: "solid"; rgb: [number, number, number] }
+  | { mode: "blink"; rgb: [number, number, number]; periodMs: number };
+
+/** Direct command to one device. Each field is optional; send any combination. */
+export type DeviceSignal = {
+  state?: SessionState;
+  sound?: { hz: number; ms: number };
+  light?: LightSpec;
+  /** Degrees. yaw positive = left, pitch positive = up. */
+  servo?: { yaw: number; pitch: number };
+  camera?: boolean;
+};
+
+/** Latest camera frame pushed by the device, base64 JPEG. Null until one arrives. */
+export type CameraFrame = { jpeg: string; at: number } | null;
 
 export type Device = { id: string; device: string; capabilities: string[]; connectedAt: number };
 
