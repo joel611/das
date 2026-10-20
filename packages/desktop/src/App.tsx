@@ -73,7 +73,10 @@ export default function App() {
 
   return (
     <div data-ui-scroll-container className="hud-grid flex flex-col font-hud text-hud-text">
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-hud-line bg-hud-shade/92 px-6 py-3.5">
+      <header
+        data-tauri-drag-region
+        className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-hud-line bg-hud-shade/92 py-3.5 pr-6 pl-21"
+      >
         <div className="flex items-center gap-3">
           <svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true">
             <polygon
