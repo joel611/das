@@ -90,8 +90,11 @@ function onContextCreated(robot, _option) {
       .catch((e) => trace(`tilt failed: ${e}\n`));
   }
 
-  // Camera preview: capture a small JPEG a couple of times a second and push it to the server.
+  // Camera preview: capture a small JPEG and push it to the server as a bare binary frame (no base64/JSON).
+  // One capture at a time, and a tick is skipped while the socket still holds unsent data, so the rate
+  // follows what the camera and the link can carry instead of queueing frames in device memory.
   let camTimer;
+  let camBusy = false;
   let openWs; // the connected socket, for pushing camera frames
   function setCamera(on) {
     if (camTimer !== undefined) {
@@ -100,20 +103,18 @@ function onContextCreated(robot, _option) {
     }
     if (!on) return;
     camTimer = Timer.repeat(() => {
-      if (!openWs) return;
+      if (!openWs || camBusy || openWs.bufferedAmount > 0) return;
+      camBusy = true;
       robot.camera
         .capture({ width: 320, height: 240, imageType: "jpeg" })
         .then((frame) => {
           if (!frame) return;
-          const bytes = new Uint8Array(frame.buffer);
+          openWs?.send(frame.buffer);
           frame.close?.();
-          let bin = "";
-          for (let i = 0; i < bytes.length; i += 4096)
-            bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 4096));
-          openWs?.send(JSON.stringify({ type: "camera.frame", jpeg: btoa(bin) }));
         })
-        .catch((e) => trace(`camera failed: ${e}\n`));
-    }, 500);
+        .catch((e) => trace(`camera failed: ${e}\n`))
+        .finally(() => (camBusy = false));
+    }, 250);
   }
 
   // Link state overrides the Display until connected. Stale Display is dropped.

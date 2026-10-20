@@ -18,7 +18,7 @@ import { startAppPoll } from "../app-usage";
 import { startUsagePoll } from "../usage-api";
 import { UsageTracker } from "../usage";
 import { handleTranscript, type VoiceDeps } from "../voice";
-import { deviceRoutes, type Device } from "./routes/devices";
+import { createCameraHub, deviceRoutes, type Device } from "./routes/devices";
 import { projectRoutes } from "./routes/projects";
 
 type Env = { Bindings: { srv: Server<{ id: string }> } };
@@ -300,15 +300,15 @@ export function createServer({
     });
   });
   v1.route("/projects", projectRoutes(getProjects));
-  /** Latest camera frame per device (base64 JPEG), pushed by the mod while the camera is on. */
-  const frames = new Map<string, { jpeg: string; at: number }>();
+  /** Camera frames (base64 JPEG) pushed by the mod while its camera is on, fanned out to viewers. */
+  const camera = createCameraHub();
   const signalDevice = (id: string, signal: Signal) => {
     if (!devices.has(id)) return false;
     server.publish(connTopic(id), JSON.stringify({ type: "signal", ...signal }));
     wsLog("message", { dir: "out", conn: id, type: "signal" });
     return true;
   };
-  v1.route("/devices", deviceRoutes(devices, signalDevice, frames));
+  v1.route("/devices", deviceRoutes(devices, signalDevice, camera));
   app.route("/v1", v1);
 
   // ws.log: lifecycle plus frame `type` in both directions, never payloads.
@@ -350,9 +350,15 @@ export function createServer({
       close(ws, code) {
         wsLog("close", { conn: ws.data.id, device: devices.get(ws.data.id)?.device, code });
         devices.delete(ws.data.id);
-        frames.delete(ws.data.id);
+        camera.drop(ws.data.id);
       },
       message(ws, raw) {
+        // Binary frames are bare JPEGs from the camera (no base64/JSON overhead on the device link).
+        if (typeof raw !== "string") {
+          wsLog("message", { dir: "in", conn: ws.data.id, type: "camera.frame" });
+          camera.push(ws.data.id, Buffer.from(raw).toString("base64"));
+          return;
+        }
         let msg: any;
         try {
           msg = JSON.parse(String(raw));
@@ -368,7 +374,7 @@ export function createServer({
         });
         // button is a reserved no-op; unknown types ignored.
         if (msg?.type === "camera.frame" && typeof msg.jpeg === "string") {
-          frames.set(ws.data.id, { jpeg: msg.jpeg, at: Date.now() });
+          camera.push(ws.data.id, msg.jpeg);
           return;
         }
         if (msg?.type === "voice.transcript") {
