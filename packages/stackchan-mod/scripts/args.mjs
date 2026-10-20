@@ -20,3 +20,13 @@ export function parseArgs(args) {
   }
   return { url, install: args.includes("--install"), rest };
 }
+
+// Daemon WebSocket URL for DAEMON_HOST, which carries its scheme: ws://host:port (no TLS) or
+// wss://host (TLS, e.g. the Tailscale Funnel on 443).
+export function serverUrlFromHost(host) {
+  if (!host) return undefined;
+  if (!/^wss?:\/\/[^/]+\/?$/.test(host)) {
+    throw new Error(`DAEMON_HOST must look like ws://host:port or wss://host, got "${host}"`);
+  }
+  return `${host.replace(/\/$/, "")}/v1/ws`;
+}
