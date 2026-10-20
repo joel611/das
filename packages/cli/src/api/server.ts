@@ -4,7 +4,7 @@ import { realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { envOverrides, loadConfig, writeSettingsFile, type Config } from "../config";
-import { computeDisplay, soundFor } from "../display";
+import { computeDisplay, soundFor, type Signal } from "../display";
 import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
 import { installOmp, ompStatus, uninstallOmp } from "../omp-extension";
 import type { Project } from "../scanner";
@@ -24,6 +24,8 @@ import { projectRoutes } from "./routes/projects";
 type Env = { Bindings: { srv: Server<{ id: string }> } };
 
 const TOPIC = "sessions";
+/** Per-connection topic: how a frame reaches exactly one device. */
+const connTopic = (id: string) => `conn:${id}`;
 
 type Opts = {
   port: number;
@@ -298,7 +300,13 @@ export function createServer({
     });
   });
   v1.route("/projects", projectRoutes(getProjects));
-  v1.route("/devices", deviceRoutes(devices));
+  const signalDevice = (id: string, signal: Signal) => {
+    if (!devices.has(id)) return false;
+    server.publish(connTopic(id), JSON.stringify({ type: "signal", ...signal }));
+    wsLog("message", { dir: "out", conn: id, type: "signal" });
+    return true;
+  };
+  v1.route("/devices", deviceRoutes(devices, signalDevice));
   app.route("/v1", v1);
 
   // ws.log: lifecycle plus frame `type` in both directions, never payloads.
@@ -334,6 +342,7 @@ export function createServer({
       data: {} as { id: string },
       open(ws) {
         ws.subscribe(TOPIC);
+        ws.subscribe(connTopic(ws.data.id));
         wsLog("open", { conn: ws.data.id });
       },
       close(ws, code) {

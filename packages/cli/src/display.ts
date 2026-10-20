@@ -53,3 +53,25 @@ const SOUND: Partial<Record<SessionState, Sound>> = {
 export function soundFor(prev: SessionState | undefined, next: SessionState): Sound | null {
   return prev === next ? null : (SOUND[next] ?? null);
 }
+
+/** A direct, one-off command to a single device, from the desktop app. */
+export type Signal = { display?: Display; sound?: Sound };
+
+const STATES: SessionState[] = ["running", "waiting", "done", "error", "idle"];
+
+/** Validate a signal request body: `state` renders as the Display that state would show; `sound` is bounded. Null if invalid or empty. */
+export function parseSignal(body: unknown): Signal | null {
+  const b = (body ?? {}) as { state?: unknown; sound?: { hz?: unknown; ms?: unknown } };
+  const signal: Signal = {};
+  if (b.state !== undefined) {
+    if (!STATES.includes(b.state as SessionState)) return null;
+    signal.display = computeDisplay([{ state: b.state as SessionState }]);
+  }
+  if (b.sound !== undefined) {
+    const { hz, ms } = b.sound ?? {};
+    if (typeof hz !== "number" || typeof ms !== "number") return null;
+    if (hz < 100 || hz > 5000 || ms < 1 || ms > 2000) return null;
+    signal.sound = { hz, ms };
+  }
+  return signal.display || signal.sound ? signal : null;
+}
