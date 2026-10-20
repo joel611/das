@@ -59,6 +59,7 @@ export const deviceRoutes = (
         });
         const closed = new Promise<void>((r) => stream.onAbort(r));
         try {
+          await stream.write(": connected\n\n"); // flush headers now, not at the first frame
           while (!stream.aborted && devices.has(id)) {
             if (latest) {
               const f = latest;

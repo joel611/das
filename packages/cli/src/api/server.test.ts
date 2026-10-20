@@ -181,3 +181,36 @@ test("the status line relay endpoint is gone", async () => {
   });
   expect(res.status).toBe(404);
 });
+
+test("camera frames (binary or JSON) are pushed to SSE viewers; last viewer leaving switches the camera off", async () => {
+  const ws = new WebSocket(`ws://${base}/v1/ws?token=secret`);
+  const got: any[] = [];
+  ws.addEventListener("message", (e) => got.push(JSON.parse(String(e.data))));
+  await opened(ws);
+  ws.send(JSON.stringify({ type: "hello", device: "cam-dev", capabilities: ["camera"] }));
+  await Bun.sleep(100);
+  const devices: { id: string; device: string }[] = await (
+    await fetch(`http://${base}/v1/devices?token=secret`)
+  ).json();
+  const id = devices.find((d) => d.device === "cam-dev")!.id;
+
+  const ctl = new AbortController();
+  const res = await fetch(`http://${base}/v1/devices/${id}/camera/stream?token=secret`, {
+    signal: ctl.signal,
+  });
+  expect(res.headers.get("content-type")).toContain("text/event-stream");
+  const reader = res.body!.getReader();
+  const read = async () => new TextDecoder().decode((await reader.read()).value);
+
+  expect(await read()).toContain(": connected");
+  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+  ws.send(jpeg); // binary frame
+  expect(await read()).toContain(Buffer.from(jpeg).toString("base64"));
+  ws.send(JSON.stringify({ type: "camera.frame", jpeg: "AAAA" })); // legacy JSON frame
+  expect(await read()).toContain("AAAA");
+
+  ctl.abort();
+  await Bun.sleep(200);
+  expect(got.some((f) => f.type === "signal" && f.camera === false)).toBe(true);
+  ws.close();
+});
