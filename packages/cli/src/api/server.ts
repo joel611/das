@@ -300,7 +300,7 @@ export function createServer({
     });
   });
   v1.route("/projects", projectRoutes(getProjects));
-  /** Camera frames (base64 JPEG) pushed by the mod while its camera is on, fanned out to viewers. */
+  /** Camera frames pushed by the mod while its camera is on, fanned out to viewers. */
   const camera = createCameraHub();
   const signalDevice = (id: string, signal: Signal) => {
     if (!devices.has(id)) return false;
@@ -353,10 +353,13 @@ export function createServer({
         camera.drop(ws.data.id);
       },
       message(ws, raw) {
-        // Binary frames are bare JPEGs from the camera (no base64/JSON overhead on the device link).
+        // Binary messages are camera frames: [w u16le][h u16le][RGB332 pixels] (no base64/JSON on the device link).
         if (typeof raw !== "string") {
           wsLog("message", { dir: "in", conn: ws.data.id, type: "camera.frame" });
-          camera.push(ws.data.id, Buffer.from(raw).toString("base64"));
+          const b = Buffer.from(raw);
+          const [w, h] = b.length >= 4 ? [b.readUInt16LE(0), b.readUInt16LE(2)] : [0, 0];
+          if (w && h && b.length === 4 + w * h)
+            camera.push(ws.data.id, w, h, b.subarray(4).toString("base64"));
           return;
         }
         let msg: any;
@@ -373,10 +376,6 @@ export function createServer({
           device: devices.get(ws.data.id)?.device,
         });
         // button is a reserved no-op; unknown types ignored.
-        if (msg?.type === "camera.frame" && typeof msg.jpeg === "string") {
-          camera.push(ws.data.id, msg.jpeg);
-          return;
-        }
         if (msg?.type === "voice.transcript") {
           handleTranscript(voice, `ws:${ws.data.id}`, String(msg.text ?? "")).then((r) =>
             send(ws, { type: "voice.reply", ...r }),

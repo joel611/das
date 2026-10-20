@@ -182,7 +182,7 @@ test("the status line relay endpoint is gone", async () => {
   expect(res.status).toBe(404);
 });
 
-test("camera frames (binary or JSON) are pushed to SSE viewers; last viewer leaving switches the camera off", async () => {
+test("binary camera frames are pushed to SSE viewers; last viewer leaving switches the camera off", async () => {
   const ws = new WebSocket(`ws://${base}/v1/ws?token=secret`);
   const got: any[] = [];
   ws.addEventListener("message", (e) => got.push(JSON.parse(String(e.data))));
@@ -203,11 +203,18 @@ test("camera frames (binary or JSON) are pushed to SSE viewers; last viewer leav
   const read = async () => new TextDecoder().decode((await reader.read()).value);
 
   expect(await read()).toContain(": connected");
-  const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
-  ws.send(jpeg); // binary frame
-  expect(await read()).toContain(Buffer.from(jpeg).toString("base64"));
-  ws.send(JSON.stringify({ type: "camera.frame", jpeg: "AAAA" })); // legacy JSON frame
-  expect(await read()).toContain("AAAA");
+  // 2x1 image: header [w=2][h=1] + two RGB332 pixels.
+  const px = new Uint8Array([2, 0, 1, 0, 0xe0, 0x1c]);
+  ws.send(px);
+  const evt = (await read()).replace(/^data: /, "");
+  expect(JSON.parse(evt)).toMatchObject({
+    w: 2,
+    h: 1,
+    rgb332: Buffer.from(px.subarray(4)).toString("base64"),
+  });
+  ws.send(new Uint8Array([2, 0, 1, 0, 0, 0, 0])); // wrong length: dropped
+  ws.send(px);
+  expect(JSON.parse((await read()).replace(/^data: /, ""))).toMatchObject({ w: 2, h: 1 });
 
   ctl.abort();
   await Bun.sleep(200);

@@ -4,7 +4,8 @@ import { parseSignal, type Signal } from "../../display";
 
 export type Device = { id: string; device: string; capabilities: string[]; connectedAt: number };
 
-export type Frame = { jpeg: string; at: number };
+/** One camera frame: RGB332 pixels (base64) of `w`x`h`. */
+export type Frame = { w: number; h: number; rgb332: string; at: number };
 
 /** Latest camera frame per device, plus live viewers that are pushed each new frame. */
 export const createCameraHub = () => {
@@ -12,8 +13,8 @@ export const createCameraHub = () => {
   const viewers = new Map<string, Set<(f: Frame) => void>>();
   return {
     frames,
-    push(id: string, jpeg: string) {
-      const f = { jpeg, at: Date.now() };
+    push(id: string, w: number, h: number, rgb332: string) {
+      const f = { w, h, rgb332, at: Date.now() };
       frames.set(id, f);
       for (const v of viewers.get(id) ?? []) v(f);
     },

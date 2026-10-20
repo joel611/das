@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { StateBadge } from "@/components/state-badge";
@@ -11,7 +11,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { ago } from "@/lib/format";
 import { useCameraStream, useDevices, useSignalDevice } from "@/lib/queries";
-import type { Device, DeviceSignal, LightSpec, SessionState } from "@/lib/types";
+import type { CameraFrame, Device, DeviceSignal, LightSpec, SessionState } from "@/lib/types";
 
 const STATES: SessionState[] = ["error", "waiting", "running", "done", "idle"];
 // M5StackChan neck limits (DEVICE.md): pan ±128°, tilt 5° to 85° up; it cannot look down.
@@ -218,6 +218,34 @@ function AudioSection({ d }: { d: Device }) {
   );
 }
 
+/** Paints an RGB332 frame; the canvas is sized to the frame and scaled up by CSS. */
+function FrameCanvas({ frame }: { frame: NonNullable<CameraFrame> }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    const ctx = ref.current?.getContext("2d");
+    if (!ctx) return;
+    const src = Uint8Array.from(atob(frame.rgb332), (c) => c.charCodeAt(0));
+    const img = ctx.createImageData(frame.w, frame.h);
+    for (let i = 0; i < frame.w * frame.h; i++) {
+      const p = src[i]; // RRRGGGBB
+      img.data[4 * i] = (((p >> 5) & 7) * 255) / 7;
+      img.data[4 * i + 1] = (((p >> 2) & 7) * 255) / 7;
+      img.data[4 * i + 2] = ((p & 3) * 255) / 3;
+      img.data[4 * i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+  }, [frame]);
+  return (
+    <canvas
+      ref={ref}
+      width={frame.w}
+      height={frame.h}
+      aria-label="Stack-chan camera"
+      className="size-full object-contain [image-rendering:pixelated]"
+    />
+  );
+}
+
 function CameraSection({ d }: { d: Device }) {
   const send = useSend(d);
   const [on, setOn] = useState(false);
@@ -226,9 +254,11 @@ function CameraSection({ d }: { d: Device }) {
     setOn(next);
     send({ camera: next });
   };
-  const jpeg = frame?.jpeg;
   return (
-    <Section title="Camera" description="Live preview, pushed from the device as fast as it can capture.">
+    <Section
+      title="Camera"
+      description="Live preview, pushed from the device as fast as it can capture."
+    >
       <div className="flex items-center gap-2">
         <Switch checked={on} onCheckedChange={toggle} aria-label="Stream camera" />
         <Label>{on ? "Streaming" : "Off"}</Label>
@@ -236,12 +266,8 @@ function CameraSection({ d }: { d: Device }) {
         {on && error ? <Badge variant="destructive">{error}</Badge> : null}
       </div>
       <div className="flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border bg-muted text-sm text-muted-foreground">
-        {on && jpeg ? (
-          <img
-            src={`data:image/jpeg;base64,${jpeg}`}
-            alt="Stack-chan camera"
-            className="size-full object-contain"
-          />
+        {on && frame ? (
+          <FrameCanvas frame={frame} />
         ) : on ? (
           "Waiting for first frame…"
         ) : (
