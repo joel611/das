@@ -14,6 +14,10 @@ import { useDeviceCamera, useDevices, useSignalDevice } from "@/lib/queries";
 import type { Device, DeviceSignal, LightSpec, SessionState } from "@/lib/types";
 
 const STATES: SessionState[] = ["error", "waiting", "running", "done", "idle"];
+// M5StackChan neck limits (DEVICE.md): pan ±128°, tilt 5° to 85° up; it cannot look down.
+const YAW_MAX = 128;
+const PITCH_MIN = 5;
+const PITCH_MAX = 85;
 const one = (v: number | readonly number[]) => (typeof v === "number" ? v : (v[0] ?? 0));
 
 const hexToRgb = (hex: string): [number, number, number] => [
@@ -250,7 +254,7 @@ function CameraSection({ d }: { d: Device }) {
 function ServoSection({ d }: { d: Device }) {
   const send = useSend(d);
   const [yaw, setYaw] = useState(0);
-  const [pitch, setPitch] = useState(0);
+  const [pitch, setPitch] = useState(PITCH_MIN);
   const move = (y: number, p: number) => send({ servo: { yaw: y, pitch: p } });
   return (
     <Section title="Servo" description="Neck pose. Moves when you release the slider.">
@@ -258,8 +262,8 @@ function ServoSection({ d }: { d: Device }) {
         label="Pan (left +)"
         value={yaw}
         unit="°"
-        min={-90}
-        max={90}
+        min={-YAW_MAX}
+        max={YAW_MAX}
         onChange={setYaw}
         onCommit={(v) => move(v, pitch)}
       />
@@ -267,8 +271,8 @@ function ServoSection({ d }: { d: Device }) {
         label="Tilt (up +)"
         value={pitch}
         unit="°"
-        min={-30}
-        max={30}
+        min={PITCH_MIN}
+        max={PITCH_MAX}
         onChange={setPitch}
         onCommit={(v) => move(yaw, v)}
       />
@@ -278,8 +282,8 @@ function ServoSection({ d }: { d: Device }) {
           variant="outline"
           onClick={() => {
             setYaw(0);
-            setPitch(0);
-            move(0, 0);
+            setPitch(PITCH_MIN);
+            move(0, PITCH_MIN);
           }}
         >
           Center

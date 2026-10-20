@@ -54,7 +54,7 @@ export function soundFor(prev: SessionState | undefined, next: SessionState): So
   return prev === next ? null : (SOUND[next] ?? null);
 }
 
-/** Neck pose in degrees: yaw positive = left, pitch positive = up. */
+/** Neck pose in degrees: yaw ±128 (positive = left), pitch 5 to 85 up (the servo cannot look down). */
 export type Servo = { yaw: number; pitch: number };
 
 /** A direct, one-off command to a single device, from the desktop app. */
@@ -119,7 +119,7 @@ export function parseSignal(body: unknown): Signal | null {
   if (b.servo !== undefined) {
     const { yaw, pitch } = b.servo ?? {};
     if (typeof yaw !== "number" || typeof pitch !== "number") return null;
-    if (yaw < -90 || yaw > 90 || pitch < -30 || pitch > 30) return null;
+    if (yaw < -128 || yaw > 128 || pitch < 5 || pitch > 85) return null;
     signal.servo = { yaw, pitch };
   }
   if (b.camera !== undefined) {

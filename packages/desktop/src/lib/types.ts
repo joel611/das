@@ -75,7 +75,7 @@ export type DeviceSignal = {
   state?: SessionState;
   sound?: { hz: number; ms: number };
   light?: LightSpec;
-  /** Degrees. yaw positive = left, pitch positive = up. */
+  /** Degrees. yaw ±128 (positive = left), pitch 5 to 85 up. */
   servo?: { yaw: number; pitch: number };
   camera?: boolean;
   /** Text the device speaks. */
