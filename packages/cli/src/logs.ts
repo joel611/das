@@ -15,17 +15,18 @@ export const emit = (sink: LogSink | undefined, obj: Record<string, unknown>) =>
   }
 };
 
-export type LogEntry = { seq: number; time: string; source: "ws" | "api"; [k: string]: unknown };
+export type LogSource = "ws" | "api" | "hook";
+export type LogEntry = { seq: number; time: string; source: LogSource; [k: string]: unknown };
 
 const SECRET_KEYS = new Set(["authorization", "token"]);
 
-/** In-memory ring of recent WS/API log entries: backs the Debug tab. Holds no payloads or secrets. */
+/** In-memory ring of recent WS/API/hook log entries: backs the Debug tab. Hook payloads live here only, never on disk. */
 export class LogHub {
   private entries: LogEntry[] = [];
   private seq = 0;
   constructor(private readonly cap = 200) {}
 
-  push(source: "ws" | "api", obj: Record<string, unknown>) {
+  push(source: LogSource, obj: Record<string, unknown>) {
     const clean = Object.fromEntries(Object.entries(obj).filter(([k]) => !SECRET_KEYS.has(k)));
     this.entries.push({ ...clean, seq: ++this.seq, time: new Date().toISOString(), source });
     if (this.entries.length > this.cap) this.entries.shift();
