@@ -9,7 +9,7 @@ import { api } from "@/lib/api";
 import type { LogEntry } from "@/lib/types";
 
 const KEEP = 1000;
-const SOURCES = ["all", "ws", "api"] as const;
+const SOURCES = ["all", "ws", "api", "hook"] as const;
 type Source = (typeof SOURCES)[number];
 
 /** Everything but the bookkeeping fields, as `key=value` pairs. */
