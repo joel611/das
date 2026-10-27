@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { JEV_STYLES, useJevStyle } from "@/lib/jev-style";
 import {
@@ -232,169 +233,205 @@ export function Settings() {
   const h = hooks.data;
   const o = omp.data;
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardHeader>
-          <CardTitle>Daemon</CardTitle>
-          <CardDescription>Saved to the daemon's config file (mode 0600).</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {s?.envOverrides.length ? (
-            <Alert>
-              <AlertDescription>
-                Pinned by environment variables (file value ignored): {s.envOverrides.join(", ")}
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="roots">Root folders (one per line)</Label>
-            <Textarea
-              id="roots"
-              rows={4}
-              value={roots}
-              onChange={(e) => setRoots(e.target.value)}
-              placeholder="~/Projects"
-            />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="port">Port</Label>
-            <Input
-              id="port"
-              type="number"
-              min={1}
-              max={65535}
-              value={port}
-              onChange={(e) => setPort(e.target.value)}
-              className="w-32"
-            />
-          </div>
-          <Secret
-            id="token"
-            label="Token (devices must send it)"
-            isSet={!!s?.hasToken}
-            value={token}
-            clear={clearToken}
-            onValue={setToken}
-            onClear={setClearToken}
-          />
-          <Secret
-            id="key"
-            label="OpenRouter API key (voice routing)"
-            isSet={!!s?.hasOpenrouterKey}
-            value={key}
-            clear={clearKey}
-            onValue={setKey}
-            onClear={setClearKey}
-          />
-          <div className="flex items-start gap-3">
-            <Switch id="usage-api" checked={usageApi} onCheckedChange={setUsageApi} />
-            <div className="flex flex-col gap-1">
-              <Label htmlFor="usage-api">Poll the Claude usage API for plan limits</Label>
-              <p className="text-xs text-muted-foreground">
-                Fills in the 5-hour and weekly limits while no Claude session is running, using your
-                Claude Code login (which only stays valid for a few hours after your last session).
-                The endpoint is undocumented and rate limited, so it is checked at most every 5
-                minutes. On macOS the first read of the login may ask for Keychain access.
-              </p>
-            </div>
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button onClick={save} disabled={saving || !loaded}>
-            Save
-          </Button>
-        </CardFooter>
-      </Card>
+    <Tabs defaultValue="daemon">
+      <TabsList>
+        <TabsTrigger value="daemon">Daemon</TabsTrigger>
+        <TabsTrigger value="provider">Provider</TabsTrigger>
+        <TabsTrigger value="agent">Agent</TabsTrigger>
+        <TabsTrigger value="theme">Theme</TabsTrigger>
+        <TabsTrigger value="device">Device</TabsTrigger>
+      </TabsList>
 
-      {s?.trustAdvice ? (
-        <Alert variant="destructive">
-          <AlertTitle>Claude does not trust some projects</AlertTitle>
-          <AlertDescription>
-            <pre className="whitespace-pre-wrap text-xs">{s.trustAdvice}</pre>
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Claude Code hooks</CardTitle>
-          <CardDescription>
-            Adds one fire-and-forget command per event to your Claude settings (a backup is made
-            before each change).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          <div className="flex flex-wrap gap-1.5">
-            {h
-              ? Object.entries(h.events).map(([ev, st]) => (
-                  <Badge
-                    key={ev}
-                    variant={
-                      st === "installed" ? "default" : st === "partial" ? "outline" : "secondary"
-                    }
-                  >
-                    {ev}: {st}
-                  </Badge>
-                ))
-              : null}
-          </div>
-          {h && h.state !== "missing" && !h.portMatches ? (
-            <p className="text-xs text-muted-foreground">
-              Installed for port {h.port}, which differs from the saved port. Install again to
-              update.
-            </p>
-          ) : null}
-        </CardContent>
-        <CardFooter className="gap-2">
-          <Button onClick={() => runHookAction("install")}>
-            {h?.state === "installed" ? "Reinstall hooks" : "Install hooks"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => runHookAction("uninstall")}
-            disabled={h?.state === "missing"}
-          >
-            Uninstall hooks
-          </Button>
-        </CardFooter>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>oh-my-pi (omp) extension</CardTitle>
-          <CardDescription>
-            Writes one extension file into your omp agent dir that reports session events to the
-            daemon.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-2">
-          <div className="flex flex-wrap gap-1.5">
-            {o ? (
-              <Badge variant={o.state === "installed" ? "default" : "secondary"}>{o.state}</Badge>
+      <TabsContent value="daemon" className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Daemon</CardTitle>
+            <CardDescription>Saved to the daemon's config file (mode 0600).</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {s?.envOverrides.length ? (
+              <Alert>
+                <AlertDescription>
+                  Pinned by environment variables (file value ignored): {s.envOverrides.join(", ")}
+                </AlertDescription>
+              </Alert>
             ) : null}
-          </div>
-          {o && o.state === "installed" && !o.portMatches ? (
-            <p className="text-xs text-muted-foreground">
-              Installed for port {o.port}, which differs from the saved port. Install again to
-              update.
-            </p>
-          ) : null}
-        </CardContent>
-        <CardFooter className="gap-2">
-          <Button onClick={() => runOmpAction("install")}>
-            {o?.state === "installed" ? "Reinstall omp extension" : "Install omp extension"}
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => runOmpAction("uninstall")}
-            disabled={o?.state === "missing"}
-          >
-            Uninstall omp extension
-          </Button>
-        </CardFooter>
-      </Card>
-      {s ? <StackchanCard enabled={s.notificationSound} /> : null}
-      <JevStyleCard />
-    </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="roots">Root folders (one per line)</Label>
+              <Textarea
+                id="roots"
+                rows={4}
+                value={roots}
+                onChange={(e) => setRoots(e.target.value)}
+                placeholder="~/Projects"
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="port">Port</Label>
+              <Input
+                id="port"
+                type="number"
+                min={1}
+                max={65535}
+                value={port}
+                onChange={(e) => setPort(e.target.value)}
+                className="w-32"
+              />
+            </div>
+            <Secret
+              id="token"
+              label="Token (devices must send it)"
+              isSet={!!s?.hasToken}
+              value={token}
+              clear={clearToken}
+              onValue={setToken}
+              onClear={setClearToken}
+            />
+          </CardContent>
+          <CardFooter>
+            <Button onClick={save} disabled={saving || !loaded}>
+              Save
+            </Button>
+          </CardFooter>
+        </Card>
+
+        {s?.trustAdvice ? (
+          <Alert variant="destructive">
+            <AlertTitle>Claude does not trust some projects</AlertTitle>
+            <AlertDescription>
+              <pre className="whitespace-pre-wrap text-xs">{s.trustAdvice}</pre>
+            </AlertDescription>
+          </Alert>
+        ) : null}
+      </TabsContent>
+
+      <TabsContent value="provider" className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Provider</CardTitle>
+            <CardDescription>
+              API keys and usage polling. Saved to the daemon's config file (mode 0600).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <Secret
+              id="key"
+              label="OpenRouter API key (voice routing)"
+              isSet={!!s?.hasOpenrouterKey}
+              value={key}
+              clear={clearKey}
+              onValue={setKey}
+              onClear={setClearKey}
+            />
+            <div className="flex items-start gap-3">
+              <Switch id="usage-api" checked={usageApi} onCheckedChange={setUsageApi} />
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="usage-api">Poll the Claude usage API for plan limits</Label>
+                <p className="text-xs text-muted-foreground">
+                  Fills in the 5-hour and weekly limits while no Claude session is running, using
+                  your Claude Code login (which only stays valid for a few hours after your last
+                  session). The endpoint is undocumented and rate limited, so it is checked at most
+                  every 5 minutes. On macOS the first read of the login may ask for Keychain access.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={save} disabled={saving || !loaded}>
+              Save
+            </Button>
+          </CardFooter>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="agent" className="flex flex-col gap-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Claude Code hooks</CardTitle>
+            <CardDescription>
+              Adds one fire-and-forget command per event to your Claude settings (a backup is made
+              before each change).
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {h
+                ? Object.entries(h.events).map(([ev, st]) => (
+                    <Badge
+                      key={ev}
+                      variant={
+                        st === "installed" ? "default" : st === "partial" ? "outline" : "secondary"
+                      }
+                    >
+                      {ev}: {st}
+                    </Badge>
+                  ))
+                : null}
+            </div>
+            {h && h.state !== "missing" && !h.portMatches ? (
+              <p className="text-xs text-muted-foreground">
+                Installed for port {h.port}, which differs from the saved port. Install again to
+                update.
+              </p>
+            ) : null}
+          </CardContent>
+          <CardFooter className="gap-2">
+            <Button onClick={() => runHookAction("install")}>
+              {h?.state === "installed" ? "Reinstall hooks" : "Install hooks"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => runHookAction("uninstall")}
+              disabled={h?.state === "missing"}
+            >
+              Uninstall hooks
+            </Button>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>oh-my-pi (omp) extension</CardTitle>
+            <CardDescription>
+              Writes one extension file into your omp agent dir that reports session events to the
+              daemon.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-1.5">
+              {o ? (
+                <Badge variant={o.state === "installed" ? "default" : "secondary"}>{o.state}</Badge>
+              ) : null}
+            </div>
+            {o && o.state === "installed" && !o.portMatches ? (
+              <p className="text-xs text-muted-foreground">
+                Installed for port {o.port}, which differs from the saved port. Install again to
+                update.
+              </p>
+            ) : null}
+          </CardContent>
+          <CardFooter className="gap-2">
+            <Button onClick={() => runOmpAction("install")}>
+              {o?.state === "installed" ? "Reinstall omp extension" : "Install omp extension"}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => runOmpAction("uninstall")}
+              disabled={o?.state === "missing"}
+            >
+              Uninstall omp extension
+            </Button>
+          </CardFooter>
+        </Card>
+      </TabsContent>
+
+      <TabsContent value="theme" className="flex flex-col gap-4">
+        <JevStyleCard />
+      </TabsContent>
+
+      <TabsContent value="device" className="flex flex-col gap-4">
+        {s ? <StackchanCard enabled={s.notificationSound} /> : null}
+      </TabsContent>
+    </Tabs>
   );
 }
