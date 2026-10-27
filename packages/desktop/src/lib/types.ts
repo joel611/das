@@ -93,6 +93,7 @@ export type Settings = {
   port: number;
   hasToken: boolean;
   hasOpenrouterKey: boolean;
+  openrouterKeySource: "settings" | "env" | "none";
   usageApi: boolean;
   notificationSound: boolean;
   orchestrator: "jev" | "pi";

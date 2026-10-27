@@ -11,7 +11,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { configDir, loadConfig, reloadConfig, readSettingsFile, writeSettingsFile } from "./config";
+import { configDir, loadConfig, openrouterKeySource, reloadConfig, readSettingsFile, writeSettingsFile } from "./config";
 import { createServer } from "./api/server";
 import type { Project } from "./scanner";
 
@@ -72,7 +72,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     roots: ["/c"],
     port: 6000,
     token: "e",
-    openrouterKey: "ek",
+    openrouterKey: "k",
     usageApi: false,
     notificationSound: false,
     orchestrator: "jev",
@@ -80,6 +80,11 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     orchestratorModel: "",
     codexAuthFile: "",
   });
+  expect(openrouterKeySource(dir, { OPENROUTER_API_KEY: "ek" })).toBe("settings");
+  writeSettingsFile({ openrouterKey: "" }, dir);
+  expect(loadConfig(dir, { OPENROUTER_API_KEY: "ek" }).openrouterKey).toBe("ek");
+  expect(openrouterKeySource(dir, { OPENROUTER_API_KEY: "ek" })).toBe("env");
+  expect(openrouterKeySource(dir, {})).toBe("none");
   writeSettingsFile({ usageApi: true }, dir);
   expect(loadConfig(dir, {}).usageApi).toBe(true);
   expect(loadConfig(dir, { DAS_USAGE_API: "0" }).usageApi).toBe(false);

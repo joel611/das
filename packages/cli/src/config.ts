@@ -87,7 +87,8 @@ export function loadConfig(
     roots: roots.map((r) => expand(String(r).trim())).filter(Boolean),
     port: Number(env.PORT || f.port || 5777),
     token: env.TOKEN ?? f.token ?? "",
-    openrouterKey: env.OPENROUTER_API_KEY || f.openrouterKey || "",
+    // Unlike the rest, a saved key beats the env var: env is only the default.
+    openrouterKey: f.openrouterKey || env.OPENROUTER_API_KEY || "",
     usageApi: env.DAS_USAGE_API ? env.DAS_USAGE_API === "1" : f.usageApi === true,
     notificationSound: f.notificationSound === true,
     orchestrator: (env.DAS_ORCHESTRATOR || f.orchestrator) === "pi" ? "pi" : "jev",
@@ -122,6 +123,13 @@ export function reloadConfig(
   }
 }
 
+/** Where the effective OpenRouter key comes from: the saved setting, the env default, or nowhere. */
+export const openrouterKeySource = (
+  dir = configDir(),
+  env: Record<string, string | undefined> = process.env,
+): "settings" | "env" | "none" =>
+  readSettingsFile(dir).openrouterKey ? "settings" : env.OPENROUTER_API_KEY ? "env" : "none";
+
 /** Which settings an env var currently pins (file edits to these have no effect). */
 export const envOverrides = (env: Record<string, string | undefined> = process.env) =>
   (
@@ -129,7 +137,6 @@ export const envOverrides = (env: Record<string, string | undefined> = process.e
       ["roots", "PROJECT_ROOTS"],
       ["port", "PORT"],
       ["token", "TOKEN"],
-      ["openrouterKey", "OPENROUTER_API_KEY"],
       ["usageApi", "DAS_USAGE_API"],
       ["orchestrator", "DAS_ORCHESTRATOR"],
       ["orchestratorProvider", "DAS_ORCHESTRATOR_PROVIDER"],
