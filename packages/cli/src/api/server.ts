@@ -23,6 +23,15 @@ import { projectRoutes } from "./routes/projects";
 
 type Env = { Bindings: { srv: Server<{ id: string }> } };
 
+/** Cap long strings (prompts, tool output) so hook payloads stay small in the Debug ring. */
+const clip = (p: HookPayload): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(p).map(([k, v]) => [
+      k,
+      typeof v === "string" && v.length > 500 ? `${v.slice(0, 500)}…` : v,
+    ]),
+  );
+
 const TOPIC = "sessions";
 /** Per-connection topic: how a frame reaches exactly one device. */
 const connTopic = (id: string) => `conn:${id}`;
@@ -201,7 +210,9 @@ export function createServer({
     // A body of `null` or a non-object is not a hook payload.
     const body: unknown = await c.req.json().catch(() => null);
     const payload: HookPayload = body && typeof body === "object" ? body : {};
-    tracker.handleHook(c.req.param("event"), payload);
+    const event = c.req.param("event");
+    hub.push("hook", { agent: payload.agent ?? "claude", event, payload: clip(payload) });
+    tracker.handleHook(event, payload);
     // Read the transcript after answering, so a large first read never delays the agent.
     setTimeout(() => usage.ingest(payload.session_id ?? "", payload.transcript_path), 0);
     return c.body(null, 204);

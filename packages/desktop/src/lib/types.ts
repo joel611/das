@@ -146,6 +146,6 @@ export type VoiceReply = {
 export type LogEntry = {
   seq: number;
   time: string;
-  source: "ws" | "api";
+  source: "ws" | "api" | "hook";
   [k: string]: unknown;
 };

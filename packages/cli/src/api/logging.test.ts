@@ -120,11 +120,27 @@ test("/v1/logs: replays ws+api entries, honours ?after, hides secrets, skips its
   const h = { Authorization: "Bearer secret" };
   const all = await (await fetch(`http://${base}/v1/logs`, { headers: h })).json();
   expect(all.length).toBeGreaterThan(0);
-  expect(new Set(all.map((e: any) => e.source))).toEqual(new Set(["ws", "api"]));
+  expect(new Set(all.map((e: any) => e.source))).toEqual(new Set(["ws", "api", "hook"]));
   expect(JSON.stringify(all)).not.toContain("secret");
   expect(all.some((e: any) => e.path === "/v1/logs")).toBe(false);
   const last = all[all.length - 1].seq;
   const none = await (await fetch(`http://${base}/v1/logs?after=${last}`, { headers: h })).json();
   expect(none).toEqual([]);
   expect((await fetch(`http://${base}/v1/logs`)).status).toBe(401);
+});
+
+test("/v1/logs: hook entries carry agent, event and payload; long strings are clipped", async () => {
+  const h = { Authorization: "Bearer secret" };
+  const post = (event: string, body: object) =>
+    fetch(`http://${base}/hooks/${event}`, { method: "POST", body: JSON.stringify(body) });
+  await post("UserPromptSubmit", { session_id: "s1", agent: "omp", prompt: "x".repeat(900) });
+  await post("Stop", { session_id: "s1" });
+  const all = await (await fetch(`http://${base}/v1/logs`, { headers: h })).json();
+  const hooks = all.filter((e: any) => e.source === "hook").slice(-2);
+  expect(hooks.map((e: any) => [e.agent, e.event])).toEqual([
+    ["omp", "UserPromptSubmit"],
+    ["claude", "Stop"],
+  ]);
+  expect(hooks[0].payload.session_id).toBe("s1");
+  expect(hooks[0].payload.prompt.length).toBe(501);
 });
