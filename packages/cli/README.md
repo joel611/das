@@ -15,7 +15,7 @@ The daemon does not need the desktop app. The desktop app does not own the daemo
 
 ## Settings
 
-`config.yml` (YAML, mode 0600): keys `roots`, `port`, `token`, `openrouterKey`, `usageApi` (opt-in plan limit poll, default `false`), `notificationSound` (Stack-chan beeps, default `false`). Precedence: env (`PROJECT_ROOTS`, `PORT`, `TOKEN`, `OPENROUTER_API_KEY`, `DAS_USAGE_API=1|0`) over the file over defaults. Token and OpenRouter key are write-only in the API (`hasToken`, `hasOpenrouterKey`). A root change rescans at once; a token change applies at once; a port change replies `restartRequired: true` and needs `daemon --stop` then `--bg`.
+`config.yml` (YAML, mode 0600): keys `roots`, `port`, `token`, `openrouterKey`, `usageApi` (opt-in plan limit poll, default `false`), `notificationSound` (Stack-chan beeps, default `false`), `orchestrator` (`jev` or `pi`, default `jev`; restart to switch), `orchestratorModel` (OpenRouter id, default `anthropic/claude-haiku-5.5`). Precedence: env (`PROJECT_ROOTS`, `PORT`, `TOKEN`, `OPENROUTER_API_KEY`, `DAS_USAGE_API=1|0`, `DAS_ORCHESTRATOR`, `DAS_ORCHESTRATOR_MODEL`) over the file over defaults. Token and OpenRouter key are write-only in the API (`hasToken`, `hasOpenrouterKey`). A root change rescans at once; a token change applies at once; a port change replies `restartRequired: true` and needs `daemon --stop` then `--bg`.
 
 A missing `config.yml` means defaults. A `config.yml` that exists but is malformed stops startup with an error that names the file. The old `config.json` is ignored. Saving settings from the dashboard rewrites `config.yml` and drops any comments in it.
 
@@ -60,20 +60,34 @@ A session's folder is matched to a project by longest path prefix; a folder reac
 
 ## Voice router
 
+Routing has two steps. First an intent question (`project`, `status` or `other`, same Jev decisions API). A status request at `INTENT_THRESHOLD` (0.6) or above is answered from the session tracker (`status: "status"`, "2 sessions. Running: das. Waiting: alpha."); a sure `other` is declined ("I can start coding tasks or tell you what's running"). Everything else, and every answer to a clarifying question, goes on to the project step below.
+
 A transcript is routed to a project by a decision model (Jev via OpenRouter, `typesafe/jev-1.13`); on a confident match the daemon runs `claude --bg --worktree voice-<project>-<time> --permission-mode auto -n voice-<project>-<time> "<transcript>"` from that project (or the chosen worktree). `--worktree` is always passed, so every voice session works in its own new git worktree and branch (`worktree-voice-<project>-<time>`) and never edits an existing checkout. The prompt is the transcript verbatim.
 
 **Real spawns run in auto permission mode, so edits happen unattended, but only inside their own worktree.** Review and merge or delete the branch afterwards (`claude rm <id>` removes the session and its worktree when safe).
 
-| Direction        | Frame                                                                                                                                              |
-| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| client -> server | `{"type":"voice.transcript","text":"fix the login bug in stack-chan"}`                                                                             |
-| server -> client | `{"type":"voice.reply","status":"spawned\|dry-run\|ask\|escalate\|error","text":"Started in stack-chan-server","project":"...","sessionId":"..."}` |
+| Direction        | Frame                                                                                                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| client -> server | `{"type":"voice.transcript","text":"fix the login bug in stack-chan"}`                                                                                            |
+| server -> client | `{"type":"voice.reply","status":"spawned\|dry-run\|ask\|escalate\|error\|status\|reply","text":"Started in stack-chan-server","project":"...","sessionId":"..."}` |
 
 `POST /v1/voice` with `{"text":"...","device":"name"}` returns the same JSON without the `type` field (same auth as other `/v1` routes).
 
 Bands (by the top choice's confidence): `>= ACT_THRESHOLD` (0.8) spawn; `ASK_THRESHOLD` (0.4) to ACT ask "Which one, A or B?" and remember the question per socket (or per `device`); the next transcript is decided again with the question as context. Below ASK, or choice `none`, escalate ("Sorry, I didn't catch that"). Hard gates: project must be in the scanned list, transcript non-empty and at most 1000 chars. A missing `OPENROUTER_API_KEY` gives `status: "error"`.
 
 Every decision is appended as a JSON line to `DECISIONS_LOG` (default `./data/decisions.jsonl`: ts, transcript, choice, confidence, probabilities, band, outcome) for threshold tuning. Env: `OPENROUTER_API_KEY`, `CLAUDE_BIN`, `ACT_THRESHOLD`, `ASK_THRESHOLD`, `DECISIONS_LOG`.
+
+### pi orchestrator (`orchestrator: pi`)
+
+With `orchestrator: pi` every message goes to one durable [Pi Durable](https://github.com/earendil-works/pi) conversation, stored in `<config dir>/orchestrator.sqlite`, instead of the steps above. It survives daemon restarts: an interrupted run resumes, and a tool call that was cut off is reported to the model, never run twice.
+
+1. The intent step runs in code first. A sure status request is answered from the tracker without a model call; otherwise the message reaches the model tagged `[intent: project 0.92] ...`.
+2. The model (`orchestratorModel` on OpenRouter, same key) has four tools: `classify_project` (the Jev project and worktree step with its bands), `dispatch_worker` (project, prompt, optional worktree and `agent: claude|pi`), `list_sessions` and `list_projects`. The allowlist and prompt size are enforced in the tools.
+3. Workers get worktrees named `orch-<project>-<id>`. Their hook events (done, waiting, error) are written back into the conversation, so "did the alpha one finish?" has an answer.
+
+Replies are `status: "spawned"` (a worker started), `"reply"` (an answer in words; "Still working on it." after 90 s while the run continues) or `"status"`. Dry runs (`dryRun: true`) always use the Jev path. If the orchestrator fails to start, requests fall back to Jev and `api.log` says why.
+
+pi workers: pi has no `--bg` or `--worktree`, so das creates `<repo>/.das/worktrees/<name>` (added to `.git/info/exclude`) and runs `$PI_BIN -p "<prompt>"` detached there (default `omp`, so the omp extension tracks it), logging to `<worktree>.log`.
 
 ### Dry run
 
@@ -111,16 +125,16 @@ At startup the daemon reads `~/.claude.json` (read-only) and prints which scanne
 
 Admin routes are localhost only, plus the token if set.
 
-| Route                                              | Result                                                                                                                                                                                                            |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /admin/settings`                              | `{roots, port, hasToken, hasOpenrouterKey, envOverrides, trustAdvice}`                                                                                                                                            |
-| `PUT /admin/settings`                              | body: any of `roots` (existing dirs), `port` (1-65535), `token`, `openrouterKey` (`""` clears), `usageApi` (boolean), `notificationSound` (boolean); returns the GET shape plus `restartRequired`                 |
-| `GET /admin/hooks`                                 | `{state, events:{<Event>: installed\|partial\|missing}, portMatches, port}`                                                                                                                                       |
-| `POST /admin/hooks/install`, `DELETE /admin/hooks` | same shape after the change                                                                                                                                                                                       |
-| `GET /v1/projects`, `GET /v1/sessions`             | scanned projects (worktrees grouped), tracked sessions; each session has `skills: [{name, count, lastAt}]`                                                                                                        |
-| `GET /v1/usage`                                    | `{block, limits}`: tokens in the current 5-hour block read from session transcripts; `limits`: `{fiveHour, sevenDay, updatedAt, source}` plan limits, each window `{usedPercent, resetsAt}` or `null` (see below) |
-| `GET /v1/devices`                                  | `[{id, device, capabilities, connectedAt}]` (from `hello`)                                                                                                                                                        |
-| `GET /v1/state`                                    | `{display, sessions, devices, projects, untrustedProjects}`                                                                                                                                                       |
+| Route                                              | Result                                                                                                                                                                                                                                                        |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /admin/settings`                              | `{roots, port, hasToken, hasOpenrouterKey, envOverrides, trustAdvice}`                                                                                                                                                                                        |
+| `PUT /admin/settings`                              | body: any of `roots` (existing dirs), `port` (1-65535), `token`, `openrouterKey` (`""` clears), `usageApi` (boolean), `notificationSound` (boolean), `orchestrator` (`jev`\|`pi`), `orchestratorModel` (string); returns the GET shape plus `restartRequired` |
+| `GET /admin/hooks`                                 | `{state, events:{<Event>: installed\|partial\|missing}, portMatches, port}`                                                                                                                                                                                   |
+| `POST /admin/hooks/install`, `DELETE /admin/hooks` | same shape after the change                                                                                                                                                                                                                                   |
+| `GET /v1/projects`, `GET /v1/sessions`             | scanned projects (worktrees grouped), tracked sessions; each session has `skills: [{name, count, lastAt}]`                                                                                                                                                    |
+| `GET /v1/usage`                                    | `{block, limits}`: tokens in the current 5-hour block read from session transcripts; `limits`: `{fiveHour, sevenDay, updatedAt, source}` plan limits, each window `{usedPercent, resetsAt}` or `null` (see below)                                             |
+| `GET /v1/devices`                                  | `[{id, device, capabilities, connectedAt}]` (from `hello`)                                                                                                                                                                                                    |
+| `GET /v1/state`                                    | `{display, sessions, devices, projects, untrustedProjects}`                                                                                                                                                                                                   |
 
 Skills are counted from `PreToolUse` with `tool_name: "Skill"` (`tool_input.skill`). Typed `/name` prompts are not counted: only a Skill tool call is a trigger. Usage reads each session's `transcript_path` incrementally after the hook is answered: assistant messages are deduped by message id, `tokens` is input + output + cache writes (cache reads are reported separately), and a block starts at the hour of its first message and lasts 5 hours (the same rule as ccusage). At startup the daemon also reads the `<claude dir>/projects/<project>/<session>.jsonl` files touched in the last 5 hours, so sessions that were already running count before their next hook. Burn rate and the 12-bucket series cover the active block only.
 

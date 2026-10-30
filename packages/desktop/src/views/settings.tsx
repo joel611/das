@@ -148,6 +148,8 @@ export function Settings() {
   const [key, setKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
   const [usageApi, setUsageApi] = useState(false);
+  const [piOrchestrator, setPiOrchestrator] = useState(false);
+  const [orchestratorModel, setOrchestratorModel] = useState("");
   const [loaded, setLoaded] = useState(false);
   const saving = saveSettings.isPending;
 
@@ -157,6 +159,8 @@ export function Settings() {
       setRoots(s.roots.join("\n"));
       setPort(String(s.port));
       setUsageApi(s.usageApi);
+      setPiOrchestrator(s.orchestrator === "pi");
+      setOrchestratorModel(s.orchestratorModel);
       setLoaded(true);
     }
   }, [s, loaded]);
@@ -169,7 +173,13 @@ export function Settings() {
         .filter(Boolean),
       port: Number(port),
       usageApi,
+      orchestrator: piOrchestrator ? "pi" : "jev",
     };
+    if (orchestratorModel.trim()) patch.orchestratorModel = orchestratorModel.trim();
+    const orchestratorChanged =
+      !!s &&
+      (patch.orchestrator !== s.orchestrator ||
+        (!!patch.orchestratorModel && patch.orchestratorModel !== s.orchestratorModel));
     if (clearToken) patch.token = "";
     else if (token) patch.token = token;
     if (clearKey) patch.openrouterKey = "";
@@ -181,8 +191,8 @@ export function Settings() {
       setClearToken(false);
       setClearKey(false);
       toast.success(
-        r.restartRequired
-          ? "Saved. Restart the daemon for the new port: bun run daemon --stop && bun run daemon --bg"
+        r.restartRequired || orchestratorChanged
+          ? "Saved. Restart the daemon to apply: bun run daemon --stop && bun run daemon --bg"
           : "Saved.",
       );
     } catch (e) {
@@ -334,6 +344,31 @@ export function Settings() {
                   every 5 minutes. On macOS the first read of the login may ask for Keychain access.
                 </p>
               </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Switch
+                id="pi-orchestrator"
+                checked={piOrchestrator}
+                onCheckedChange={setPiOrchestrator}
+              />
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="pi-orchestrator">Route requests through the pi orchestrator</Label>
+                <p className="text-xs text-muted-foreground">
+                  One durable pi conversation takes every desktop and voice message. It classifies
+                  the intent, picks the project and worktree, starts Claude Code or pi workers, and
+                  answers what is running. It keeps its memory across daemon restarts. Off: the Jev
+                  classifiers route each request on their own. Takes effect after a daemon restart.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="orchestrator-model">Orchestrator model (OpenRouter id)</Label>
+              <Input
+                id="orchestrator-model"
+                value={orchestratorModel}
+                onChange={(e) => setOrchestratorModel(e.target.value)}
+                disabled={!piOrchestrator}
+              />
             </div>
           </CardContent>
           <CardFooter>

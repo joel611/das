@@ -39,6 +39,8 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     openrouterKey: "",
     usageApi: false,
     notificationSound: false,
+    orchestrator: "jev",
+    orchestratorModel: "anthropic/claude-haiku-5.5",
   });
   writeSettingsFile({ roots: ["/a", "/b"], port: 5000, token: "t", openrouterKey: "k" }, dir);
   writeSettingsFile({ port: 5001 }, dir);
@@ -56,6 +58,8 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     openrouterKey: "k",
     usageApi: false,
     notificationSound: false,
+    orchestrator: "jev",
+    orchestratorModel: "anthropic/claude-haiku-5.5",
   });
   expect(
     loadConfig(dir, { PROJECT_ROOTS: "/c", PORT: "6000", TOKEN: "e", OPENROUTER_API_KEY: "ek" }),
@@ -66,12 +70,22 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     openrouterKey: "ek",
     usageApi: false,
     notificationSound: false,
+    orchestrator: "jev",
+    orchestratorModel: "anthropic/claude-haiku-5.5",
   });
   writeSettingsFile({ usageApi: true }, dir);
   expect(loadConfig(dir, {}).usageApi).toBe(true);
   expect(loadConfig(dir, { DAS_USAGE_API: "0" }).usageApi).toBe(false);
   writeSettingsFile({ notificationSound: true }, dir);
   expect(loadConfig(dir, {}).notificationSound).toBe(true);
+  writeSettingsFile({ orchestrator: "pi", orchestratorModel: "anthropic/claude-sonnet-5.5" }, dir);
+  expect(loadConfig(dir, {})).toMatchObject({
+    orchestrator: "pi",
+    orchestratorModel: "anthropic/claude-sonnet-5.5",
+  });
+  expect(loadConfig(dir, { DAS_ORCHESTRATOR: "jev" }).orchestrator).toBe("jev");
+  writeSettingsFile({ orchestrator: "bogus" as any }, dir);
+  expect(loadConfig(dir, {}).orchestrator).toBe("jev");
 });
 
 test("config.yml: hand-written YAML with comments is read", () => {
@@ -87,6 +101,8 @@ test("config.yml: hand-written YAML with comments is read", () => {
     openrouterKey: "",
     usageApi: false,
     notificationSound: false,
+    orchestrator: "jev",
+    orchestratorModel: "anthropic/claude-haiku-5.5",
   });
   expect(loadConfig(dir, { PORT: "1234" }).port).toBe(1234);
 });

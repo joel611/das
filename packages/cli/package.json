@@ -9,6 +9,9 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@earendil-works/chord": "1.4.0",
+    "@earendil-works/pi-ai": "1.4.0",
+    "@earendil-works/pi-durable": "1.4.0",
     "hono": "^4.13.13",
     "pino": "^10.4.0",
     "pino-roll": "^4.0.0"

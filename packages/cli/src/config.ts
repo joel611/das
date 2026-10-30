@@ -10,7 +10,13 @@ export type Config = {
   usageApi: boolean;
   /** Stack-chan beeps when a session enters waiting, done or error. */
   notificationSound: boolean;
+  /** Who routes desktop and voice requests: the Jev classifiers alone, or the durable pi orchestrator. Restart to switch. */
+  orchestrator: "jev" | "pi";
+  /** OpenRouter model id the pi orchestrator runs on. */
+  orchestratorModel: string;
 };
+
+export const DEFAULT_ORCHESTRATOR_MODEL = "anthropic/claude-haiku-5.5";
 
 const expand = (p: string) => (p.startsWith("~") ? homedir() + p.slice(1) : p);
 
@@ -74,6 +80,9 @@ export function loadConfig(
     openrouterKey: env.OPENROUTER_API_KEY || f.openrouterKey || "",
     usageApi: env.DAS_USAGE_API ? env.DAS_USAGE_API === "1" : f.usageApi === true,
     notificationSound: f.notificationSound === true,
+    orchestrator: (env.DAS_ORCHESTRATOR || f.orchestrator) === "pi" ? "pi" : "jev",
+    orchestratorModel:
+      env.DAS_ORCHESTRATOR_MODEL || f.orchestratorModel || DEFAULT_ORCHESTRATOR_MODEL,
   };
 }
 
@@ -108,6 +117,8 @@ export const envOverrides = (env: Record<string, string | undefined> = process.e
       ["token", "TOKEN"],
       ["openrouterKey", "OPENROUTER_API_KEY"],
       ["usageApi", "DAS_USAGE_API"],
+      ["orchestrator", "DAS_ORCHESTRATOR"],
+      ["orchestratorModel", "DAS_ORCHESTRATOR_MODEL"],
     ] as const
   ).flatMap(([k, e]) => (env[e] ? [k] : []));
 

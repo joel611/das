@@ -12,6 +12,7 @@ import { config, configDir, reloadConfig } from "./config";
 import { createLogs, logsLocation } from "./logs";
 import { scan, type Project } from "./scanner";
 import { createServer } from "./api/server";
+import { startPiOrchestrator } from "./orchestrator-start";
 import { trustAdvice } from "./trust";
 
 const dir = configDir();
@@ -66,13 +67,19 @@ function serve() {
     ompDir: process.env.PI_CODING_AGENT_DIR || join(homedir(), ".omp", "agent"),
     usageApi: () => config.usageApi,
     soundEnabled: () => config.notificationSound,
+    // Read once: switching the orchestrator takes a restart.
+    orchestrator:
+      config.orchestrator === "pi"
+        ? ({ getSessions }) =>
+            startPiOrchestrator({ dir, getProjects: () => projects, getSessions })
+        : undefined,
     onSettings: (c) => {
       Object.assign(config, c);
       rescan();
     },
   });
   console.log(
-    `stack-chan daemon on :${server.port}, roots: ${config.roots.join(", ")}, ${projects.length} projects`,
+    `stack-chan daemon on :${server.port}, roots: ${config.roots.join(", ")}, ${projects.length} projects, orchestrator: ${config.orchestrator}`,
   );
   const advice = trustAdvice(config.roots, projects);
   if (advice) console.warn(advice);

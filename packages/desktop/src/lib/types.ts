@@ -95,6 +95,8 @@ export type Settings = {
   hasOpenrouterKey: boolean;
   usageApi: boolean;
   notificationSound: boolean;
+  orchestrator: "jev" | "pi";
+  orchestratorModel: string;
   envOverrides: string[];
   trustAdvice: string | null;
   restartRequired?: boolean;
@@ -107,6 +109,8 @@ export type SettingsPatch = Partial<{
   openrouterKey: string;
   usageApi: boolean;
   notificationSound: boolean;
+  orchestrator: "jev" | "pi";
+  orchestratorModel: string;
 }>;
 
 export type HookStatus = {
