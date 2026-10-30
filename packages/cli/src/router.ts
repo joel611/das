@@ -104,22 +104,84 @@ export function parseResponse(json: any, projects: Project[]): Decision {
   return d;
 }
 
+/** POST one OpenRouter decisions request; throws on a missing key or an HTTP error. */
+async function postDecision(body: unknown, apiKey?: string, f: typeof fetch = fetch) {
+  const key = apiKey ?? config.openrouterKey;
+  if (!key) throw new Error("OPENROUTER_API_KEY is not set");
+  const res = await f(URL_, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json: any = await res.json().catch(() => ({}));
+  if (!res.ok)
+    throw new Error(
+      `decision API ${res.status}: ${json?.error?.message ?? json?.error?.code ?? "error"}`,
+    );
+  return json;
+}
+
 export function makeJevDecider(opts: { apiKey?: string; fetch?: typeof fetch } = {}): Decider {
-  return async (transcript, projects, context) => {
-    const apiKey = opts.apiKey ?? config.openrouterKey;
-    if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
-    const res = await (opts.fetch ?? fetch)(URL_, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(buildRequest(transcript, projects, context)),
-    });
-    const json: any = await res.json().catch(() => ({}));
-    if (!res.ok)
-      throw new Error(
-        `decision API ${res.status}: ${json?.error?.message ?? json?.error?.code ?? "error"}`,
-      );
-    return parseResponse(json, projects);
-  };
+  return async (transcript, projects, context) =>
+    parseResponse(
+      await postDecision(buildRequest(transcript, projects, context), opts.apiKey, opts.fetch),
+      projects,
+    );
 }
 
 export const jevDecider: Decider = makeJevDecider();
+
+/** Step one of routing: what kind of request this is. Only `project` goes on to the project classifier. */
+export type Intent = "project" | "status" | "other";
+export type IntentDecision = { intent: Intent; confidence: number; raw?: unknown };
+export type IntentClassifier = (transcript: string) => Promise<IntentDecision>;
+
+/** Below this, a status/other verdict is not trusted and the request goes on to the project classifier. */
+export const intentThreshold = Number(process.env.INTENT_THRESHOLD ?? 0.6);
+
+const INTENTS: Record<Intent, string> = {
+  project:
+    "Asks to start, change, fix, build, review or investigate something in a code project or repository",
+  status: "Asks what is running, or the state or progress of coding sessions, agents or workers",
+  other: "Anything else: chit-chat, general knowledge, or too unclear to tell",
+};
+
+/** Build the OpenRouter decisions request body for the intent question. */
+export function buildIntentRequest(transcript: string) {
+  return {
+    model: MODEL,
+    state: { transcript },
+    questions: {
+      intent: {
+        type: "choice",
+        instructions:
+          "Classify what this spoken or typed request to a coding command center asks for.",
+        criteria: INTENTS,
+      },
+    },
+  };
+}
+
+/** Parse an intent answer. Throws on malformed shape or an unknown choice. */
+export function parseIntentResponse(json: any): IntentDecision {
+  const a: Answer | undefined = json?.answers?.intent;
+  if (
+    !a ||
+    typeof a.choice !== "string" ||
+    typeof a.confidence !== "number" ||
+    !(a.choice in INTENTS)
+  )
+    throw new Error("malformed intent response");
+  return { intent: a.choice as Intent, confidence: a.confidence, raw: json };
+}
+
+export function makeJevIntentClassifier(
+  opts: { apiKey?: string; fetch?: typeof fetch } = {},
+): IntentClassifier {
+  return async (transcript) =>
+    parseIntentResponse(
+      await postDecision(buildIntentRequest(transcript), opts.apiKey, opts.fetch),
+    );
+}
+
+export const jevIntentClassifier: IntentClassifier = makeJevIntentClassifier();

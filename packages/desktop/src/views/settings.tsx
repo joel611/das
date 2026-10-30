@@ -148,6 +148,10 @@ export function Settings() {
   const [key, setKey] = useState("");
   const [clearKey, setClearKey] = useState(false);
   const [usageApi, setUsageApi] = useState(false);
+  const [piOrchestrator, setPiOrchestrator] = useState(false);
+  const [useSubscription, setUseSubscription] = useState(false);
+  const [orchestratorModel, setOrchestratorModel] = useState("");
+  const [codexAuthFile, setCodexAuthFile] = useState("");
   const [loaded, setLoaded] = useState(false);
   const saving = saveSettings.isPending;
 
@@ -157,6 +161,10 @@ export function Settings() {
       setRoots(s.roots.join("\n"));
       setPort(String(s.port));
       setUsageApi(s.usageApi);
+      setPiOrchestrator(s.orchestrator === "pi");
+      setUseSubscription(s.orchestratorProvider === "openai");
+      setOrchestratorModel(s.orchestratorModel);
+      setCodexAuthFile(s.codexAuthFile);
       setLoaded(true);
     }
   }, [s, loaded]);
@@ -169,7 +177,17 @@ export function Settings() {
         .filter(Boolean),
       port: Number(port),
       usageApi,
+      orchestrator: piOrchestrator ? "pi" : "jev",
+      orchestratorProvider: useSubscription ? "openai" : "openrouter",
+      orchestratorModel: orchestratorModel.trim(),
+      codexAuthFile: codexAuthFile.trim(),
     };
+    const orchestratorChanged =
+      !!s &&
+      (patch.orchestrator !== s.orchestrator ||
+        patch.orchestratorProvider !== s.orchestratorProvider ||
+        patch.orchestratorModel !== s.orchestratorModel ||
+        patch.codexAuthFile !== s.codexAuthFile);
     if (clearToken) patch.token = "";
     else if (token) patch.token = token;
     if (clearKey) patch.openrouterKey = "";
@@ -181,8 +199,8 @@ export function Settings() {
       setClearToken(false);
       setClearKey(false);
       toast.success(
-        r.restartRequired
-          ? "Saved. Restart the daemon for the new port: bun run daemon --stop && bun run daemon --bg"
+        r.restartRequired || orchestratorChanged
+          ? "Saved. Restart the daemon to apply: bun run daemon --stop && bun run daemon --bg"
           : "Saved.",
       );
     } catch (e) {
@@ -236,7 +254,7 @@ export function Settings() {
     <Tabs defaultValue="daemon">
       <TabsList>
         <TabsTrigger value="daemon">Daemon</TabsTrigger>
-        <TabsTrigger value="provider">Provider</TabsTrigger>
+        <TabsTrigger value="orchestrator">Orchestrator</TabsTrigger>
         <TabsTrigger value="agent">Agent</TabsTrigger>
         <TabsTrigger value="theme">Theme</TabsTrigger>
         <TabsTrigger value="device">Device</TabsTrigger>
@@ -305,7 +323,7 @@ export function Settings() {
         ) : null}
       </TabsContent>
 
-      <TabsContent value="provider" className="flex flex-col gap-4">
+      <TabsContent value="orchestrator" className="flex flex-col gap-4">
         <Card>
           <CardHeader>
             <CardTitle>Provider</CardTitle>
@@ -335,6 +353,61 @@ export function Settings() {
                 </p>
               </div>
             </div>
+            <div className="flex items-start gap-3">
+              <Switch
+                id="pi-orchestrator"
+                checked={piOrchestrator}
+                onCheckedChange={setPiOrchestrator}
+              />
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="pi-orchestrator">Route requests through the pi orchestrator</Label>
+                <p className="text-xs text-muted-foreground">
+                  One durable pi conversation takes every desktop and voice message. It classifies
+                  the intent, picks the project and worktree, starts Claude Code or pi workers, and
+                  answers what is running. It keeps its memory across daemon restarts. Off: the Jev
+                  classifiers route each request on their own. Takes effect after a daemon restart.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <Switch
+                id="orchestrator-subscription"
+                checked={useSubscription}
+                onCheckedChange={setUseSubscription}
+                disabled={!piOrchestrator}
+              />
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="orchestrator-subscription">
+                  Use my ChatGPT subscription instead of OpenRouter
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Uses the ChatGPT login the Codex CLI saved on this computer (run codex login).
+                  Codex and das share the file, so either can refresh the token.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="orchestrator-model">Orchestrator model</Label>
+              <Input
+                id="orchestrator-model"
+                value={orchestratorModel}
+                onChange={(e) => setOrchestratorModel(e.target.value)}
+                placeholder={useSubscription ? "gpt-6-luna" : "anthropic/claude-haiku-5.5"}
+                disabled={!piOrchestrator}
+              />
+            </div>
+            {useSubscription ? (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="pi-auth-file">Codex login file</Label>
+                <Input
+                  id="pi-auth-file"
+                  value={codexAuthFile}
+                  onChange={(e) => setCodexAuthFile(e.target.value)}
+                  placeholder="~/.codex/auth.json"
+                  disabled={!piOrchestrator}
+                />
+              </div>
+            ) : null}
           </CardContent>
           <CardFooter>
             <Button onClick={save} disabled={saving || !loaded}>

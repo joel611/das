@@ -9,7 +9,7 @@ import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
 import { installOmp, ompStatus, uninstallOmp } from "../omp-extension";
 import type { Project } from "../scanner";
 import { emit, LogHub, type Logs } from "../logs";
-import { jevDecider, type Decider } from "../router";
+import { jevDecider, jevIntentClassifier, type Decider, type IntentClassifier } from "../router";
 import { SessionTracker, type HookPayload, type SessionState } from "../sessions";
 import { claudeSpawner, type Spawner } from "../spawner";
 import { isTrusted, trustAdvice, trustedPaths } from "../trust";
@@ -17,7 +17,9 @@ import { LimitsTracker } from "../limits";
 import { startAppPoll } from "../app-usage";
 import { startUsagePoll } from "../usage-api";
 import { UsageTracker } from "../usage";
-import { handleTranscript, type VoiceDeps } from "../voice";
+import type { Orchestrator } from "../orchestrator";
+import type { Session } from "../sessions";
+import { handleTranscript, type VoiceDeps, type VoiceOpts } from "../voice";
 import { createCameraHub, deviceRoutes, type Device } from "./routes/devices";
 import { projectRoutes } from "./routes/projects";
 
@@ -43,6 +45,8 @@ type Opts = {
   getToken?: () => string;
   getProjects: () => Project[];
   decider?: Decider;
+  /** Step one of routing. Defaults to Jev only alongside the Jev decider, so a stubbed decider is never preceded by a real API call. */
+  classifyIntent?: IntentClassifier;
   spawner?: Spawner;
   decisionsLog?: string;
   /** Admin API: settings dir and Claude config dir. Without them the matching endpoints answer 501 (never guess a real path). */
@@ -53,6 +57,8 @@ type Opts = {
   usageApi?: () => boolean;
   /** Live switch for Stack-chan notification sounds (the daemon's config). Defaults to off. */
   soundEnabled?: () => boolean;
+  /** Starts the pi orchestrator once the session tracker exists. Absent, or failing to start: requests go to the Jev path. */
+  orchestrator?: (h: { getSessions: () => Session[] }) => Promise<Orchestrator>;
   /** Called with the new effective config after a settings save. */
   onSettings?: (c: Config) => void;
   /** Log sinks for api.log / ws.log. Omitted sinks log nothing (tests stay off the real log dir). */
@@ -102,6 +108,22 @@ function parseSettings(b: any): { patch: Partial<Config> } | { error: string } {
       return { error: "notificationSound must be a boolean" };
     patch.notificationSound = b.notificationSound;
   }
+  if (b?.orchestrator !== undefined) {
+    if (b.orchestrator !== "jev" && b.orchestrator !== "pi")
+      return { error: "orchestrator must be jev or pi" };
+    patch.orchestrator = b.orchestrator;
+  }
+  if (b?.orchestratorProvider !== undefined) {
+    if (b.orchestratorProvider !== "openrouter" && b.orchestratorProvider !== "openai")
+      return { error: "orchestratorProvider must be openrouter or openai" };
+    patch.orchestratorProvider = b.orchestratorProvider;
+  }
+  // "" clears either back to its default.
+  for (const k of ["orchestratorModel", "codexAuthFile"] as const) {
+    if (b?.[k] === undefined) continue;
+    if (typeof b[k] !== "string") return { error: `${k} must be a string` };
+    patch[k] = b[k].trim();
+  }
   for (const k of ["token", "openrouterKey"] as const) {
     if (b?.[k] === undefined) continue;
     if (typeof b[k] !== "string") return { error: `${k} must be a string` };
@@ -116,6 +138,7 @@ export function createServer({
   getToken,
   getProjects,
   decider = jevDecider,
+  classifyIntent = decider === jevDecider ? jevIntentClassifier : undefined,
   spawner = claudeSpawner,
   decisionsLog,
   configDir,
@@ -124,19 +147,34 @@ export function createServer({
   usageApi,
   soundEnabled = () => false,
   onSettings,
+  orchestrator: startOrchestrator,
   logs: sinks = {},
   trusted = cachedTrusted,
 }: Opts) {
   const hub = new LogHub();
   const logs: Logs = { api: hub.tee("api", sinks.api), ws: hub.tee("ws", sinks.ws) };
+  const tracker = new SessionTracker(getProjects);
   const voice: VoiceDeps = {
     decider,
+    classifyIntent,
+    getSessions: () => tracker.list(),
     spawner,
     getProjects,
     pending: new Map(),
     logPath: decisionsLog,
   };
-  const tracker = new SessionTracker(getProjects);
+  const orchestrator: Promise<Orchestrator | null> = startOrchestrator
+    ? startOrchestrator({ getSessions: () => tracker.list() }).catch((e) => {
+        emit(logs.api, { event: "orchestrator", msg: `failed to start, using Jev: ${e}` });
+        return null;
+      })
+    : Promise.resolve(null);
+  void orchestrator.then((o) => o && tracker.onChange((e) => o.onSession(e)));
+  /** Dry runs stay on the Jev path: the orchestrator has no way to decide without acting. */
+  const routeMessage = async (deviceKey: string, text: string, opts: VoiceOpts = {}) => {
+    const o = opts.dryRun ? null : await orchestrator;
+    return o ? o.handle(deviceKey, text) : handleTranscript(voice, deviceKey, text, opts);
+  };
   const usage = new UsageTracker(
     join(claudeDir ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "projects"),
   );
@@ -179,6 +217,10 @@ export function createServer({
       hasOpenrouterKey: !!c.openrouterKey,
       usageApi: c.usageApi,
       notificationSound: c.notificationSound,
+      orchestrator: c.orchestrator,
+      orchestratorProvider: c.orchestratorProvider,
+      orchestratorModel: c.orchestratorModel,
+      codexAuthFile: c.codexAuthFile,
       envOverrides: envOverrides(),
       trustAdvice: trustAdvice(c.roots, getProjects(), trusted()),
     };
@@ -291,7 +333,7 @@ export function createServer({
   v1.post("/voice", async (c) => {
     const body: any = await c.req.json().catch(() => ({}));
     return c.json(
-      await handleTranscript(voice, `http:${body.device ?? "default"}`, String(body.text ?? ""), {
+      await routeMessage(`http:${body.device ?? "default"}`, String(body.text ?? ""), {
         dryRun: body.dryRun === true,
         debug: body.debug === true,
       }),
@@ -388,7 +430,7 @@ export function createServer({
         });
         // button is a reserved no-op; unknown types ignored.
         if (msg?.type === "voice.transcript") {
-          handleTranscript(voice, `ws:${ws.data.id}`, String(msg.text ?? "")).then((r) =>
+          void routeMessage(`ws:${ws.data.id}`, String(msg.text ?? "")).then((r) =>
             send(ws, { type: "voice.reply", ...r }),
           );
           return;

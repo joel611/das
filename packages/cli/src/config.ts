@@ -10,6 +10,22 @@ export type Config = {
   usageApi: boolean;
   /** Stack-chan beeps when a session enters waiting, done or error. */
   notificationSound: boolean;
+  /** Who routes desktop and voice requests: the Jev classifiers alone, or the durable pi orchestrator. Restart to switch. */
+  orchestrator: "jev" | "pi";
+  /**
+   * Where the orchestrator's model runs: OpenRouter with `openrouterKey`, or OpenAI with the ChatGPT
+   * subscription you signed in to with `codex login`, read from Codex's auth.json.
+   */
+  orchestratorProvider: "openrouter" | "openai";
+  /** Model id for that provider; empty uses the provider's default. */
+  orchestratorModel: string;
+  /** Codex's login file for `orchestratorProvider: openai`; empty uses `~/.codex/auth.json`. */
+  codexAuthFile: string;
+};
+
+export const DEFAULT_ORCHESTRATOR_MODELS: Record<Config["orchestratorProvider"], string> = {
+  openrouter: "anthropic/claude-haiku-5.5",
+  openai: "gpt-6-luna",
 };
 
 const expand = (p: string) => (p.startsWith("~") ? homedir() + p.slice(1) : p);
@@ -74,6 +90,13 @@ export function loadConfig(
     openrouterKey: env.OPENROUTER_API_KEY || f.openrouterKey || "",
     usageApi: env.DAS_USAGE_API ? env.DAS_USAGE_API === "1" : f.usageApi === true,
     notificationSound: f.notificationSound === true,
+    orchestrator: (env.DAS_ORCHESTRATOR || f.orchestrator) === "pi" ? "pi" : "jev",
+    orchestratorProvider:
+      (env.DAS_ORCHESTRATOR_PROVIDER || f.orchestratorProvider) === "openai"
+        ? "openai"
+        : "openrouter",
+    orchestratorModel: env.DAS_ORCHESTRATOR_MODEL || f.orchestratorModel || "",
+    codexAuthFile: expand(env.DAS_CODEX_AUTH_FILE || f.codexAuthFile || ""),
   };
 }
 
@@ -108,6 +131,10 @@ export const envOverrides = (env: Record<string, string | undefined> = process.e
       ["token", "TOKEN"],
       ["openrouterKey", "OPENROUTER_API_KEY"],
       ["usageApi", "DAS_USAGE_API"],
+      ["orchestrator", "DAS_ORCHESTRATOR"],
+      ["orchestratorProvider", "DAS_ORCHESTRATOR_PROVIDER"],
+      ["orchestratorModel", "DAS_ORCHESTRATOR_MODEL"],
+      ["codexAuthFile", "DAS_CODEX_AUTH_FILE"],
     ] as const
   ).flatMap(([k, e]) => (env[e] ? [k] : []));
 
