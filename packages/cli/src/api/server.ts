@@ -124,8 +124,13 @@ function parseSettings(b: any): { patch: Partial<Config> } | { error: string } {
       return { error: "orchestratorProvider must be openrouter or openai" };
     patch.orchestratorProvider = b.orchestratorProvider;
   }
+  if (b?.classifierProvider !== undefined) {
+    if (b.classifierProvider !== "openrouter" && b.classifierProvider !== "openai")
+      return { error: "classifierProvider must be openrouter or openai" };
+    patch.classifierProvider = b.classifierProvider;
+  }
   // "" clears either back to its default.
-  for (const k of ["orchestratorModel", "codexAuthFile"] as const) {
+  for (const k of ["orchestratorModel", "classifierModel", "codexAuthFile"] as const) {
     if (b?.[k] === undefined) continue;
     if (typeof b[k] !== "string") return { error: `${k} must be a string` };
     patch[k] = b[k].trim();
@@ -227,6 +232,8 @@ export function createServer({
       orchestrator: c.orchestrator,
       orchestratorProvider: c.orchestratorProvider,
       orchestratorModel: c.orchestratorModel,
+      classifierProvider: c.classifierProvider,
+      classifierModel: c.classifierModel,
       codexAuthFile: c.codexAuthFile,
       envOverrides: envOverrides(),
       trustAdvice: trustAdvice(c.roots, getProjects(), trusted()),
