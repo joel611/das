@@ -261,13 +261,15 @@ export async function createOrchestrator(deps: OrchestratorDeps): Promise<Orches
         clearTimeout(timer);
       }
       if (settled.status !== "done" || settled.type !== "input") {
-        log({
-          ...base,
-          ...iMeta,
-          outcome: "error",
-          reason: settled.status === "unanswered" ? settled.reason : "",
-        });
-        return { status: "error", text: "I couldn't answer that" };
+        const reason = settled.status === "unanswered" ? settled.reason : "";
+        const detail = settled.status === "unanswered" ? settled.detail : undefined;
+        log({ ...base, ...iMeta, outcome: "error", reason, detail });
+        // The detail names the cause, such as a missing OpenRouter key, for the desktop to show.
+        const why = typeof detail === "string" ? detail : reason;
+        return {
+          status: "error",
+          text: `I couldn't answer that${why ? ` (${why.slice(0, 200)})` : ""}`,
+        };
       }
       const answer = (await answerText(settled.answer)) || "Done.";
       const spawned = dispatched.slice(before).at(-1);
