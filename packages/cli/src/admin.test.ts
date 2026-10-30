@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import {
   existsSync,
@@ -40,7 +41,9 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     usageApi: false,
     notificationSound: false,
     orchestrator: "jev",
-    orchestratorModel: "anthropic/claude-haiku-5.5",
+    orchestratorProvider: "openrouter",
+    orchestratorModel: "",
+    piAuthFile: "",
   });
   writeSettingsFile({ roots: ["/a", "/b"], port: 5000, token: "t", openrouterKey: "k" }, dir);
   writeSettingsFile({ port: 5001 }, dir);
@@ -59,7 +62,9 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     usageApi: false,
     notificationSound: false,
     orchestrator: "jev",
-    orchestratorModel: "anthropic/claude-haiku-5.5",
+    orchestratorProvider: "openrouter",
+    orchestratorModel: "",
+    piAuthFile: "",
   });
   expect(
     loadConfig(dir, { PROJECT_ROOTS: "/c", PORT: "6000", TOKEN: "e", OPENROUTER_API_KEY: "ek" }),
@@ -71,7 +76,9 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     usageApi: false,
     notificationSound: false,
     orchestrator: "jev",
-    orchestratorModel: "anthropic/claude-haiku-5.5",
+    orchestratorProvider: "openrouter",
+    orchestratorModel: "",
+    piAuthFile: "",
   });
   writeSettingsFile({ usageApi: true }, dir);
   expect(loadConfig(dir, {}).usageApi).toBe(true);
@@ -86,6 +93,14 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
   expect(loadConfig(dir, { DAS_ORCHESTRATOR: "jev" }).orchestrator).toBe("jev");
   writeSettingsFile({ orchestrator: "bogus" as any }, dir);
   expect(loadConfig(dir, {}).orchestrator).toBe("jev");
+  writeSettingsFile({ orchestratorProvider: "openai", piAuthFile: "~/pi/auth.json" }, dir);
+  expect(loadConfig(dir, {})).toMatchObject({
+    orchestratorProvider: "openai",
+    piAuthFile: `${homedir()}/pi/auth.json`,
+  });
+  expect(loadConfig(dir, { DAS_ORCHESTRATOR_PROVIDER: "openrouter" }).orchestratorProvider).toBe(
+    "openrouter",
+  );
 });
 
 test("config.yml: hand-written YAML with comments is read", () => {
@@ -102,7 +117,9 @@ test("config.yml: hand-written YAML with comments is read", () => {
     usageApi: false,
     notificationSound: false,
     orchestrator: "jev",
-    orchestratorModel: "anthropic/claude-haiku-5.5",
+    orchestratorProvider: "openrouter",
+    orchestratorModel: "",
+    piAuthFile: "",
   });
   expect(loadConfig(dir, { PORT: "1234" }).port).toBe(1234);
 });

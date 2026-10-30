@@ -149,7 +149,9 @@ export function Settings() {
   const [clearKey, setClearKey] = useState(false);
   const [usageApi, setUsageApi] = useState(false);
   const [piOrchestrator, setPiOrchestrator] = useState(false);
+  const [useSubscription, setUseSubscription] = useState(false);
   const [orchestratorModel, setOrchestratorModel] = useState("");
+  const [piAuthFile, setPiAuthFile] = useState("");
   const [loaded, setLoaded] = useState(false);
   const saving = saveSettings.isPending;
 
@@ -160,7 +162,9 @@ export function Settings() {
       setPort(String(s.port));
       setUsageApi(s.usageApi);
       setPiOrchestrator(s.orchestrator === "pi");
+      setUseSubscription(s.orchestratorProvider === "openai");
       setOrchestratorModel(s.orchestratorModel);
+      setPiAuthFile(s.piAuthFile);
       setLoaded(true);
     }
   }, [s, loaded]);
@@ -174,12 +178,16 @@ export function Settings() {
       port: Number(port),
       usageApi,
       orchestrator: piOrchestrator ? "pi" : "jev",
+      orchestratorProvider: useSubscription ? "openai" : "openrouter",
+      orchestratorModel: orchestratorModel.trim(),
+      piAuthFile: piAuthFile.trim(),
     };
-    if (orchestratorModel.trim()) patch.orchestratorModel = orchestratorModel.trim();
     const orchestratorChanged =
       !!s &&
       (patch.orchestrator !== s.orchestrator ||
-        (!!patch.orchestratorModel && patch.orchestratorModel !== s.orchestratorModel));
+        patch.orchestratorProvider !== s.orchestratorProvider ||
+        patch.orchestratorModel !== s.orchestratorModel ||
+        patch.piAuthFile !== s.piAuthFile);
     if (clearToken) patch.token = "";
     else if (token) patch.token = token;
     if (clearKey) patch.openrouterKey = "";
@@ -361,15 +369,45 @@ export function Settings() {
                 </p>
               </div>
             </div>
+            <div className="flex items-start gap-3">
+              <Switch
+                id="orchestrator-subscription"
+                checked={useSubscription}
+                onCheckedChange={setUseSubscription}
+                disabled={!piOrchestrator}
+              />
+              <div className="flex flex-col gap-1">
+                <Label htmlFor="orchestrator-subscription">
+                  Use my ChatGPT subscription instead of OpenRouter
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Uses the OpenAI login pi saved on this computer (run pi, then /login and pick
+                  OpenAI). pi and das share the file, so either can refresh the token.
+                </p>
+              </div>
+            </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="orchestrator-model">Orchestrator model (OpenRouter id)</Label>
+              <Label htmlFor="orchestrator-model">Orchestrator model</Label>
               <Input
                 id="orchestrator-model"
                 value={orchestratorModel}
                 onChange={(e) => setOrchestratorModel(e.target.value)}
+                placeholder={useSubscription ? "gpt-6-luna" : "anthropic/claude-haiku-5.5"}
                 disabled={!piOrchestrator}
               />
             </div>
+            {useSubscription ? (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="pi-auth-file">pi login file</Label>
+                <Input
+                  id="pi-auth-file"
+                  value={piAuthFile}
+                  onChange={(e) => setPiAuthFile(e.target.value)}
+                  placeholder="~/.pi/agent/auth.json"
+                  disabled={!piOrchestrator}
+                />
+              </div>
+            ) : null}
           </CardContent>
           <CardFooter>
             <Button onClick={save} disabled={saving || !loaded}>

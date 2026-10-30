@@ -113,10 +113,16 @@ function parseSettings(b: any): { patch: Partial<Config> } | { error: string } {
       return { error: "orchestrator must be jev or pi" };
     patch.orchestrator = b.orchestrator;
   }
-  if (b?.orchestratorModel !== undefined) {
-    if (typeof b.orchestratorModel !== "string" || !b.orchestratorModel.trim())
-      return { error: "orchestratorModel must be a non-empty string" };
-    patch.orchestratorModel = b.orchestratorModel.trim();
+  if (b?.orchestratorProvider !== undefined) {
+    if (b.orchestratorProvider !== "openrouter" && b.orchestratorProvider !== "openai")
+      return { error: "orchestratorProvider must be openrouter or openai" };
+    patch.orchestratorProvider = b.orchestratorProvider;
+  }
+  // "" clears either back to its default.
+  for (const k of ["orchestratorModel", "piAuthFile"] as const) {
+    if (b?.[k] === undefined) continue;
+    if (typeof b[k] !== "string") return { error: `${k} must be a string` };
+    patch[k] = b[k].trim();
   }
   for (const k of ["token", "openrouterKey"] as const) {
     if (b?.[k] === undefined) continue;
@@ -212,7 +218,9 @@ export function createServer({
       usageApi: c.usageApi,
       notificationSound: c.notificationSound,
       orchestrator: c.orchestrator,
+      orchestratorProvider: c.orchestratorProvider,
       orchestratorModel: c.orchestratorModel,
+      piAuthFile: c.piAuthFile,
       envOverrides: envOverrides(),
       trustAdvice: trustAdvice(c.roots, getProjects(), trusted()),
     };

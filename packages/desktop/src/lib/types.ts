@@ -96,7 +96,9 @@ export type Settings = {
   usageApi: boolean;
   notificationSound: boolean;
   orchestrator: "jev" | "pi";
+  orchestratorProvider: "openrouter" | "openai";
   orchestratorModel: string;
+  piAuthFile: string;
   envOverrides: string[];
   trustAdvice: string | null;
   restartRequired?: boolean;
@@ -110,7 +112,9 @@ export type SettingsPatch = Partial<{
   usageApi: boolean;
   notificationSound: boolean;
   orchestrator: "jev" | "pi";
+  orchestratorProvider: "openrouter" | "openai";
   orchestratorModel: string;
+  piAuthFile: string;
 }>;
 
 export type HookStatus = {
