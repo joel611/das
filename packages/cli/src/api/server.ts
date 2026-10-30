@@ -9,7 +9,7 @@ import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
 import { installOmp, ompStatus, uninstallOmp } from "../omp-extension";
 import type { Project } from "../scanner";
 import { emit, LogHub, type Logs } from "../logs";
-import { jevDecider, type Decider } from "../router";
+import { jevDecider, jevIntentClassifier, type Decider, type IntentClassifier } from "../router";
 import { SessionTracker, type HookPayload, type SessionState } from "../sessions";
 import { claudeSpawner, type Spawner } from "../spawner";
 import { isTrusted, trustAdvice, trustedPaths } from "../trust";
@@ -43,6 +43,8 @@ type Opts = {
   getToken?: () => string;
   getProjects: () => Project[];
   decider?: Decider;
+  /** Step one of routing. Defaults to Jev only alongside the Jev decider, so a stubbed decider is never preceded by a real API call. */
+  classifyIntent?: IntentClassifier;
   spawner?: Spawner;
   decisionsLog?: string;
   /** Admin API: settings dir and Claude config dir. Without them the matching endpoints answer 501 (never guess a real path). */
@@ -116,6 +118,7 @@ export function createServer({
   getToken,
   getProjects,
   decider = jevDecider,
+  classifyIntent = decider === jevDecider ? jevIntentClassifier : undefined,
   spawner = claudeSpawner,
   decisionsLog,
   configDir,
@@ -129,14 +132,16 @@ export function createServer({
 }: Opts) {
   const hub = new LogHub();
   const logs: Logs = { api: hub.tee("api", sinks.api), ws: hub.tee("ws", sinks.ws) };
+  const tracker = new SessionTracker(getProjects);
   const voice: VoiceDeps = {
     decider,
+    classifyIntent,
+    getSessions: () => tracker.list(),
     spawner,
     getProjects,
     pending: new Map(),
     logPath: decisionsLog,
   };
-  const tracker = new SessionTracker(getProjects);
   const usage = new UsageTracker(
     join(claudeDir ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), ".claude"), "projects"),
   );

@@ -2,18 +2,25 @@ import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import {
   applyBands,
+  intentThreshold,
   thresholds as defaultThresholds,
   type Band,
   type Decider,
+  type IntentClassifier,
+  type IntentDecision,
   type Thresholds,
 } from "./router";
 import type { Project } from "./scanner";
+import type { Session } from "./sessions";
 import type { Spawner } from "./spawner";
+import { statusText } from "./status";
 
 export const MAX_TRANSCRIPT = 1000;
 const PENDING_TTL_MS = 2 * 60_000;
 
 export type VoiceDebug = {
+  intent: IntentDecision["intent"] | null;
+  intentConfidence: number | null;
   choice: string | null;
   confidence: number;
   band: Band;
@@ -26,7 +33,8 @@ export type VoiceDebug = {
   thresholds: Thresholds;
 };
 export type VoiceResult = {
-  status: "spawned" | "dry-run" | "ask" | "escalate" | "error";
+  /** `status`: answered "what's running?". `reply`: the orchestrator answered in words. */
+  status: "spawned" | "dry-run" | "ask" | "escalate" | "error" | "status" | "reply";
   text: string;
   project?: string;
   sessionId?: string;
@@ -37,6 +45,10 @@ export type VoiceOpts = { dryRun?: boolean; debug?: boolean };
 
 export type VoiceDeps = {
   decider: Decider;
+  /** Step one: classify the request before picking a project. Absent: every request is treated as project work. */
+  classifyIntent?: IntentClassifier;
+  /** Answers status requests. */
+  getSessions?: () => Session[];
   spawner: Spawner;
   getProjects: () => Project[];
   pending: Map<string, { previous: string; candidates: string[]; at: number }>;
@@ -55,6 +67,22 @@ const log = (deps: VoiceDeps, entry: Record<string, unknown>) => {
 };
 
 const SORRY = "Sorry, I didn't catch that";
+const NOT_A_TASK = "I can start coding tasks or tell you what's running";
+
+const emptyDebug = (deps: VoiceDeps): VoiceDebug => ({
+  intent: null,
+  intentConfidence: null,
+  choice: null,
+  confidence: 0,
+  band: "escalate",
+  probabilities: {},
+  alternatives: [],
+  worktree: null,
+  cwd: null,
+  wouldSpawn: false,
+  name: null,
+  thresholds: deps.thresholds ?? defaultThresholds,
+});
 
 export async function handleTranscript(
   deps: VoiceDeps,
@@ -90,13 +118,37 @@ export async function handleTranscript(
       ? { previous: p.previous, candidates: p.candidates }
       : undefined;
 
+  // A reply to a clarifying question is always project work, so it skips step one.
+  let intent: IntentDecision | undefined;
+  let iMeta = {};
+  if (deps.classifyIntent && !ctx) {
+    try {
+      intent = await deps.classifyIntent(text);
+    } catch (e) {
+      return done(
+        { status: "error", text: e instanceof Error ? e.message : "intent failed" },
+        { error: String(e), step: "intent" },
+      );
+    }
+    iMeta = { intent: intent.intent, intentConfidence: intent.confidence };
+    const sure = intent.confidence >= intentThreshold;
+    if (sure && intent.intent === "status" && deps.getSessions) {
+      debug = { ...emptyDebug(deps), intent: intent.intent, intentConfidence: intent.confidence };
+      return done({ status: "status", text: statusText(deps.getSessions()) }, iMeta);
+    }
+    if (sure && intent.intent === "other") {
+      debug = { ...emptyDebug(deps), intent: intent.intent, intentConfidence: intent.confidence };
+      return done({ status: "escalate", text: NOT_A_TASK }, { ...iMeta, band: "escalate" });
+    }
+  }
+
   let d;
   try {
     d = await deps.decider(text, projects, ctx);
   } catch (e) {
     return done(
       { status: "error", text: e instanceof Error ? e.message : "decision failed" },
-      { error: String(e) },
+      { ...iMeta, error: String(e) },
     );
   }
   const project = projects.find((x) => x.name === d.project);
@@ -105,6 +157,7 @@ export async function handleTranscript(
       ? "escalate"
       : applyBands(d, deps.thresholds ?? defaultThresholds);
   const meta = {
+    ...iMeta,
     choice: d.project,
     confidence: d.confidence,
     probabilities: Object.fromEntries(d.alternatives.map((a) => [a.project, a.p])),
@@ -125,6 +178,8 @@ export async function handleTranscript(
         .slice(0, 64)
     : null;
   debug = {
+    intent: intent?.intent ?? null,
+    intentConfidence: intent?.confidence ?? null,
     choice: d.project,
     confidence: d.confidence,
     band,

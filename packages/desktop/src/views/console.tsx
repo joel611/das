@@ -22,6 +22,11 @@ function Debug({ r }: { r: VoiceReply }) {
   if (!d) return null;
   return (
     <div className="mt-2 flex flex-col gap-1 rounded-md border border-dashed p-2 text-xs">
+      {d.intent && (
+        <div>
+          intent: <b>{d.intent}</b> · confidence: <b>{d.intentConfidence?.toFixed(2)}</b>
+        </div>
+      )}
       <div>
         choice: <b>{d.choice ?? "none"}</b> · confidence: <b>{d.confidence.toFixed(2)}</b> · band:{" "}
         <b>{d.band}</b>
@@ -55,6 +60,8 @@ const STATUS_STYLE: Record<
   ask: "outline",
   escalate: "outline",
   error: "destructive",
+  status: "secondary",
+  reply: "secondary",
 };
 
 export function Console() {

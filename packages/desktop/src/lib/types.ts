@@ -123,6 +123,9 @@ export type OmpStatus = {
 };
 
 export type VoiceDebug = {
+  /** Step one of routing; null when it was skipped (a clarification answer). */
+  intent: "project" | "status" | "other" | null;
+  intentConfidence: number | null;
   choice: string | null;
   confidence: number;
   band: string;
@@ -136,7 +139,7 @@ export type VoiceDebug = {
 };
 
 export type VoiceReply = {
-  status: "spawned" | "dry-run" | "ask" | "escalate" | "error";
+  status: "spawned" | "dry-run" | "ask" | "escalate" | "error" | "status" | "reply";
   text: string;
   project?: string;
   sessionId?: string;

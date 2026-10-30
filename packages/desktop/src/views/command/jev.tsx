@@ -31,6 +31,8 @@ const STATUS_TONE: Record<VoiceReply["status"], string> = {
   ask: "text-neon-amber",
   escalate: "text-neon-amber",
   error: "text-neon-pink",
+  status: "text-neon-cyan",
+  reply: "text-neon-cyan",
 };
 
 function Orb({ hot }: { hot: boolean }) {
@@ -144,6 +146,8 @@ function RouteCard({ r }: { r: VoiceReply }) {
   const d = r.debug;
   const project = r.project ?? d?.choice;
   if (!project && !d) return null;
+  // Status answers and plain replies picked no project, so there is no route to show.
+  if (!r.project && (r.status === "status" || r.status === "reply")) return null;
   const worktree = d?.name
     ? `new: ${d.name}`
     : d?.worktree
