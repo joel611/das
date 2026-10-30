@@ -11,7 +11,14 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { configDir, loadConfig, openrouterKeySource, reloadConfig, readSettingsFile, writeSettingsFile } from "./config";
+import {
+  configDir,
+  loadConfig,
+  openrouterKeySource,
+  reloadConfig,
+  readSettingsFile,
+  writeSettingsFile,
+} from "./config";
 import { createServer } from "./api/server";
 import type { Project } from "./scanner";
 
