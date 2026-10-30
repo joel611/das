@@ -254,7 +254,7 @@ export function Settings() {
     <Tabs defaultValue="daemon">
       <TabsList>
         <TabsTrigger value="daemon">Daemon</TabsTrigger>
-        <TabsTrigger value="provider">Orchestrator</TabsTrigger>
+        <TabsTrigger value="orchestrator">Orchestrator</TabsTrigger>
         <TabsTrigger value="agent">Agent</TabsTrigger>
         <TabsTrigger value="theme">Theme</TabsTrigger>
         <TabsTrigger value="device">Device</TabsTrigger>
@@ -323,7 +323,7 @@ export function Settings() {
         ) : null}
       </TabsContent>
 
-      <TabsContent value="provider" className="flex flex-col gap-4">
+      <TabsContent value="orchestrator" className="flex flex-col gap-4">
         <Card>
           <CardHeader>
             <CardTitle>Provider</CardTitle>
