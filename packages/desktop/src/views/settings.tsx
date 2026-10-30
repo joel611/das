@@ -254,7 +254,7 @@ export function Settings() {
     <Tabs defaultValue="daemon">
       <TabsList>
         <TabsTrigger value="daemon">Daemon</TabsTrigger>
-        <TabsTrigger value="provider">Provider</TabsTrigger>
+        <TabsTrigger value="provider">Orchestrator</TabsTrigger>
         <TabsTrigger value="agent">Agent</TabsTrigger>
         <TabsTrigger value="theme">Theme</TabsTrigger>
         <TabsTrigger value="device">Device</TabsTrigger>
