@@ -5,7 +5,6 @@
   "scripts": {
     "daemon": "bun src/daemon.ts",
     "dev": "bun --watch src/daemon.ts",
-    "dev:all": "bun run dev",
     "test": "bun test"
   },
   "dependencies": {
