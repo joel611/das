@@ -151,7 +151,7 @@ export function Settings() {
   const [piOrchestrator, setPiOrchestrator] = useState(false);
   const [useSubscription, setUseSubscription] = useState(false);
   const [orchestratorModel, setOrchestratorModel] = useState("");
-  const [piAuthFile, setPiAuthFile] = useState("");
+  const [codexAuthFile, setCodexAuthFile] = useState("");
   const [loaded, setLoaded] = useState(false);
   const saving = saveSettings.isPending;
 
@@ -164,7 +164,7 @@ export function Settings() {
       setPiOrchestrator(s.orchestrator === "pi");
       setUseSubscription(s.orchestratorProvider === "openai");
       setOrchestratorModel(s.orchestratorModel);
-      setPiAuthFile(s.piAuthFile);
+      setCodexAuthFile(s.codexAuthFile);
       setLoaded(true);
     }
   }, [s, loaded]);
@@ -180,14 +180,14 @@ export function Settings() {
       orchestrator: piOrchestrator ? "pi" : "jev",
       orchestratorProvider: useSubscription ? "openai" : "openrouter",
       orchestratorModel: orchestratorModel.trim(),
-      piAuthFile: piAuthFile.trim(),
+      codexAuthFile: codexAuthFile.trim(),
     };
     const orchestratorChanged =
       !!s &&
       (patch.orchestrator !== s.orchestrator ||
         patch.orchestratorProvider !== s.orchestratorProvider ||
         patch.orchestratorModel !== s.orchestratorModel ||
-        patch.piAuthFile !== s.piAuthFile);
+        patch.codexAuthFile !== s.codexAuthFile);
     if (clearToken) patch.token = "";
     else if (token) patch.token = token;
     if (clearKey) patch.openrouterKey = "";
@@ -381,8 +381,8 @@ export function Settings() {
                   Use my ChatGPT subscription instead of OpenRouter
                 </Label>
                 <p className="text-xs text-muted-foreground">
-                  Uses the OpenAI login pi saved on this computer (run pi, then /login and pick
-                  OpenAI). pi and das share the file, so either can refresh the token.
+                  Uses the ChatGPT login the Codex CLI saved on this computer (run codex login).
+                  Codex and das share the file, so either can refresh the token.
                 </p>
               </div>
             </div>
@@ -398,12 +398,12 @@ export function Settings() {
             </div>
             {useSubscription ? (
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="pi-auth-file">pi login file</Label>
+                <Label htmlFor="pi-auth-file">Codex login file</Label>
                 <Input
                   id="pi-auth-file"
-                  value={piAuthFile}
-                  onChange={(e) => setPiAuthFile(e.target.value)}
-                  placeholder="~/.pi/agent/auth.json"
+                  value={codexAuthFile}
+                  onChange={(e) => setCodexAuthFile(e.target.value)}
+                  placeholder="~/.codex/auth.json"
                   disabled={!piOrchestrator}
                 />
               </div>

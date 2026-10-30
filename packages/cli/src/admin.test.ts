@@ -43,7 +43,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     orchestrator: "jev",
     orchestratorProvider: "openrouter",
     orchestratorModel: "",
-    piAuthFile: "",
+    codexAuthFile: "",
   });
   writeSettingsFile({ roots: ["/a", "/b"], port: 5000, token: "t", openrouterKey: "k" }, dir);
   writeSettingsFile({ port: 5001 }, dir);
@@ -64,7 +64,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     orchestrator: "jev",
     orchestratorProvider: "openrouter",
     orchestratorModel: "",
-    piAuthFile: "",
+    codexAuthFile: "",
   });
   expect(
     loadConfig(dir, { PROJECT_ROOTS: "/c", PORT: "6000", TOKEN: "e", OPENROUTER_API_KEY: "ek" }),
@@ -78,7 +78,7 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     orchestrator: "jev",
     orchestratorProvider: "openrouter",
     orchestratorModel: "",
-    piAuthFile: "",
+    codexAuthFile: "",
   });
   writeSettingsFile({ usageApi: true }, dir);
   expect(loadConfig(dir, {}).usageApi).toBe(true);
@@ -93,10 +93,10 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
   expect(loadConfig(dir, { DAS_ORCHESTRATOR: "jev" }).orchestrator).toBe("jev");
   writeSettingsFile({ orchestrator: "bogus" as any }, dir);
   expect(loadConfig(dir, {}).orchestrator).toBe("jev");
-  writeSettingsFile({ orchestratorProvider: "openai", piAuthFile: "~/pi/auth.json" }, dir);
+  writeSettingsFile({ orchestratorProvider: "openai", codexAuthFile: "~/pi/auth.json" }, dir);
   expect(loadConfig(dir, {})).toMatchObject({
     orchestratorProvider: "openai",
-    piAuthFile: `${homedir()}/pi/auth.json`,
+    codexAuthFile: `${homedir()}/pi/auth.json`,
   });
   expect(loadConfig(dir, { DAS_ORCHESTRATOR_PROVIDER: "openrouter" }).orchestratorProvider).toBe(
     "openrouter",
@@ -119,7 +119,7 @@ test("config.yml: hand-written YAML with comments is read", () => {
     orchestrator: "jev",
     orchestratorProvider: "openrouter",
     orchestratorModel: "",
-    piAuthFile: "",
+    codexAuthFile: "",
   });
   expect(loadConfig(dir, { PORT: "1234" }).port).toBe(1234);
 });

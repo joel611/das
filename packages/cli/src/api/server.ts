@@ -119,7 +119,7 @@ function parseSettings(b: any): { patch: Partial<Config> } | { error: string } {
     patch.orchestratorProvider = b.orchestratorProvider;
   }
   // "" clears either back to its default.
-  for (const k of ["orchestratorModel", "piAuthFile"] as const) {
+  for (const k of ["orchestratorModel", "codexAuthFile"] as const) {
     if (b?.[k] === undefined) continue;
     if (typeof b[k] !== "string") return { error: `${k} must be a string` };
     patch[k] = b[k].trim();
@@ -220,7 +220,7 @@ export function createServer({
       orchestrator: c.orchestrator,
       orchestratorProvider: c.orchestratorProvider,
       orchestratorModel: c.orchestratorModel,
-      piAuthFile: c.piAuthFile,
+      codexAuthFile: c.codexAuthFile,
       envOverrides: envOverrides(),
       trustAdvice: trustAdvice(c.roots, getProjects(), trusted()),
     };

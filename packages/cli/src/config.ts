@@ -14,13 +14,13 @@ export type Config = {
   orchestrator: "jev" | "pi";
   /**
    * Where the orchestrator's model runs: OpenRouter with `openrouterKey`, or OpenAI with the ChatGPT
-   * subscription you signed in to with pi (`/login`), read from pi's auth.json.
+   * subscription you signed in to with `codex login`, read from Codex's auth.json.
    */
   orchestratorProvider: "openrouter" | "openai";
   /** Model id for that provider; empty uses the provider's default. */
   orchestratorModel: string;
-  /** pi's login file for `orchestratorProvider: openai`; empty uses `~/.pi/agent/auth.json`. */
-  piAuthFile: string;
+  /** Codex's login file for `orchestratorProvider: openai`; empty uses `~/.codex/auth.json`. */
+  codexAuthFile: string;
 };
 
 export const DEFAULT_ORCHESTRATOR_MODELS: Record<Config["orchestratorProvider"], string> = {
@@ -96,7 +96,7 @@ export function loadConfig(
         ? "openai"
         : "openrouter",
     orchestratorModel: env.DAS_ORCHESTRATOR_MODEL || f.orchestratorModel || "",
-    piAuthFile: expand(env.DAS_PI_AUTH_FILE || f.piAuthFile || ""),
+    codexAuthFile: expand(env.DAS_CODEX_AUTH_FILE || f.codexAuthFile || ""),
   };
 }
 
@@ -134,7 +134,7 @@ export const envOverrides = (env: Record<string, string | undefined> = process.e
       ["orchestrator", "DAS_ORCHESTRATOR"],
       ["orchestratorProvider", "DAS_ORCHESTRATOR_PROVIDER"],
       ["orchestratorModel", "DAS_ORCHESTRATOR_MODEL"],
-      ["piAuthFile", "DAS_PI_AUTH_FILE"],
+      ["codexAuthFile", "DAS_CODEX_AUTH_FILE"],
     ] as const
   ).flatMap(([k, e]) => (env[e] ? [k] : []));
 
