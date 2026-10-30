@@ -36,6 +36,8 @@ function Secret(props: {
   id: string;
   label: string;
   isSet: boolean;
+  /** Shown instead of the generic placeholder when the value is an env default. */
+  envHint?: string;
   value: string;
   clear: boolean;
   onValue: (v: string) => void;
@@ -49,11 +51,11 @@ function Secret(props: {
           id={props.id}
           type="password"
           autoComplete="off"
-          placeholder={props.isSet ? "(set) type to replace" : "(none)"}
+          placeholder={props.envHint ?? (props.isSet ? "(set) type to replace" : "(none)")}
           value={props.value}
           onChange={(e) => props.onValue(e.target.value)}
         />
-        {props.isSet ? (
+        {props.isSet && !props.envHint ? (
           <div className="flex shrink-0 items-center gap-2">
             <Checkbox
               id={`${props.id}-clear`}
@@ -336,6 +338,11 @@ export function Settings() {
               id="key"
               label="OpenRouter API key (voice routing)"
               isSet={!!s?.hasOpenrouterKey}
+              envHint={
+                s?.openrouterKeySource === "env"
+                  ? "Using OPENROUTER_API_KEY from the daemon's environment; type to override"
+                  : undefined
+              }
               value={key}
               clear={clearKey}
               onValue={setKey}

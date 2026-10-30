@@ -3,7 +3,13 @@ import { Hono, type Context } from "hono";
 import { realpathSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { envOverrides, loadConfig, writeSettingsFile, type Config } from "../config";
+import {
+  envOverrides,
+  loadConfig,
+  openrouterKeySource,
+  writeSettingsFile,
+  type Config,
+} from "../config";
 import { computeDisplay, soundFor, type Signal } from "../display";
 import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
 import { installOmp, ompStatus, uninstallOmp } from "../omp-extension";
@@ -215,6 +221,7 @@ export function createServer({
       port: c.port,
       hasToken: !!c.token,
       hasOpenrouterKey: !!c.openrouterKey,
+      openrouterKeySource: openrouterKeySource(configDir),
       usageApi: c.usageApi,
       notificationSound: c.notificationSound,
       orchestrator: c.orchestrator,
