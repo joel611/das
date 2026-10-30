@@ -35,7 +35,7 @@ export async function openaiSubscriptionModels(
 }
 
 /** OpenRouter with the das key, read live from the daemon's config (settings file or env) like the Jev classifiers. */
-function openrouterModels(c: Pick<Config, "orchestratorModel">): ModelSetup {
+export function openrouterModels(c: Pick<Config, "orchestratorModel">): ModelSetup {
   const models = createModels({
     authContext: {
       env: async (name) =>

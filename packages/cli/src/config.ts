@@ -19,8 +19,17 @@ export type Config = {
   orchestratorProvider: "openrouter" | "openai";
   /** Model id for that provider; empty uses the provider's default. */
   orchestratorModel: string;
-  /** Codex's login file for `orchestratorProvider: openai`; empty uses `~/.codex/auth.json`. */
+  /** Where the Jev routing classifiers run; same providers as the orchestrator. */
+  classifierProvider: "openrouter" | "openai";
+  /** Model id for that provider; empty uses the provider's default. */
+  classifierModel: string;
+  /** Codex's login file for the `openai` provider; empty uses `~/.codex/auth.json`. */
   codexAuthFile: string;
+};
+
+export const DEFAULT_CLASSIFIER_MODELS: Record<Config["classifierProvider"], string> = {
+  openrouter: "typesafe/jev-1.13",
+  openai: "gpt-6-luna",
 };
 
 export const DEFAULT_ORCHESTRATOR_MODELS: Record<Config["orchestratorProvider"], string> = {
@@ -97,6 +106,9 @@ export function loadConfig(
         ? "openai"
         : "openrouter",
     orchestratorModel: env.DAS_ORCHESTRATOR_MODEL || f.orchestratorModel || "",
+    classifierProvider:
+      (env.DAS_CLASSIFIER_PROVIDER || f.classifierProvider) === "openai" ? "openai" : "openrouter",
+    classifierModel: env.DAS_CLASSIFIER_MODEL || f.classifierModel || "",
     codexAuthFile: expand(env.DAS_CODEX_AUTH_FILE || f.codexAuthFile || ""),
   };
 }
@@ -141,6 +153,8 @@ export const envOverrides = (env: Record<string, string | undefined> = process.e
       ["orchestrator", "DAS_ORCHESTRATOR"],
       ["orchestratorProvider", "DAS_ORCHESTRATOR_PROVIDER"],
       ["orchestratorModel", "DAS_ORCHESTRATOR_MODEL"],
+      ["classifierProvider", "DAS_CLASSIFIER_PROVIDER"],
+      ["classifierModel", "DAS_CLASSIFIER_MODEL"],
       ["codexAuthFile", "DAS_CODEX_AUTH_FILE"],
     ] as const
   ).flatMap(([k, e]) => (env[e] ? [k] : []));

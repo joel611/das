@@ -50,6 +50,8 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     orchestrator: "jev",
     orchestratorProvider: "openrouter",
     orchestratorModel: "",
+    classifierProvider: "openrouter",
+    classifierModel: "",
     codexAuthFile: "",
   });
   writeSettingsFile({ roots: ["/a", "/b"], port: 5000, token: "t", openrouterKey: "k" }, dir);
@@ -71,6 +73,8 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     orchestrator: "jev",
     orchestratorProvider: "openrouter",
     orchestratorModel: "",
+    classifierProvider: "openrouter",
+    classifierModel: "",
     codexAuthFile: "",
   });
   expect(
@@ -85,6 +89,8 @@ test("settings file: 0600, merge, precedence env > file > defaults", () => {
     orchestrator: "jev",
     orchestratorProvider: "openrouter",
     orchestratorModel: "",
+    classifierProvider: "openrouter",
+    classifierModel: "",
     codexAuthFile: "",
   });
   expect(openrouterKeySource(dir, { OPENROUTER_API_KEY: "ek" })).toBe("settings");
@@ -131,6 +137,8 @@ test("config.yml: hand-written YAML with comments is read", () => {
     orchestrator: "jev",
     orchestratorProvider: "openrouter",
     orchestratorModel: "",
+    classifierProvider: "openrouter",
+    classifierModel: "",
     codexAuthFile: "",
   });
   expect(loadConfig(dir, { PORT: "1234" }).port).toBe(1234);

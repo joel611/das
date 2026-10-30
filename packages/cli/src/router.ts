@@ -1,4 +1,4 @@
-import { config } from "./config";
+import { config, DEFAULT_CLASSIFIER_MODELS } from "./config";
 import type { Project } from "./scanner";
 
 export type Decision = {
@@ -33,7 +33,9 @@ export function applyBands(
   return d.confidence >= t.act ? "spawn" : "ask";
 }
 
-const MODEL = "typesafe/jev-1.13";
+/** The classifier model, read live so a saved setting applies without a restart. */
+const classifierModel = () =>
+  config.classifierModel || DEFAULT_CLASSIFIER_MODELS[config.classifierProvider];
 const URL_ = "https://openrouter.ai/api/alpha/decisions";
 const LOW_WORKTREE_CONFIDENCE = 0.5;
 
@@ -76,7 +78,7 @@ export function buildRequest(transcript: string, projects: Project[], context?: 
       criteria: wc,
     };
   }
-  return { model: MODEL, state, questions };
+  return { model: classifierModel(), state, questions };
 }
 
 type Answer = { choice: string; confidence: number; probabilities?: Record<string, number> };
@@ -104,8 +106,19 @@ export function parseResponse(json: any, projects: Project[]): Decision {
   return d;
 }
 
-/** POST one OpenRouter decisions request; throws on a missing key or an HTTP error. */
-async function postDecision(body: unknown, apiKey?: string, f: typeof fetch = fetch) {
+/**
+ * Answer one decisions request. Only `typesafe/*` models on OpenRouter speak the decisions API; any
+ * other model, and the ChatGPT subscription, answer the same questions through a chat completion.
+ * Throws on a missing key or an HTTP error.
+ */
+async function postDecision(
+  body: { model: string; state: unknown; questions: unknown },
+  apiKey?: string,
+  f?: typeof fetch,
+) {
+  if (!apiKey && !f && (config.classifierProvider === "openai" || !body.model.startsWith("typesafe/")))
+    return (await import("./llm-decision")).llmDecision(body);
+  f ??= fetch;
   const key = apiKey ?? config.openrouterKey;
   if (!key) throw new Error("OPENROUTER_API_KEY is not set");
   const res = await f(URL_, {
@@ -149,7 +162,7 @@ const INTENTS: Record<Intent, string> = {
 /** Build the OpenRouter decisions request body for the intent question. */
 export function buildIntentRequest(transcript: string) {
   return {
-    model: MODEL,
+    model: classifierModel(),
     state: { transcript },
     questions: {
       intent: {

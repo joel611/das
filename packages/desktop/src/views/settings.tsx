@@ -15,6 +15,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,7 +34,59 @@ import {
   useSaveSettings,
   useSettings,
 } from "@/lib/queries";
-import type { SettingsPatch } from "@/lib/types";
+import type { Settings as SettingsData, SettingsPatch } from "@/lib/types";
+
+type ProviderId = SettingsData["orchestratorProvider"];
+
+const PROVIDERS: { id: ProviderId; label: string }[] = [
+  { id: "openrouter", label: "OpenRouter" },
+  { id: "openai", label: "OpenAI (ChatGPT subscription)" },
+];
+
+/** A provider dropdown plus a model field; an empty model uses the provider's default. */
+function ModelPicker(props: {
+  id: string;
+  provider: ProviderId;
+  model: string;
+  placeholders: Record<ProviderId, string>;
+  disabled?: boolean;
+  onProvider: (p: ProviderId) => void;
+  onModel: (m: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`${props.id}-provider`}>Provider</Label>
+        <Select
+          value={props.provider}
+          onValueChange={(v) => props.onProvider(v as ProviderId)}
+          disabled={props.disabled}
+        >
+          <SelectTrigger id={`${props.id}-provider`} className="w-64">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PROVIDERS.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={`${props.id}-model`}>Model</Label>
+        <Input
+          id={`${props.id}-model`}
+          value={props.model}
+          onChange={(e) => props.onModel(e.target.value)}
+          placeholder={props.placeholders[props.provider]}
+          disabled={props.disabled}
+        />
+      </div>
+    </div>
+  );
+}
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -151,8 +210,10 @@ export function Settings() {
   const [clearKey, setClearKey] = useState(false);
   const [usageApi, setUsageApi] = useState(false);
   const [piOrchestrator, setPiOrchestrator] = useState(false);
-  const [useSubscription, setUseSubscription] = useState(false);
+  const [orchestratorProvider, setOrchestratorProvider] = useState<ProviderId>("openrouter");
   const [orchestratorModel, setOrchestratorModel] = useState("");
+  const [classifierProvider, setClassifierProvider] = useState<ProviderId>("openrouter");
+  const [classifierModel, setClassifierModel] = useState("");
   const [codexAuthFile, setCodexAuthFile] = useState("");
   const [loaded, setLoaded] = useState(false);
   const saving = saveSettings.isPending;
@@ -164,8 +225,10 @@ export function Settings() {
       setPort(String(s.port));
       setUsageApi(s.usageApi);
       setPiOrchestrator(s.orchestrator === "pi");
-      setUseSubscription(s.orchestratorProvider === "openai");
+      setOrchestratorProvider(s.orchestratorProvider);
       setOrchestratorModel(s.orchestratorModel);
+      setClassifierProvider(s.classifierProvider);
+      setClassifierModel(s.classifierModel);
       setCodexAuthFile(s.codexAuthFile);
       setLoaded(true);
     }
@@ -180,8 +243,10 @@ export function Settings() {
       port: Number(port),
       usageApi,
       orchestrator: piOrchestrator ? "pi" : "jev",
-      orchestratorProvider: useSubscription ? "openai" : "openrouter",
+      orchestratorProvider,
       orchestratorModel: orchestratorModel.trim(),
+      classifierProvider,
+      classifierModel: classifierModel.trim(),
       codexAuthFile: codexAuthFile.trim(),
     };
     const orchestratorChanged =
@@ -189,6 +254,8 @@ export function Settings() {
       (patch.orchestrator !== s.orchestrator ||
         patch.orchestratorProvider !== s.orchestratorProvider ||
         patch.orchestratorModel !== s.orchestratorModel ||
+        patch.classifierProvider !== s.classifierProvider ||
+        patch.classifierModel !== s.classifierModel ||
         patch.codexAuthFile !== s.codexAuthFile);
     if (clearToken) patch.token = "";
     else if (token) patch.token = token;
@@ -328,9 +395,9 @@ export function Settings() {
       <TabsContent value="orchestrator" className="flex flex-col gap-4">
         <Card>
           <CardHeader>
-            <CardTitle>Provider</CardTitle>
+            <CardTitle>Keys and usage</CardTitle>
             <CardDescription>
-              API keys and usage polling. Saved to the daemon's config file (mode 0600).
+              API keys, ChatGPT login and usage polling. Saved to the daemon's config file (mode 0600).
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -360,50 +427,7 @@ export function Settings() {
                 </p>
               </div>
             </div>
-            <div className="flex items-start gap-3">
-              <Switch
-                id="pi-orchestrator"
-                checked={piOrchestrator}
-                onCheckedChange={setPiOrchestrator}
-              />
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="pi-orchestrator">Route requests through the pi orchestrator</Label>
-                <p className="text-xs text-muted-foreground">
-                  One durable pi conversation takes every desktop and voice message. It classifies
-                  the intent, picks the project and worktree, starts Claude Code or pi workers, and
-                  answers what is running. It keeps its memory across daemon restarts. Off: the Jev
-                  classifiers route each request on their own. Takes effect after a daemon restart.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Switch
-                id="orchestrator-subscription"
-                checked={useSubscription}
-                onCheckedChange={setUseSubscription}
-                disabled={!piOrchestrator}
-              />
-              <div className="flex flex-col gap-1">
-                <Label htmlFor="orchestrator-subscription">
-                  Use my ChatGPT subscription instead of OpenRouter
-                </Label>
-                <p className="text-xs text-muted-foreground">
-                  Uses the ChatGPT login the Codex CLI saved on this computer (run codex login).
-                  Codex and das share the file, so either can refresh the token.
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="orchestrator-model">Orchestrator model</Label>
-              <Input
-                id="orchestrator-model"
-                value={orchestratorModel}
-                onChange={(e) => setOrchestratorModel(e.target.value)}
-                placeholder={useSubscription ? "gpt-6-luna" : "anthropic/claude-haiku-5.5"}
-                disabled={!piOrchestrator}
-              />
-            </div>
-            {useSubscription ? (
+            {classifierProvider === "openai" || orchestratorProvider === "openai" ? (
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="pi-auth-file">Codex login file</Label>
                 <Input
@@ -411,10 +435,76 @@ export function Settings() {
                   value={codexAuthFile}
                   onChange={(e) => setCodexAuthFile(e.target.value)}
                   placeholder="~/.codex/auth.json"
-                  disabled={!piOrchestrator}
                 />
+                <p className="text-xs text-muted-foreground">
+                  The ChatGPT login the Codex CLI saved on this computer (run codex login). Codex
+                  and das share the file, so either can refresh the token.
+                </p>
               </div>
             ) : null}
+          </CardContent>
+          <CardFooter>
+            <Button onClick={save} disabled={saving || !loaded}>
+              Save
+            </Button>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Classifier</CardTitle>
+            <CardDescription>
+              Picks the intent and the project for each request. Applies immediately.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ModelPicker
+              id="classifier"
+              provider={classifierProvider}
+              model={classifierModel}
+              placeholders={{ openrouter: "typesafe/jev-1.13", openai: "gpt-6-luna" }}
+              onProvider={setClassifierProvider}
+              onModel={setClassifierModel}
+            />
+          </CardContent>
+          <CardFooter>
+            <Button onClick={save} disabled={saving || !loaded}>
+              Save
+            </Button>
+          </CardFooter>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Durable pi</CardTitle>
+            <CardDescription>
+              One durable pi conversation takes every desktop and voice message. It classifies the
+              intent, picks the project and worktree, starts Claude Code or pi workers, and answers
+              what is running. It keeps its memory across daemon restarts. Off: the classifier
+              routes each request on its own. Takes effect after a daemon restart.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex items-center gap-3">
+              <Switch
+                id="pi-orchestrator"
+                checked={piOrchestrator}
+                onCheckedChange={setPiOrchestrator}
+              />
+              <Label htmlFor="pi-orchestrator">Route requests through durable pi</Label>
+            </div>
+            <ModelPicker
+              id="orchestrator"
+              provider={orchestratorProvider}
+              model={orchestratorModel}
+              placeholders={{
+                openrouter: "anthropic/claude-haiku-5.5",
+                openai: "gpt-6-luna",
+              }}
+              disabled={!piOrchestrator}
+              onProvider={setOrchestratorProvider}
+              onModel={setOrchestratorModel}
+            />
           </CardContent>
           <CardFooter>
             <Button onClick={save} disabled={saving || !loaded}>

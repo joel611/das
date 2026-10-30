@@ -99,6 +99,8 @@ export type Settings = {
   orchestrator: "jev" | "pi";
   orchestratorProvider: "openrouter" | "openai";
   orchestratorModel: string;
+  classifierProvider: "openrouter" | "openai";
+  classifierModel: string;
   codexAuthFile: string;
   envOverrides: string[];
   trustAdvice: string | null;
@@ -115,6 +117,8 @@ export type SettingsPatch = Partial<{
   orchestrator: "jev" | "pi";
   orchestratorProvider: "openrouter" | "openai";
   orchestratorModel: string;
+  classifierProvider: "openrouter" | "openai";
+  classifierModel: string;
   codexAuthFile: string;
 }>;
 
