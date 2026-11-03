@@ -39,7 +39,10 @@ export class WorkerTurns {
     this.summaries.delete(session);
     switch (turn.kind) {
       case "questions":
-        return this.store.openQuestions(session, turn.questions)
+        return this.store.openQuestions(session, turn.questions, {
+          agent: p.agent === "pi" ? "pi" : "claude",
+          cwd: p.cwd!,
+        })
           ? { kind: "questions", session, questions: turn.questions }
           : null;
       case "done":

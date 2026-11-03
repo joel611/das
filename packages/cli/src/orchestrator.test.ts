@@ -366,3 +366,18 @@ test("a turn ending in questions is told to the model once, with the questions",
   expect(seen.match(/1\. sqlite\?/g)).toHaveLength(1);
   await orch.close();
 });
+
+test("answer_worker works after a restart: the persisted batch says where the worker is", async () => {
+  const turns = new WorkerTurns(new ExchangeStore());
+  const cwd = "/p/.das/worktrees/orch-alpha-9";
+  turns.store.openQuestions("s9", ["sqlite?"], { agent: "pi", cwd });
+  const { orch, faux, pi } = await mk({ sessions: [], turns }); // tracker is empty after a restart
+  faux.setResponses([
+    toolUse("answer_worker", { session: "s9", answer: "1. yes" }),
+    fauxAssistantMessage("Sent."),
+  ]);
+  await orch.handle("http:desk", "yes");
+  expect(pi.sent).toHaveLength(1);
+  expect(pi.sent[0]).toMatchObject({ sessionId: "s9", cwd });
+  await orch.close();
+});

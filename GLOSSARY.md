@@ -48,6 +48,13 @@ The desktop app view that shows the Log stream, with pause, clear, and filters b
 A coding agent the daemon can start unattended in its own git worktree and watch through hook events: `claude` or `pi`. Each lives in `packages/cli/src/workers/<agent>/` behind one interface: spawn, plus an optional integration (install, status, uninstall) that wires the agent's events to the daemon. oh-my-pi (omp) is a different agent and not supported.
 _Avoid_: spawner, agent kind
 
+**Question batch**:
+The one numbered list of questions a Worker ends a turn with, inside `<das-questions>`. The Worker's ask tool is disabled, so nothing blocks. Persisted in `exchanges.json` as pending, answered (persisted with provenance), then delivered (sent as one prompt, not proof the Worker acted). A Worker has at most one open batch.
+_Avoid_: question, ask
+
+**Done summary**:
+What a Worker says in `<das-done>` when finished: outcome, changes, tests, blockers. A claim, kept apart from the facts the daemon verifies itself (git diff, recent commits).
+
 **Display**:
 What the robot shows for the whole fleet of sessions: an expression, a headline, a count and a light. Derived from the highest-priority session state.
 

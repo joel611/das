@@ -16,10 +16,11 @@ const URL_ = "http://127.0.0.1:${port}/hooks/";
 
 export default function (pi) {
   const send = (event, ctx, extra = {}) => {
-    let id;
+    let id, file;
     try { id = ctx?.sessionManager?.getSessionId?.(); } catch {}
+    try { file = ctx?.sessionManager?.getSessionFile?.(); } catch {}
     if (!id) return;
-    const body = { session_id: id, agent: "pi", cwd: ctx?.cwd ?? process.cwd(), ...extra };
+    const body = { session_id: id, agent: "pi", cwd: ctx?.cwd ?? process.cwd(), transcript_path: file, ...extra };
     fetch(URL_ + event, { method: "POST", body: JSON.stringify(body), signal: AbortSignal.timeout(2000) }).catch(() => {});
   };
   pi.on("session_start", (_e, ctx) => send("SessionStart", ctx));

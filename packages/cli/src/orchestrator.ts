@@ -23,7 +23,7 @@ import type { WorkerId, Workers } from "./workers";
 import { ExchangeStore } from "./exchanges";
 import { readGit, snapshotText, type GitFacts } from "./snapshot";
 import { statusText } from "./status";
-import { isWorker, WORKER_PREFIX, WorkerTurns, type TurnEvent } from "./turns";
+import { isWorker, isWorkerPath, WORKER_PREFIX, WorkerTurns, type TurnEvent } from "./turns";
 import { readTranscript } from "./workers/transcript";
 import { MAX_TRANSCRIPT, type VoiceResult } from "./voice";
 
@@ -226,21 +226,25 @@ export function orchestratorTools(
     }),
     // Not replay-safe: a call a crash interrupted is reported to the model, never run twice.
     execute: async (args) => {
-      const s = findWorker(args.session);
+      // After a daemon restart the tracker is empty until a hook arrives; the persisted batch still says where the worker is.
+      const batch = deps.turns.store.open(args.session);
+      const s = deps.getSessions().find((x) => x.id === args.session);
+      const target = s ? { agent: s.agent, cwd: s.cwd } : batch;
+      if (!target || !isWorkerPath(target.cwd)) throw new Error(`no das worker with session ${args.session}`);
       const answer = args.answer.trim();
       if (!answer || answer.length > MAX_PROMPT)
         throw new Error(`answer must be 1-${MAX_PROMPT} characters`);
       const store = deps.turns.store;
-      const saved = store.answer(s.id, answer, "user, relayed by the orchestrator");
+      const saved = store.answer(args.session, answer, "user, relayed by the orchestrator");
       if (!saved.ok) return text(`Not sent: ${saved.reason}.`);
       const prompt = `Answers to your questions:\n${answer}\n\nContinue.`;
       try {
-        await deps.workers[s.agent].send(s.id, s.cwd, prompt);
+        await deps.workers[target.agent].send(args.session, target.cwd, prompt);
       } catch (e) {
         // The answer stays persisted as answered, so it is never lost or sent twice by accident.
         return text(`Answer saved but delivery failed: ${String(e).slice(0, 200)}`);
       }
-      store.markDelivered(s.id);
+      store.markDelivered(args.session);
       return text("Delivered the answers to the worker.");
     },
   });

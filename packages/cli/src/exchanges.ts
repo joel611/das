@@ -10,6 +10,9 @@ export type Batch = {
   questions: string[];
   status: BatchStatus;
   askedAt: number;
+  /** Who and where the worker is, so an answer can be sent after a restart, before any hook arrives. */
+  agent: "claude" | "pi";
+  cwd: string;
   answer?: string;
   provenance?: string;
   answeredAt?: number;
@@ -54,7 +57,11 @@ export class ExchangeStore {
   }
 
   /** Records a batch. False when the same questions are already open (a re-read of the same turn). */
-  openQuestions(session: string, questions: string[]): boolean {
+  openQuestions(
+    session: string,
+    questions: string[],
+    where: { agent: "claude" | "pi"; cwd: string } = { agent: "claude", cwd: "" },
+  ): boolean {
     const cur = this.open(session);
     if (cur && cur.status === "pending" && cur.questions.join("\n") === questions.join("\n"))
       return false;
@@ -66,6 +73,7 @@ export class ExchangeStore {
       questions,
       status: "pending",
       askedAt: Date.now(),
+      ...where,
     });
     this.save();
     return true;
