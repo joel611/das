@@ -133,12 +133,12 @@ test("/v1/logs: hook entries carry agent, event and payload; long strings are cl
   const h = { Authorization: "Bearer secret" };
   const post = (event: string, body: object) =>
     fetch(`http://${base}/hooks/${event}`, { method: "POST", body: JSON.stringify(body) });
-  await post("UserPromptSubmit", { session_id: "s1", agent: "omp", prompt: "x".repeat(900) });
+  await post("UserPromptSubmit", { session_id: "s1", agent: "pi", prompt: "x".repeat(900) });
   await post("Stop", { session_id: "s1" });
   const all = await (await fetch(`http://${base}/v1/logs`, { headers: h })).json();
   const hooks = all.filter((e: any) => e.source === "hook").slice(-2);
   expect(hooks.map((e: any) => [e.agent, e.event])).toEqual([
-    ["omp", "UserPromptSubmit"],
+    ["pi", "UserPromptSubmit"],
     ["claude", "Stop"],
   ]);
   expect(hooks[0].payload.session_id).toBe("s1");

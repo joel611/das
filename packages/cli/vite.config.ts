@@ -17,7 +17,6 @@ const daemonEnv = [
   "DAS_USAGE_API",
   "DECISIONS_LOG",
   "INTENT_THRESHOLD",
-  "OMPCODE",
   "OPENROUTER_API_KEY",
   "PI_BIN",
   "PI_CODING_AGENT_DIR",

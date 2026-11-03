@@ -15,7 +15,7 @@ import { createOrchestrator, type Orchestrator, type OrchestratorDeps } from "./
 import type { Decision, IntentDecision } from "./router";
 import type { Project } from "./scanner";
 import type { Session } from "./sessions";
-import type { Spawner } from "./spawner";
+import { fakeWorker } from "./workers/testing";
 
 const projects: Project[] = [
   {
@@ -58,11 +58,13 @@ async function mk(
   models.setProvider(faux.provider);
   const m = faux.getModel();
   const spawns: { agent: string; cwd: string; prompt: string; name: string }[] = [];
-  const spawner =
-    (agent: string): Spawner =>
-    async (cwd, prompt, name) => (
-      spawns.push({ agent, cwd, prompt, name }),
-      { id: "abc", stdout: "" }
+  const worker = (agent: "claude" | "pi") =>
+    fakeWorker(
+      async (cwd, prompt, name) => (
+        spawns.push({ agent, cwd, prompt, name }),
+        { id: "abc", stdout: "" }
+      ),
+      agent,
     );
   const logPath = join(mkdtempSync(join(tmpdir(), "orch-")), "d.jsonl");
   const deps: OrchestratorDeps = {
@@ -79,7 +81,7 @@ async function mk(
         alternatives: [{ project: "alpha", p: 0.93 }],
       },
     classifyIntent: async () => opts.intent ?? { intent: "project", confidence: 0.9 },
-    spawners: { claude: spawner("claude"), pi: spawner("pi") },
+    workers: { claude: worker("claude"), pi: worker("pi") },
     waitMs: opts.waitMs,
     logPath,
   };

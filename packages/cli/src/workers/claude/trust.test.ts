@@ -2,9 +2,10 @@ import { expect, test } from "bun:test";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Project } from "./scanner";
+import type { Project } from "../../scanner";
+import { fakeWorker } from "../testing";
 import { isTrusted, trustAdvice, trustedPaths } from "./trust";
-import { handleTranscript, type VoiceDeps } from "./voice";
+import { handleTranscript, type VoiceDeps } from "../../voice";
 
 const proj = (path: string): Project => ({
   id: path,
@@ -53,9 +54,9 @@ test("advice names untrusted roots and is null when everything is covered", () =
 test("a spawn refused for trust gets a specific reply", async () => {
   const deps: VoiceDeps = {
     decider: async () => ({ project: "a", confidence: 0.95, alternatives: [] }),
-    spawner: async () => {
+    worker: fakeWorker(async () => {
       throw new Error("claude exited 1: Workspace not trusted. Run `claude` in /x once");
-    },
+    }),
     getProjects: () => [proj("/x/a")],
     pending: new Map(),
   };

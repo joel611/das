@@ -5,7 +5,8 @@ import { join } from "node:path";
 import type { Decider, Decision } from "./router";
 import type { Project } from "./scanner";
 import { createServer } from "./api/server";
-import type { Spawner } from "./spawner";
+import { fakeWorker } from "./workers/testing";
+import { createWorkers } from "./workers";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
 const projects: Project[] = [
@@ -42,13 +43,13 @@ const logPath = join(mkdtempSync(join(tmpdir(), "console-")), "d.jsonl");
 const mk = (decisions: Decision[]) => {
   const spawns: any[] = [];
   const decider: Decider = async () => decisions.shift()!;
-  const spawner: Spawner = async (cwd, prompt, name) => (
+  const spawn = async (cwd: string, prompt: string, name: string) => (
     spawns.push({ cwd, prompt, name }),
     { id: "abc-123", stdout: "id abc-123" }
   );
   const deps: VoiceDeps = {
     decider,
-    spawner,
+    worker: fakeWorker(spawn),
     getProjects: () => projects,
     pending: new Map(),
     logPath,
@@ -121,7 +122,7 @@ const server = createServer({
   token: "secret",
   getProjects: () => projects,
   decider: m.deps.decider,
-  spawner: m.deps.spawner,
+  workers: { ...createWorkers(), claude: m.deps.worker },
   decisionsLog: logPath,
 });
 afterAll(() => server.stop(true));

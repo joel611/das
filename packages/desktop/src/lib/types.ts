@@ -13,7 +13,7 @@ export type DaemonState = {
 
 export type Session = {
   id: string;
-  agent: "claude" | "omp";
+  agent: "claude" | "pi";
   project: string | null;
   worktree: string | null;
   branch: string | null;
@@ -129,7 +129,7 @@ export type HookStatus = {
   port: number;
 };
 
-export type OmpStatus = {
+export type PiStatus = {
   state: "installed" | "missing";
   portMatches: boolean;
   port: number | null;

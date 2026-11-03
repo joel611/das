@@ -12,7 +12,7 @@ import {
 } from "./router";
 import type { Project } from "./scanner";
 import type { Session } from "./sessions";
-import type { Spawner } from "./spawner";
+import type { Worker } from "./workers";
 import { statusText } from "./status";
 
 export const MAX_TRANSCRIPT = 1000;
@@ -40,7 +40,7 @@ export type VoiceResult = {
   sessionId?: string;
   debug?: VoiceDebug;
 };
-/** dryRun: decide and gate as usual but never call the spawner. debug: attach the debug object (always on for dryRun). */
+/** dryRun: decide and gate as usual but never spawn. debug: attach the debug object (always on for dryRun). */
 export type VoiceOpts = { dryRun?: boolean; debug?: boolean };
 
 export type VoiceDeps = {
@@ -49,7 +49,7 @@ export type VoiceDeps = {
   classifyIntent?: IntentClassifier;
   /** Answers status requests. */
   getSessions?: () => Session[];
-  spawner: Spawner;
+  worker: Worker;
   getProjects: () => Project[];
   pending: Map<string, { previous: string; candidates: string[]; at: number }>;
   logPath?: string;
@@ -218,7 +218,7 @@ export async function handleTranscript(
       { ...meta, cwd, name },
     );
   try {
-    const r = await deps.spawner(cwd!, text, name!);
+    const r = await deps.worker.spawn(cwd!, text, name!);
     return done(
       {
         status: "spawned",

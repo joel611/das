@@ -116,7 +116,11 @@ async function postDecision(
   apiKey?: string,
   f?: typeof fetch,
 ) {
-  if (!apiKey && !f && (config.classifierProvider === "openai" || !body.model.startsWith("typesafe/")))
+  if (
+    !apiKey &&
+    !f &&
+    (config.classifierProvider === "openai" || !body.model.startsWith("typesafe/"))
+  )
     return (await import("./llm-decision")).llmDecision(body);
   f ??= fetch;
   const key = apiKey ?? config.openrouterKey;

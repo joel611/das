@@ -1,16 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { MARKER } from "./hooks-install";
+import { MARKER, type IntegrationStatus } from "../worker";
 
-/** Installs a das extension into oh-my-pi's agent dir (`<ompDir>/extensions/das-session.ts`). It maps omp events onto the Claude hook events `/hooks/:event` already understands. */
+/** Installs a das extension into pi's agent dir (`<piDir>/extensions/das-session.ts`). It maps pi events onto the Claude hook events `/hooks/:event` already understands. */
 
-export type OmpStatus = {
-  state: "installed" | "missing";
-  portMatches: boolean;
-  port: number | null;
-};
+export type PiStatus = IntegrationStatus & { state: "installed" | "missing" };
 
-const fileOf = (ompDir: string) => join(ompDir, "extensions", "das-session.ts");
+const fileOf = (piDir: string) => join(piDir, "extensions", "das-session.ts");
 
 export const extensionSource = (
   port: number,
@@ -19,27 +15,24 @@ export const extensionSource = (
 const URL_ = "http://127.0.0.1:${port}/hooks/";
 
 export default function (pi) {
-  // omp marks every shell it spawns with OMPCODE=1, so a nested omp is not a root session.
-  if (process.env.OMPCODE === "1") return;
   const send = (event, ctx, extra = {}) => {
     let id;
     try { id = ctx?.sessionManager?.getSessionId?.(); } catch {}
     if (!id) return;
-    const body = { session_id: id, agent: "omp", cwd: ctx?.cwd ?? process.cwd(), ...extra };
+    const body = { session_id: id, agent: "pi", cwd: ctx?.cwd ?? process.cwd(), ...extra };
     fetch(URL_ + event, { method: "POST", body: JSON.stringify(body), signal: AbortSignal.timeout(2000) }).catch(() => {});
   };
   pi.on("session_start", (_e, ctx) => send("SessionStart", ctx));
   pi.on("agent_start", (_e, ctx) => send("UserPromptSubmit", ctx));
   pi.on("tool_execution_start", (e, ctx) => send("PreToolUse", ctx, { tool_name: e?.toolName }));
-  pi.on("tool_approval_requested", (e, ctx) =>
-    send("Notification", ctx, { message: e?.reason || (e?.toolName || "Tool") + " approval" }));
-  pi.on("agent_end", (e, ctx) => { if (e?.willContinue !== true) send("Stop", ctx); });
+  // agent_end can be followed by a retry or queued message; agent_settled fires once pi has nothing left to run.
+  pi.on("agent_settled", (_e, ctx) => send("Stop", ctx));
   pi.on("session_shutdown", (_e, ctx) => send("SessionEnd", ctx));
 }
 `;
 
-export function installOmp({ ompDir, port }: { ompDir: string; port: number }): OmpStatus {
-  const file = fileOf(ompDir);
+export function installPi({ piDir, port }: { piDir: string; port: number }): PiStatus {
+  const file = fileOf(piDir);
   const src = extensionSource(port);
   if (!existsSync(file) || readFileSync(file, "utf8") !== src) {
     mkdirSync(dirname(file), { recursive: true });
@@ -47,16 +40,16 @@ export function installOmp({ ompDir, port }: { ompDir: string; port: number }): 
     writeFileSync(tmp, src);
     renameSync(tmp, file);
   }
-  return ompStatus({ ompDir, port });
+  return piStatus({ piDir, port });
 }
 
-export function uninstallOmp({ ompDir }: { ompDir: string }): OmpStatus {
-  rmSync(fileOf(ompDir), { force: true });
-  return ompStatus({ ompDir, port: 0 });
+export function uninstallPi({ piDir }: { piDir: string }): PiStatus {
+  rmSync(fileOf(piDir), { force: true });
+  return piStatus({ piDir, port: 0 });
 }
 
-export function ompStatus({ ompDir, port }: { ompDir: string; port: number }): OmpStatus {
-  const file = fileOf(ompDir);
+export function piStatus({ piDir, port }: { piDir: string; port: number }): PiStatus {
+  const file = fileOf(piDir);
   const src = existsSync(file) ? readFileSync(file, "utf8") : "";
   if (!src.includes(MARKER)) return { state: "missing", portMatches: false, port: null };
   const found = Number(src.match(/127\.0\.0\.1:(\d+)\/hooks\//)?.[1]) || null;

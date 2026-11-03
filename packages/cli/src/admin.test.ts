@@ -20,6 +20,7 @@ import {
   writeSettingsFile,
 } from "./config";
 import { createServer } from "./api/server";
+import { createWorkers } from "./workers";
 import type { Project } from "./scanner";
 
 const root = mkdtempSync(join(tmpdir(), "admin-"));
@@ -194,7 +195,7 @@ test("DAS_CONFIG_DIR selects the config dir; default is ~/.config/das", () => {
 const setup = (token = "") => {
   const configDir = mk("cfg-" + Math.random().toString(36).slice(2));
   const claudeDir = mk("claude-" + Math.random().toString(36).slice(2));
-  const ompDir = mk("omp-" + Math.random().toString(36).slice(2));
+  const piDir = mk("pi-" + Math.random().toString(36).slice(2));
   const projects: Project[] = [
     { id: "/p/a", name: "a", path: "/p/a", worktrees: [] },
     { id: "/p/b", name: "b", path: "/p/b", worktrees: [] },
@@ -206,11 +207,11 @@ const setup = (token = "") => {
     getProjects: () => projects,
     configDir,
     claudeDir,
-    ompDir,
+    workers: createWorkers({ claudeDir, piDir }),
     trusted: () => ["/p/a"],
     onSettings: (c) => changed.push(c),
   });
-  return { server, configDir, claudeDir, ompDir, changed, base: `http://127.0.0.1:${server.port}` };
+  return { server, configDir, claudeDir, piDir, changed, base: `http://127.0.0.1:${server.port}` };
 };
 const json = (method: string, body?: unknown, headers: Record<string, string> = {}) => ({
   method,
@@ -282,30 +283,44 @@ test("settings API: validation, secrets write-only, restartRequired, onSettings"
 });
 
 test("admin auth, 501 without dirs, hooks endpoints use the given claudeDir", async () => {
-  const { server, claudeDir, ompDir, base } = setup("s3");
-  expect((await fetch(`${base}/admin/hooks`)).status).toBe(401);
+  const { server, claudeDir, piDir, base } = setup("s3");
+  expect((await fetch(`${base}/admin/workers/claude/integration`)).status).toBe(401);
   const auth = { authorization: "Bearer s3" };
-  let j: any = await (await fetch(`${base}/admin/hooks`, { headers: auth })).json();
+  let j: any = await (
+    await fetch(`${base}/admin/workers/claude/integration`, { headers: auth })
+  ).json();
   expect(j.state).toBe("missing");
-  j = await (await fetch(`${base}/admin/hooks/install`, json("POST", undefined, auth))).json();
+  j = await (
+    await fetch(`${base}/admin/workers/claude/integration/install`, json("POST", undefined, auth))
+  ).json();
   expect(j.state).toBe("installed");
-  expect(existsSync(join(ompDir, "extensions/das-session.ts"))).toBe(false);
+  expect(existsSync(join(piDir, "extensions/das-session.ts"))).toBe(false);
   expect(readFileSync(join(claudeDir, "settings.json"), "utf8")).toContain("/hooks/SessionEnd");
-  j = await (await fetch(`${base}/admin/hooks`, json("DELETE", undefined, auth))).json();
+  j = await (
+    await fetch(`${base}/admin/workers/claude/integration`, json("DELETE", undefined, auth))
+  ).json();
   expect(j.state).toBe("missing");
-  j = await (await fetch(`${base}/admin/omp`, { headers: auth })).json();
+  j = await (await fetch(`${base}/admin/workers/pi/integration`, { headers: auth })).json();
   expect(j.state).toBe("missing");
-  j = await (await fetch(`${base}/admin/omp/install`, json("POST", undefined, auth))).json();
+  j = await (
+    await fetch(`${base}/admin/workers/pi/integration/install`, json("POST", undefined, auth))
+  ).json();
   expect(j).toMatchObject({ state: "installed", portMatches: true });
-  expect(existsSync(join(ompDir, "extensions/das-session.ts"))).toBe(true);
-  j = await (await fetch(`${base}/admin/omp`, json("DELETE", undefined, auth))).json();
+  expect(existsSync(join(piDir, "extensions/das-session.ts"))).toBe(true);
+  j = await (
+    await fetch(`${base}/admin/workers/pi/integration`, json("DELETE", undefined, auth))
+  ).json();
   expect(j.state).toBe("missing");
   expect((await fetch(`${base}/admin/nope`, { headers: auth })).status).toBe(404);
   server.stop(true);
 
   const bare = createServer({ port: 0, token: "", getProjects: () => [] });
-  expect((await fetch(`http://127.0.0.1:${bare.port}/admin/hooks`)).status).toBe(501);
-  expect((await fetch(`http://127.0.0.1:${bare.port}/admin/omp`)).status).toBe(501);
+  expect(
+    (await fetch(`http://127.0.0.1:${bare.port}/admin/workers/claude/integration`)).status,
+  ).toBe(501);
+  expect((await fetch(`http://127.0.0.1:${bare.port}/admin/workers/pi/integration`)).status).toBe(
+    501,
+  );
   expect((await fetch(`http://127.0.0.1:${bare.port}/admin/settings`)).status).toBe(501);
   bare.stop(true);
 });

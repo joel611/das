@@ -11,14 +11,12 @@ import {
   type Config,
 } from "../config";
 import { computeDisplay, soundFor, type Signal } from "../display";
-import { hooksStatus, installHooks, uninstallHooks } from "../hooks-install";
-import { installOmp, ompStatus, uninstallOmp } from "../omp-extension";
+import { createWorkers, type Integration, type Workers, type WorkerId } from "../workers";
 import type { Project } from "../scanner";
 import { emit, LogHub, type Logs } from "../logs";
 import { jevDecider, jevIntentClassifier, type Decider, type IntentClassifier } from "../router";
 import { SessionTracker, type HookPayload, type SessionState } from "../sessions";
-import { claudeSpawner, type Spawner } from "../spawner";
-import { isTrusted, trustAdvice, trustedPaths } from "../trust";
+import { isTrusted, trustAdvice, trustedPaths } from "../workers/claude/trust";
 import { LimitsTracker } from "../limits";
 import { startAppPoll } from "../app-usage";
 import { startUsagePoll } from "../usage-api";
@@ -53,13 +51,12 @@ type Opts = {
   decider?: Decider;
   /** Step one of routing. Defaults to Jev only alongside the Jev decider, so a stubbed decider is never preceded by a real API call. */
   classifyIntent?: IntentClassifier;
-  spawner?: Spawner;
+  /** Every worker. Defaults to `createWorkers({ claudeDir })`: Claude spawns for real, no pi integration. */
+  workers?: Workers;
   decisionsLog?: string;
   /** Admin API: settings dir and Claude config dir. Without them the matching endpoints answer 501 (never guess a real path). */
   configDir?: string;
   claudeDir?: string;
-  /** oh-my-pi agent dir. The das extension lives in its `extensions/` dir. Without it the `/admin/omp` endpoints answer 501. */
-  ompDir?: string;
   usageApi?: () => boolean;
   /** Live switch for Stack-chan notification sounds (the daemon's config). Defaults to off. */
   soundEnabled?: () => boolean;
@@ -150,11 +147,10 @@ export function createServer({
   getProjects,
   decider = jevDecider,
   classifyIntent = decider === jevDecider ? jevIntentClassifier : undefined,
-  spawner = claudeSpawner,
+  claudeDir,
+  workers = createWorkers({ claudeDir }),
   decisionsLog,
   configDir,
-  claudeDir,
-  ompDir,
   usageApi,
   soundEnabled = () => false,
   onSettings,
@@ -169,7 +165,7 @@ export function createServer({
     decider,
     classifyIntent,
     getSessions: () => tracker.list(),
-    spawner,
+    worker: workers.claude,
     getProjects,
     pending: new Map(),
     logPath: decisionsLog,
@@ -295,47 +291,27 @@ export function createServer({
     onSettings?.(next);
     return c.json({ ...settingsView(), restartRequired: next.port !== boundPort });
   });
-  const hooksRoute = (run: (dir: string, port: number) => unknown) => (c: Context) => {
-    if (!claudeDir) return c.text("claude dir not configured", 501);
+  const integrationRoute = (run: (i: Integration, port: number) => unknown) => (c: Context) => {
+    const integration = workers[c.req.param("id") as WorkerId]?.integration;
+    if (!integration) return c.text(`${c.req.param("id")} integration not configured`, 501);
     const port = configDir ? loadConfig(configDir).port : boundPort;
     try {
-      return c.json(run(claudeDir, port));
+      return c.json(run(integration, port));
     } catch (e) {
       return c.json({ error: String(e instanceof Error ? e.message : e) }, 500);
     }
   };
   admin.get(
-    "/hooks",
-    hooksRoute((claudeDir, port) => hooksStatus({ claudeDir, port })),
+    "/workers/:id/integration",
+    integrationRoute((i, port) => i.status(port)),
   );
   admin.post(
-    "/hooks/install",
-    hooksRoute((claudeDir, port) => installHooks({ claudeDir, port })),
+    "/workers/:id/integration/install",
+    integrationRoute((i, port) => i.install(port)),
   );
   admin.delete(
-    "/hooks",
-    hooksRoute((claudeDir) => uninstallHooks({ claudeDir })),
-  );
-  const ompRoute = (run: (dir: string, port: number) => unknown) => (c: Context) => {
-    if (!ompDir) return c.text("omp dir not configured", 501);
-    const port = configDir ? loadConfig(configDir).port : boundPort;
-    try {
-      return c.json(run(ompDir, port));
-    } catch (e) {
-      return c.json({ error: String(e instanceof Error ? e.message : e) }, 500);
-    }
-  };
-  admin.get(
-    "/omp",
-    ompRoute((ompDir, port) => ompStatus({ ompDir, port })),
-  );
-  admin.post(
-    "/omp/install",
-    ompRoute((ompDir, port) => installOmp({ ompDir, port })),
-  );
-  admin.delete(
-    "/omp",
-    ompRoute((ompDir) => uninstallOmp({ ompDir })),
+    "/workers/:id/integration",
+    integrationRoute((i) => i.uninstall()),
   );
   app.route("/admin", admin);
 
