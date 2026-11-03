@@ -35,6 +35,8 @@ const session = (over: Partial<Session>): Session => ({
   state: "running",
   detail: null,
   skills: [],
+  transcript: null,
+  events: [],
   updatedAt: 0,
   ...over,
 });

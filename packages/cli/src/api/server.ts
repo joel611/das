@@ -22,6 +22,8 @@ import { startAppPoll } from "../app-usage";
 import { startUsagePoll } from "../usage-api";
 import { UsageTracker } from "../usage";
 import type { Orchestrator } from "../orchestrator";
+import { ExchangeStore } from "../exchanges";
+import { WorkerTurns } from "../turns";
 import type { Session } from "../sessions";
 import { handleTranscript, type VoiceDeps, type VoiceOpts } from "../voice";
 import { createCameraHub, deviceRoutes, type Device } from "./routes/devices";
@@ -61,7 +63,7 @@ type Opts = {
   /** Live switch for Stack-chan notification sounds (the daemon's config). Defaults to off. */
   soundEnabled?: () => boolean;
   /** Starts the pi orchestrator once the session tracker exists. Absent, or failing to start: requests go to the Jev path. */
-  orchestrator?: (h: { getSessions: () => Session[] }) => Promise<Orchestrator>;
+  orchestrator?: (h: { getSessions: () => Session[]; turns: WorkerTurns }) => Promise<Orchestrator>;
   /** Called with the new effective config after a settings save. */
   onSettings?: (c: Config) => void;
   /** Log sinks for api.log / ws.log. Omitted sinks log nothing (tests stay off the real log dir). */
@@ -161,6 +163,8 @@ export function createServer({
   const hub = new LogHub();
   const logs: Logs = { api: hub.tee("api", sinks.api), ws: hub.tee("ws", sinks.ws) };
   const tracker = new SessionTracker(getProjects);
+  // Question batches live on disk beside the config, so a restart keeps them.
+  const turns = new WorkerTurns(new ExchangeStore(configDir ? join(configDir, "exchanges.json") : undefined));
   const voice: VoiceDeps = {
     decider,
     classifyIntent,
@@ -171,7 +175,7 @@ export function createServer({
     logPath: decisionsLog,
   };
   const orchestrator: Promise<Orchestrator | null> = startOrchestrator
-    ? startOrchestrator({ getSessions: () => tracker.list() }).catch((e) => {
+    ? startOrchestrator({ getSessions: () => tracker.list(), turns }).catch((e) => {
         emit(logs.api, { event: "orchestrator", msg: `failed to start, using Jev: ${e}` });
         return null;
       })
@@ -264,7 +268,11 @@ export function createServer({
     const payload: HookPayload = body && typeof body === "object" ? body : {};
     const event = c.req.param("event");
     hub.push("hook", { agent: payload.agent ?? "claude", event, payload: clip(payload) });
+    // A worker's finished turn is read first, so the batch is persisted before anyone is told.
+    const turn = event === "Stop" ? turns.handleStop(payload) : null;
     tracker.handleHook(event, payload);
+    if (turn?.kind === "attention") tracker.attention(turn.session, `needs attention: ${turn.last.slice(0, 200)}`);
+    else if (turn) void orchestrator.then((o) => o?.onTurn(turn));
     // Read the transcript after answering, so a large first read never delays the agent.
     setTimeout(() => usage.ingest(payload.session_id ?? "", payload.transcript_path), 0);
     return c.body(null, 204);

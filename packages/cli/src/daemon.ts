@@ -75,8 +75,8 @@ function serve() {
     // Read once: switching the orchestrator takes a restart.
     orchestrator:
       config.orchestrator === "pi"
-        ? ({ getSessions }) =>
-            startPiOrchestrator({ dir, getProjects: () => projects, getSessions, workers })
+        ? ({ getSessions, turns }) =>
+            startPiOrchestrator({ dir, getProjects: () => projects, getSessions, workers, turns })
         : undefined,
     onSettings: (c) => {
       Object.assign(config, c);

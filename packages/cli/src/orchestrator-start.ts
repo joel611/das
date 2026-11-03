@@ -9,6 +9,7 @@ import { CODEX_PROVIDER, CodexAuthFile, defaultCodexAuthFile } from "./codex-aut
 import { jevDecider, jevIntentClassifier } from "./router";
 import type { Project } from "./scanner";
 import type { Session } from "./sessions";
+import type { WorkerTurns } from "./turns";
 import type { Workers } from "./workers";
 
 type ModelSetup = { models: MutableModels; provider: string; modelId: string; via: string };
@@ -60,6 +61,7 @@ export async function startPiOrchestrator(o: {
   getProjects: () => Project[];
   getSessions: () => Session[];
   workers: Workers;
+  turns?: WorkerTurns;
 }) {
   const m =
     config.orchestratorProvider === "openai"
@@ -75,5 +77,6 @@ export async function startPiOrchestrator(o: {
     decider: jevDecider,
     classifyIntent: jevIntentClassifier,
     workers: o.workers,
+    turns: o.turns,
   });
 }
