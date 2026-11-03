@@ -19,7 +19,7 @@ import {
 import { applyBands, intentThreshold, type Decider, type IntentClassifier } from "./router";
 import type { Project } from "./scanner";
 import type { ChangeEvent, Session } from "./sessions";
-import type { Spawner, WorkerKind } from "./spawner";
+import type { WorkerId, Workers } from "./workers";
 import { statusText } from "./status";
 import { MAX_TRANSCRIPT, type VoiceResult } from "./voice";
 
@@ -46,7 +46,7 @@ export type OrchestratorDeps = {
   getSessions: () => Session[];
   decider: Decider;
   classifyIntent?: IntentClassifier;
-  spawners: Record<WorkerKind, Spawner>;
+  workers: Workers;
   /** How long a request waits for the answer before replying "still working". */
   waitMs?: number;
   logPath?: string;
@@ -58,13 +58,13 @@ export type Orchestrator = {
   close(): Promise<void>;
 };
 
-type Dispatch = { project: string; cwd: string; agent: WorkerKind; id: string | null };
+type Dispatch = { project: string; cwd: string; agent: WorkerId; id: string | null };
 
 const text = (s: string) => ({ output: [{ type: "text" as const, text: s }] });
 
 /** Tools the orchestrator gets. Hard gates (allowlist, prompt size) live here, never in the prompt. */
 export function orchestratorTools(
-  deps: Pick<OrchestratorDeps, "getProjects" | "getSessions" | "decider" | "spawners">,
+  deps: Pick<OrchestratorDeps, "getProjects" | "getSessions" | "decider" | "workers">,
   onDispatch: (d: Dispatch) => void,
 ) {
   const classifyProject = defineTool({
@@ -117,12 +117,12 @@ export function orchestratorTools(
       if (!prompt || prompt.length > MAX_PROMPT)
         throw new Error(`prompt must be 1-${MAX_PROMPT} characters`);
       const cwd = project.worktrees.some((w) => w.path === args.cwd) ? args.cwd! : project.path;
-      const agent: WorkerKind = args.agent ?? "claude";
+      const agent: WorkerId = args.agent ?? "claude";
       const name =
         `${WORKER_PREFIX}${project.name}-${String(api.taskId).replace(/\W/g, "").slice(-8)}`
           .replace(/[^\w.-]/g, "-")
           .slice(0, 64);
-      const r = await deps.spawners[agent](cwd, prompt, name);
+      const r = await deps.workers[agent].spawn(cwd, prompt, name);
       onDispatch({ project: project.name, cwd, agent, id: r.id });
       return text(
         `Started ${agent} in ${project.name} (worktree ${name}${r.id ? `, session ${r.id}` : ""}).`,

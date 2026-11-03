@@ -48,7 +48,7 @@ Stable handles (verified in `src/`):
 | Tab nav | `nav[aria-label="Views"]` then `.$("button=Settings")`; tabs: Command, Overview, Console, Debug, Serial, Settings; active has `aria-current="page"` |
 | Daemon chip | `[role="status"]` text `daemon online · …` or `daemon not running` |
 | Settings fields | `#roots` (textarea, one folder per line), `#port`, `#token`, `#key`; save `button=Save`; toast `[data-sonner-toast]` contains `Saved.` |
-| Hooks | `button=Install hooks` / `Reinstall hooks` / `Uninstall hooks`; omp: `Install omp extension` / `Uninstall omp extension` |
+| Hooks | `button=Install hooks` / `Reinstall hooks` / `Uninstall hooks`; pi: `Install pi extension` / `Uninstall pi extension` |
 | Jev style | `[role="group"][aria-label="Jev animation style"]` buttons, `aria-pressed` |
 | Command (Jev) | input `#jev-cmd`, submit `button[aria-label="Send to Jev"]`, log `[role="log"]`, confirm `[role="alertdialog"][aria-label="Confirm real request"]` |
 | Console | textarea placeholder `Type a request…`, `#dry` checkbox (dry run, on by default), `button=Send`, `button=New conversation` |

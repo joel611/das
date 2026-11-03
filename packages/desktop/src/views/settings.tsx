@@ -29,8 +29,8 @@ import { JEV_STYLES, useJevStyle } from "@/lib/jev-style";
 import {
   useHookAction,
   useHooks,
-  useOmp,
-  useOmpAction,
+  usePi,
+  usePiAction,
   useSaveSettings,
   useSettings,
 } from "@/lib/queries";
@@ -197,8 +197,8 @@ function StackchanCard({ enabled }: { enabled: boolean }) {
 export function Settings() {
   const settings = useSettings(60_000);
   const hooks = useHooks();
-  const omp = useOmp();
-  const ompAction = useOmpAction();
+  const pi = usePi();
+  const piAction = usePiAction();
   const saveSettings = useSaveSettings();
   const hookAction = useHookAction();
 
@@ -290,13 +290,13 @@ export function Settings() {
     }
   }
 
-  async function runOmpAction(kind: "install" | "uninstall") {
+  async function runPiAction(kind: "install" | "uninstall") {
     try {
-      await ompAction.mutateAsync(kind);
+      await piAction.mutateAsync(kind);
       toast.success(
         kind === "install"
-          ? "omp extension installed. Restart running omp sessions to load it."
-          : "omp extension removed.",
+          ? "pi extension installed. Restart running pi sessions to load it."
+          : "pi extension removed.",
       );
     } catch (e) {
       toast.error(msg(e));
@@ -318,7 +318,7 @@ export function Settings() {
   }
 
   const h = hooks.data;
-  const o = omp.data;
+  const o = pi.data;
   return (
     <Tabs defaultValue="daemon">
       <TabsList>
@@ -397,7 +397,8 @@ export function Settings() {
           <CardHeader>
             <CardTitle>Keys and usage</CardTitle>
             <CardDescription>
-              API keys, ChatGPT login and usage polling. Saved to the daemon's config file (mode 0600).
+              API keys, ChatGPT login and usage polling. Saved to the daemon's config file (mode
+              0600).
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -561,9 +562,9 @@ export function Settings() {
 
         <Card>
           <CardHeader>
-            <CardTitle>oh-my-pi (omp) extension</CardTitle>
+            <CardTitle>pi extension</CardTitle>
             <CardDescription>
-              Writes one extension file into your omp agent dir that reports session events to the
+              Writes one extension file into your pi agent dir that reports session events to the
               daemon.
             </CardDescription>
           </CardHeader>
@@ -581,15 +582,15 @@ export function Settings() {
             ) : null}
           </CardContent>
           <CardFooter className="gap-2">
-            <Button onClick={() => runOmpAction("install")}>
-              {o?.state === "installed" ? "Reinstall omp extension" : "Install omp extension"}
+            <Button onClick={() => runPiAction("install")}>
+              {o?.state === "installed" ? "Reinstall pi extension" : "Install pi extension"}
             </Button>
             <Button
               variant="outline"
-              onClick={() => runOmpAction("uninstall")}
+              onClick={() => runPiAction("uninstall")}
               disabled={o?.state === "missing"}
             >
-              Uninstall omp extension
+              Uninstall pi extension
             </Button>
           </CardFooter>
         </Card>

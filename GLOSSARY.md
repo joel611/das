@@ -44,6 +44,10 @@ _Avoid_: tail, log tail
 **Debug tab**:
 The desktop app view that shows the Log stream, with pause, clear, and filters by source and text.
 
+**Worker**:
+A coding agent the daemon can start unattended in its own git worktree and watch through hook events: `claude` or `pi`. Each lives in `packages/cli/src/workers/<agent>/` behind one interface: spawn, plus an optional integration (install, status, uninstall) that wires the agent's events to the daemon. oh-my-pi (omp) is a different agent and not supported.
+_Avoid_: spawner, agent kind
+
 **Display**:
 What the robot shows for the whole fleet of sessions: an expression, a headline, a count and a light. Derived from the highest-priority session state.
 

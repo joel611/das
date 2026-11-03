@@ -21,7 +21,7 @@ function freePort(): Promise<number> {
   });
 }
 
-/** Isolated config, Claude and omp dirs plus a free port, exported through env so both the daemon and the app's Rust relay see them. */
+/** Isolated config, Claude and pi dirs plus a free port, exported through env so both the daemon and the app's Rust relay see them. */
 export async function createSandbox(): Promise<Sandbox> {
   const dir = mkdtempSync(join(tmpdir(), "das-e2e-"));
   const configDir = join(dir, "config");
@@ -33,7 +33,7 @@ export async function createSandbox(): Promise<Sandbox> {
   Object.assign(process.env, {
     DAS_CONFIG_DIR: configDir,
     CLAUDE_CONFIG_DIR: join(dir, "claude"),
-    PI_CODING_AGENT_DIR: join(dir, "omp"),
+    PI_CODING_AGENT_DIR: join(dir, "pi"),
     PORT: String(port),
     TOKEN,
   });

@@ -14,7 +14,9 @@ import {
 } from "./router";
 import type { Project } from "./scanner";
 import { createServer } from "./api/server";
-import { parseId, spawnArgs, type Spawner } from "./spawner";
+import { parseId, spawnArgs } from "./workers/claude/spawn";
+import { fakeWorker } from "./workers/testing";
+import { createWorkers } from "./workers";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
 const projects: Project[] = [
@@ -53,13 +55,13 @@ const mk = (decisions: Decision[]) => {
   const calls: any[] = [];
   const spawns: any[] = [];
   const decider: Decider = async (t, _p, ctx) => (calls.push({ t, ctx }), decisions.shift()!);
-  const spawner: Spawner = async (cwd, prompt, name) => (
+  const spawn = async (cwd: string, prompt: string, name: string) => (
     spawns.push({ cwd, prompt, name }),
     { id: "abc-123", stdout: "id abc-123" }
   );
   const deps: VoiceDeps = {
     decider,
-    spawner,
+    worker: fakeWorker(spawn),
     getProjects: () => projects,
     pending: new Map(),
     logPath,
@@ -163,9 +165,9 @@ test("decider and spawner errors become status error", async () => {
     text: "OPENROUTER_API_KEY is not set",
   });
   deps.decider = async () => dec("alpha", 0.9);
-  deps.spawner = async () => {
+  deps.worker = fakeWorker(async () => {
     throw new Error("boom");
-  };
+  });
   expect((await handleTranscript(deps, "d", "x")).status).toBe("error");
 });
 
@@ -246,7 +248,7 @@ const server = createServer({
   token: "secret",
   getProjects: () => projects,
   decider: m.deps.decider,
-  spawner: m.deps.spawner,
+  workers: { ...createWorkers(), claude: m.deps.worker },
   decisionsLog: logPath,
 });
 afterAll(() => server.stop(true));

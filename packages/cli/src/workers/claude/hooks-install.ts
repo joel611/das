@@ -10,7 +10,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { configDir } from "./config";
+import { configDir } from "../../config";
+import { MARKER } from "../worker";
 
 export const EVENTS = [
   "SessionStart",
@@ -20,7 +21,6 @@ export const EVENTS = [
   "Stop",
   "SessionEnd",
 ] as const;
-export const MARKER = "# stack-chan-server";
 
 type Hook = { type?: string; command?: string; [k: string]: unknown };
 type Group = { matcher?: string; hooks?: Hook[]; [k: string]: unknown };

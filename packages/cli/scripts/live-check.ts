@@ -1,6 +1,6 @@
 // Live check (costs a few cents). Usage: bun scripts/live-check.ts jev | spawn <dir>
 import { makeJevDecider, buildRequest, applyBands } from "../src/router";
-import { claudeSpawner } from "../src/spawner";
+import { spawnClaude } from "../src/workers/claude/spawn";
 import type { Project } from "../src/scanner";
 
 const wt = (path: string, branch: string) => ({ path, branch });
@@ -62,7 +62,7 @@ if (process.argv[2] === "jev") {
   }
 } else if (process.argv[2] === "spawn") {
   console.log(
-    await claudeSpawner(
+    await spawnClaude(
       process.argv[3],
       "Reply with the single word OK and do nothing else.",
       "voice-livecheck",

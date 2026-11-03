@@ -5,7 +5,7 @@ export type SessionState = "idle" | "running" | "waiting" | "done" | "error";
 /** A skill this session ran, counted from Skill tool calls. */
 export type SkillUse = { name: string; count: number; lastAt: number };
 
-export type AgentKind = "claude" | "omp";
+export type AgentKind = "claude" | "pi";
 
 export type Session = {
   id: string;
@@ -79,7 +79,7 @@ export class SessionTracker {
     const match = matchProject(this.getProjects(), cwd);
     const next: Session = {
       id: p.session_id,
-      agent: p.agent === "omp" ? "omp" : (prev?.agent ?? "claude"),
+      agent: p.agent === "pi" ? "pi" : (prev?.agent ?? "claude"),
       project: match?.project.name ?? prev?.project ?? null,
       worktree: match?.worktree.path ?? prev?.worktree ?? null,
       branch: match?.worktree.branch ?? prev?.branch ?? null,

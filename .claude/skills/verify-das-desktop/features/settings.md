@@ -3,7 +3,7 @@
 ## Sub-features
 - Root folders (`#roots`, one per line), port (`#port`), token (`#token`) and OpenRouter key (`#key`, write-only; placeholder `(set) type to replace`).
 - Save (`button=Save`) with toast `Saved.` (port change adds a restart hint).
-- Hooks install/uninstall for Claude (backup of `settings.json` first) and the omp extension.
+- Hooks install/uninstall for Claude (backup of `settings.json` first) and the pi extension.
 - Jev animation style group (`aria-label="Jev animation style"`, `aria-pressed`), stored on this machine (UI only).
 
 ## How to get to it (user POV)
@@ -17,4 +17,4 @@ Tab `Settings` in the header.
 ## Gotchas
 - Settings are polled once a minute: after `startDaemon()` call `browser.refresh()` or fields stay empty/disabled (Save is disabled until loaded).
 - Saving rewrites the YAML and drops comments; assert on contents, not byte equality.
-- Hooks/omp flows are not covered by an existing spec; never run them without the sandbox env (real `~/.claude` would be modified).
+- Hooks/pi flows are not covered by an existing spec; never run them without the sandbox env (real `~/.claude` would be modified).

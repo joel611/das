@@ -13,7 +13,8 @@ import { createLogs, logsLocation } from "./logs";
 import { scan, type Project } from "./scanner";
 import { createServer } from "./api/server";
 import { startPiOrchestrator } from "./orchestrator-start";
-import { trustAdvice } from "./trust";
+import { createWorkers } from "./workers";
+import { trustAdvice } from "./workers/claude/trust";
 
 const dir = configDir();
 const pidFile = join(dir, "daemon.pid");
@@ -56,6 +57,10 @@ function serve() {
       console.warn(`port changed in config: restart required (still listening on :${config.port})`);
     }
   });
+  const workers = createWorkers({
+    claudeDir: process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"),
+    piDir: process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"),
+  });
   const server = createServer({
     port: config.port,
     token: config.token,
@@ -64,14 +69,14 @@ function serve() {
     getProjects: () => projects,
     configDir: dir,
     claudeDir: process.env.CLAUDE_CONFIG_DIR || join(homedir(), ".claude"),
-    ompDir: process.env.PI_CODING_AGENT_DIR || join(homedir(), ".omp", "agent"),
+    workers,
     usageApi: () => config.usageApi,
     soundEnabled: () => config.notificationSound,
     // Read once: switching the orchestrator takes a restart.
     orchestrator:
       config.orchestrator === "pi"
         ? ({ getSessions }) =>
-            startPiOrchestrator({ dir, getProjects: () => projects, getSessions })
+            startPiOrchestrator({ dir, getProjects: () => projects, getSessions, workers })
         : undefined,
     onSettings: (c) => {
       Object.assign(config, c);

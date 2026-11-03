@@ -12,7 +12,8 @@ import {
 } from "./router";
 import type { Project } from "./scanner";
 import type { Session } from "./sessions";
-import { piWorktree, type Spawner } from "./spawner";
+import { dasWorktree } from "./workers/worktree";
+import { fakeWorker } from "./workers/testing";
 import { statusText } from "./status";
 import { handleTranscript, type VoiceDeps } from "./voice";
 
@@ -50,12 +51,12 @@ const mk = (intent: IntentDecision | Error, sessions: Session[] = []) => {
     confidence: 0.95,
     alternatives: [{ project: "alpha", p: 0.95 }],
   };
-  const spawner: Spawner = async () => (steps.push("spawn"), { id: "abc", stdout: "" });
+  const spawn = async () => (steps.push("spawn"), { id: "abc", stdout: "" });
   const deps: VoiceDeps = {
     decider: async () => (steps.push("project"), decision),
     classifyIntent,
     getSessions: () => sessions,
-    spawner,
+    worker: fakeWorker(spawn),
     getProjects: () => projects,
     pending: new Map(),
     logPath: join(mkdtempSync(join(tmpdir(), "intent-")), "d.jsonl"),
@@ -148,18 +149,18 @@ test("statusText", () => {
   );
 });
 
-test("piWorktree makes a branch worktree under .das and excludes it from git status", () => {
+test("dasWorktree makes a branch worktree under .das and excludes it from git status", () => {
   const repo = mkdtempSync(join(tmpdir(), "pi-wt-"));
   const run = (...args: string[]) => Bun.spawnSync(["git", ...args], { cwd: repo });
   run("init", "-q", "-b", "main");
   run("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init");
-  const wt = piWorktree(repo, "orch-alpha-1");
+  const wt = dasWorktree(repo, "orch-alpha-1");
   expect(wt.endsWith(join(".das", "worktrees", "orch-alpha-1"))).toBe(true);
   expect(existsSync(join(wt, ".git"))).toBe(true);
   expect(readFileSync(join(repo, ".git", "info", "exclude"), "utf8")).toContain(".das/\n");
   expect(run("status", "--porcelain").stdout.toString()).toBe("");
   // a second worktree does not add the exclude line twice
-  piWorktree(repo, "orch-alpha-2");
+  dasWorktree(repo, "orch-alpha-2");
   expect(
     readFileSync(join(repo, ".git", "info", "exclude"), "utf8").match(/\.das\//g)?.length,
   ).toBe(1);

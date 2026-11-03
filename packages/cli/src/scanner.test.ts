@@ -100,8 +100,8 @@ test("skills are counted from the Skill tool only, not from /slash prompts", () 
 test("sessions record which agent sent them, defaulting to claude", () => {
   const t = new SessionTracker(() => []);
   t.handleHook("SessionStart", { session_id: "c", cwd: "/x" });
-  t.handleHook("SessionStart", { session_id: "o", cwd: "/x", agent: "omp" });
+  t.handleHook("SessionStart", { session_id: "o", cwd: "/x", agent: "pi" });
   t.handleHook("Stop", { session_id: "o", cwd: "/x" });
   const by = Object.fromEntries(t.list().map((s) => [s.id, s.agent]));
-  expect(by).toEqual({ c: "claude", o: "omp" });
+  expect(by).toEqual({ c: "claude", o: "pi" });
 });
