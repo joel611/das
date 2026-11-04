@@ -1,6 +1,6 @@
 import type { Integration, Worker } from "../worker";
 import { installPi, piStatus, uninstallPi } from "./extension";
-import { spawnPi } from "./spawn";
+import { cancelPi, sendPi, spawnPi } from "./spawn";
 
 /** pi (`@earendil-works/pi-coding-agent`): `pi -p` in a das worktree, an extension in `<piDir>/extensions/`. */
 export function createPiWorker({ dir }: { dir?: string } = {}): Worker {
@@ -11,5 +11,5 @@ export function createPiWorker({ dir }: { dir?: string } = {}): Worker {
         uninstall: () => uninstallPi({ piDir: dir }),
       }
     : undefined;
-  return { id: "pi", spawn: spawnPi, integration };
+  return { id: "pi", spawn: spawnPi, send: sendPi, cancel: cancelPi, integration };
 }

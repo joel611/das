@@ -25,6 +25,10 @@ export interface Integration {
 export interface Worker {
   readonly id: WorkerId;
   spawn(cwd: string, prompt: string, name: string): Promise<SpawnResult>;
+  /** Hands text to an existing worker as one ordinary prompt, resuming its session. Delivery is not proof the worker acted on it. */
+  send(sessionId: string, cwd: string, text: string): Promise<void>;
+  /** Stops a worker's current run. */
+  cancel(sessionId: string): Promise<void>;
   readonly integration?: Integration;
 }
 

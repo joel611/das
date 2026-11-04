@@ -17,8 +17,14 @@ export type Session = {
   state: SessionState;
   detail: string | null;
   skills: SkillUse[];
+  /** The agent's session file, from the hooks' `transcript_path`. */
+  transcript: string | null;
+  /** The last few hook events, newest last, for passive progress reads. */
+  events: { event: string; at: number }[];
   updatedAt: number;
 };
+
+const MAX_EVENTS = 5;
 
 export type ChangeEvent = { session: Session } | { removed: string };
 
@@ -67,6 +73,16 @@ export class SessionTracker {
     return [...this.sessions.values()].sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
+  /** A turn ended with neither a question batch nor a done summary: show it as waiting for a human. */
+  attention(id: string, detail: string): Session | null {
+    const prev = this.sessions.get(id);
+    if (!prev) return null;
+    const next: Session = { ...prev, state: "waiting", detail, updatedAt: Date.now() };
+    this.sessions.set(id, next);
+    this.emit({ session: next });
+    return next;
+  }
+
   /** Apply a Claude Code hook event. Returns the updated session, or null if ignored/removed. */
   handleHook(event: string, p: HookPayload): Session | null {
     if (!p.session_id) return null;
@@ -87,6 +103,8 @@ export class SessionTracker {
       state: prev?.state ?? "idle",
       detail: prev?.detail ?? null,
       skills: prev?.skills ?? [],
+      transcript: p.transcript_path ?? prev?.transcript ?? null,
+      events: [...(prev?.events ?? []), { event, at: Date.now() }].slice(-MAX_EVENTS),
       updatedAt: Date.now(),
     };
     switch (event) {

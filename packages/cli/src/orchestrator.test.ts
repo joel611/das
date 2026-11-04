@@ -15,6 +15,8 @@ import { createOrchestrator, type Orchestrator, type OrchestratorDeps } from "./
 import type { Decision, IntentDecision } from "./router";
 import type { Project } from "./scanner";
 import type { Session } from "./sessions";
+import { ExchangeStore } from "./exchanges";
+import { WorkerTurns } from "./turns";
 import { fakeWorker } from "./workers/testing";
 
 const projects: Project[] = [
@@ -38,6 +40,8 @@ const session = (over: Partial<Session>): Session => ({
   state: "running",
   detail: null,
   skills: [],
+  transcript: null,
+  events: [],
   updatedAt: 1,
   ...over,
 });
@@ -51,6 +55,7 @@ async function mk(
     storage?: Storage;
     waitMs?: number;
     decision?: Decision;
+    turns?: WorkerTurns;
   } = {},
 ) {
   const faux = fauxProvider();
@@ -58,14 +63,16 @@ async function mk(
   models.setProvider(faux.provider);
   const m = faux.getModel();
   const spawns: { agent: string; cwd: string; prompt: string; name: string }[] = [];
+  const made: ReturnType<typeof fakeWorker>[] = [];
   const worker = (agent: "claude" | "pi") =>
+    made[made.push(
     fakeWorker(
       async (cwd, prompt, name) => (
         spawns.push({ agent, cwd, prompt, name }),
         { id: "abc", stdout: "" }
       ),
       agent,
-    );
+    )) - 1]!;
   const logPath = join(mkdtempSync(join(tmpdir(), "orch-")), "d.jsonl");
   const deps: OrchestratorDeps = {
     storage: opts.storage ?? new MemoryStorage(),
@@ -83,10 +90,12 @@ async function mk(
     classifyIntent: async () => opts.intent ?? { intent: "project", confidence: 0.9 },
     workers: { claude: worker("claude"), pi: worker("pi") },
     waitMs: opts.waitMs,
+    turns: opts.turns,
+    git: () => ({ diffStat: " a.ts | 1 +", commits: "abc fix" }),
     logPath,
   };
   const orch = await createOrchestrator(deps);
-  return { orch, faux, spawns, logPath };
+  return { orch, faux, spawns, logPath, claude: made[0]!, pi: made[1]! };
 }
 
 test("project work: classify_project, then dispatch_worker, then a spoken answer", async () => {
@@ -250,6 +259,7 @@ test("server: messages go to the orchestrator, dry runs and a failed start go to
   const fake: Orchestrator = {
     handle: async (_key, text) => (handled.push(text), { status: "reply", text: `pi: ${text}` }),
     onSession: () => {},
+    onTurn: () => {},
     close: async () => {},
   };
   const jev = {
@@ -287,4 +297,87 @@ test("server: messages go to the orchestrator, dry runs and a failed start go to
   });
   expect((await post(broken.port, { text: "hello" })).status).toBe("escalate");
   broken.stop(true);
+});
+
+test("answer_worker persists the answer, sends one prompt, and refuses a second answer", async () => {
+  const turns = new WorkerTurns(new ExchangeStore());
+  turns.store.openQuestions("s1", ["sqlite?"]);
+  const { orch, faux, claude } = await mk({ sessions: [session({})], turns });
+  const out: string[] = [];
+  faux.setResponses([
+    toolUse("answer_worker", { session: "s1", answer: "1. yes" }),
+    (context) => (
+      out.push(JSON.stringify(context.messages.at(-1))),
+      toolUse("answer_worker", { session: "s1", answer: "1. no" })
+    ),
+    (context) => (
+      out.push(JSON.stringify(context.messages.at(-1))),
+      fauxAssistantMessage("Sent.")
+    ),
+  ]);
+  await orch.handle("http:desk", "yes use sqlite");
+  expect(claude.sent).toHaveLength(1);
+  expect(claude.sent[0]).toMatchObject({ sessionId: "s1", cwd: session({}).cwd });
+  expect(claude.sent[0]!.text).toContain("1. yes");
+  expect(turns.store.list("s1")[0]).toMatchObject({
+    status: "delivered",
+    answer: "1. yes",
+    provenance: "user, relayed by the orchestrator",
+  });
+  expect(out.join("")).toContain("Delivered");
+  expect(out.join("")).toContain("already answered"); // a conflicting second answer is not sent
+  await orch.close();
+});
+
+test("session_status reads transcript, hooks and the diff, and never messages the worker", async () => {
+  const turns = new WorkerTurns(new ExchangeStore());
+  const dir = mkdtempSync(join(tmpdir(), "orch-tr-"));
+  const tp = join(dir, "t.jsonl");
+  await Bun.write(
+    tp,
+    JSON.stringify({ type: "assistant", message: { content: [{ type: "text", text: "halfway" }] } }),
+  );
+  const { orch, faux, claude } = await mk({
+    sessions: [session({ transcript: tp, events: [{ event: "PreToolUse", at: Date.now() }] })],
+    turns,
+  });
+  let seen = "";
+  faux.setResponses([
+    toolUse("session_status", {}),
+    (context) => ((seen = JSON.stringify(context.messages.at(-1))), fauxAssistantMessage("ok")),
+  ]);
+  await orch.handle("http:desk", "how is it going");
+  expect(seen).toContain("halfway");
+  expect(seen).toContain("daemon-verified");
+  expect(seen).toContain("a.ts | 1 +");
+  expect(claude.sent).toHaveLength(0);
+  await orch.close();
+});
+
+test("a turn ending in questions is told to the model once, with the questions", async () => {
+  const { orch, faux } = await mk({ sessions: [session({})] });
+  orch.onTurn({ kind: "questions", session: "s1", questions: ["sqlite?"] });
+  orch.onSession({ session: session({ state: "done", updatedAt: 9 }) });
+  let seen = "";
+  faux.setResponses([
+    (context) => ((seen = JSON.stringify(context.messages)), fauxAssistantMessage("ok")),
+  ]);
+  await orch.handle("http:desk", "what happened");
+  expect(seen.match(/1\. sqlite\?/g)).toHaveLength(1);
+  await orch.close();
+});
+
+test("answer_worker works after a restart: the persisted batch says where the worker is", async () => {
+  const turns = new WorkerTurns(new ExchangeStore());
+  const cwd = "/p/.das/worktrees/orch-alpha-9";
+  turns.store.openQuestions("s9", ["sqlite?"], { agent: "pi", cwd });
+  const { orch, faux, pi } = await mk({ sessions: [], turns }); // tracker is empty after a restart
+  faux.setResponses([
+    toolUse("answer_worker", { session: "s9", answer: "1. yes" }),
+    fauxAssistantMessage("Sent."),
+  ]);
+  await orch.handle("http:desk", "yes");
+  expect(pi.sent).toHaveLength(1);
+  expect(pi.sent[0]).toMatchObject({ sessionId: "s9", cwd });
+  await orch.close();
 });

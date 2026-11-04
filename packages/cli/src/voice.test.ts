@@ -15,6 +15,7 @@ import {
 import type { Project } from "./scanner";
 import { createServer } from "./api/server";
 import { parseId, spawnArgs } from "./workers/claude/spawn";
+import { WORKER_RULE } from "./workers/protocol";
 import { fakeWorker } from "./workers/testing";
 import { createWorkers } from "./workers";
 import { handleTranscript, type VoiceDeps } from "./voice";
@@ -113,6 +114,14 @@ test("spawn always isolates in its own worktree", () => {
   ]);
   expect(args).toContain("--bg");
   expect(args.at(-1)).toBe("fix it"); // transcript stays the last, verbatim arg
+});
+
+test("claude worker has the ask tool off and the question rule appended", () => {
+  const args = spawnArgs("n", "do it");
+  expect(args[args.indexOf("--disallowedTools") + 1]).toBe("AskUserQuestion");
+  expect(args[args.indexOf("--append-system-prompt") + 1]).toBe(WORKER_RULE);
+  // variadic --disallowedTools must not swallow the prompt
+  expect(args.indexOf("--disallowedTools") + 2).toBe(args.indexOf("--append-system-prompt"));
 });
 
 test("spawn name is safe as a worktree name", async () => {
